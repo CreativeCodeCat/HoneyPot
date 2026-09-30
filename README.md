@@ -183,7 +183,7 @@ To add a new cog:
 
 - Never commit your `.env` file or Discord token
 - The bot requires administrator permissions for full functionality
-- Honeypot logs are stored locally in SQLite database
+- Honeypot logs are stored locally in SQLite database (`database/honeypot.db`)
 - Consider implementing database backups for production deployments
 - Review permissions carefully when inviting the bot to servers
 - Use the whitelist feature to exempt trusted users from detection
