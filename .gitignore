@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.db
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+database/
+honeypot_logs.json
+honeypot_activity_*.json
