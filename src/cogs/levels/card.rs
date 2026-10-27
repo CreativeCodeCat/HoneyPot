@@ -2,6 +2,7 @@
 //! a glowing avatar ring, and a segmented gradient XP bar.
 
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
+use unicode_normalization::UnicodeNormalization;
 use tiny_skia::{
     Color, FillRule, FilterQuality, GradientStop, LinearGradient, Mask, Paint, Path, PathBuilder, Pixmap, PixmapPaint,
     Point, PremultipliedColorU8, Shader, SpreadMode, Stroke, Transform,
@@ -39,7 +40,8 @@ const CONTENT_X: f32 = 330.0;
 const CONTENT_RIGHT: f32 = 1028.0;
 
 pub struct CardData {
-    pub username: String,
+    /// Names to show, in order of preference; the first one the font can draw is used
+    pub names: Vec<String>,
     /// PNG bytes of the avatar
     pub avatar: Option<Vec<u8>>,
     pub level: i64,
@@ -290,7 +292,14 @@ pub fn render(data: &CardData) -> Option<Vec<u8>> {
         fonts.draw_spans(&mut pixmap, &[(&rank, Weight::Bold, WHITE)], 46.0, CONTENT_RIGHT, 94.0, Align::Right);
         name_right -= fonts.width(Weight::Bold, &rank, 46.0) + 30.0;
     }
-    let (name, name_size) = fonts.fit(Weight::Regular, &data.username, 30.0, 20.0, name_right - CONTENT_X);
+    // Stylised letters (𝓒𝓻𝓮𝓪𝓽𝓲𝓿𝓮, 𝐁𝐨𝐥𝐝, ...) become plain ones; skip names with nothing drawable
+    let name = data
+        .names
+        .iter()
+        .map(|name| name.nfkc().collect::<String>())
+        .find(|name| !fonts.glyphs(Weight::Regular, name).is_empty())
+        .unwrap_or_default();
+    let (name, name_size) = fonts.fit(Weight::Regular, &name, 30.0, 20.0, name_right - CONTENT_X);
     fonts.draw_spans(&mut pixmap, &[(&name, Weight::Regular, WHITE)], name_size, CONTENT_X, 88.0, Align::Left);
 
     // Highest role in its colour, with its icon if it has one
@@ -355,7 +364,7 @@ mod tests {
     #[test]
     fn renders_a_png() {
         let data = CardData {
-            username: std::env::var("RANK_CARD_NAME").unwrap_or_else(|_| "a_really_long_username_that_needs_to_shrink_to_fit".to_string()),
+            names: vec![std::env::var("RANK_CARD_NAME").unwrap_or_else(|_| "a_really_long_username_that_needs_to_shrink_to_fit".to_string())],
             avatar: std::env::var("RANK_CARD_AVATAR").ok().and_then(|p| std::fs::read(p).ok()),
             level: 8,
             rep: 0,

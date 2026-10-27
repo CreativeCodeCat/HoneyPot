@@ -206,7 +206,7 @@ async fn card_data(
     };
 
     card::CardData {
-        username: display_name,
+        names: vec![display_name, user.name.clone()],
         avatar: download(&avatar_url).await,
         level,
         rep,
