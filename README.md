@@ -136,6 +136,16 @@ Members earn 25–300 XP for chatting, at most once every 5 minutes. Each level 
 - `/reputation <user>` - Give a member +3 reputation (once every 2 hours)
 - `/rank-setup [rate] [min] [max] [channel]` - Change the XP per level (250–7,500), XP per message (25–500) and the level-up channel (**Administrator**)
 
+### Rules Commands
+
+Each server writes its own rules as sections (a title, text and colour), which are posted as embeds. Posting again deletes the previous rules messages first, so the channel only ever has one copy. All need **Manage Server**.
+
+- `/rules add` - Add a section using a form
+- `/rules edit <number>` - Edit a section (the form opens with its current text)
+- `/rules remove <number>` - Remove a section
+- `/rules list` - List the sections and where they were last posted
+- `/rules post <channel>` - Delete the old rules messages (wherever they were posted) and post the sections in `channel`
+
 ### Other Commands
 
 - `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
@@ -144,7 +154,7 @@ Members earn 25–300 XP for chatting, at most once every 5 minutes. Each level 
 
 ### Cog Management Commands
 
-Cogs: `automod`, `economy`, `general`, `honeypot`, `levels`, `lockdown`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `economy`, `general`, `honeypot`, `levels`, `lockdown`, `rules`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -183,6 +193,7 @@ The bot uses SQLite for persistent storage:
 - `database/lockdown.db` - Active lockdowns and the permissions to restore
 - `database/economy.db` - Economy accounts
 - `database/levels.db` - XP, reputation and level settings
+- `database/rules.db` - Rules sections and the last posted messages
 
 ## Use Cases
 
@@ -217,6 +228,7 @@ HoneyPot/
         │   ├── mod.rs      # XP on messages and level commands
         │   └── store.rs    # SQLite storage and the level curve
         ├── lockdown.rs     # /lock and /unlock
+        ├── rules.rs        # /rules
         ├── stats.rs        # Voice channel stats
         ├── tickets/
         │   ├── mod.rs      # Panel, buttons, closing, auto-close
