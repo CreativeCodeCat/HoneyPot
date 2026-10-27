@@ -122,10 +122,12 @@ Each server has its own economy. Members start with ₪ 100 in the bank after jo
 
 - `/eco join` - Open an account
 - `/eco work` - Work a random job for ₪ 1–1,320 (once every 6 hours)
+- `/eco daily` - Claim a daily reward, ₪ 100–5,000 by default (once a day, resets at midnight UTC)
 - `/eco balance [user]` - Show a wallet and bank balance
 - `/eco deposit <amount>` / `/eco withdraw <amount>` - Move money between your wallet and bank
 - `/eco pay <user> <amount>` - Pay another member from your wallet
 - `/eco wallet add|remove <amount> [user]` and `/eco bank add|remove <amount> [user]` - Adjust balances (**Manage Server**)
+- `/eco dailyrate set <min> <max> [role]` / `remove [role]` / `list` - Set the daily reward range for everyone or for a role; members get the range of their highest role that has one (**Manage Server** to change)
 
 ### Levels Commands
 

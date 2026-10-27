@@ -48,7 +48,20 @@ pub enum EcoError {
     TooLarge,
     /// /eco work is on cooldown until this Unix time
     OnCooldown(i64),
+    /// /eco daily was already claimed today
+    DailyClaimed,
 }
+
+/// The daily payout range for a role. `role_id` 0 is the default for everyone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DailyRate {
+    pub role_id: u64,
+    pub min: i64,
+    pub max: i64,
+}
+
+/// Payout range when a server hasn't set a default
+pub const DEFAULT_DAILY: DailyRate = DailyRate { role_id: 0, min: 100, max: 5000 };
 
 /// Outer error: database failure. Inner error: the request can't be done.
 pub type EcoResult<T> = rusqlite::Result<Result<T, EcoError>>;
@@ -93,8 +106,27 @@ impl Store {
                 -- Unix time of the last /eco work
                 last_work INTEGER,
                 PRIMARY KEY (guild_id, user_id)
-            )",
+            );
+            CREATE TABLE IF NOT EXISTS daily_rates (
+                guild_id INTEGER NOT NULL,
+                -- 0 for the default rate
+                role_id INTEGER NOT NULL,
+                min_amount INTEGER NOT NULL,
+                max_amount INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, role_id)
+            );",
         )?;
+
+        // Databases created before /eco daily existed
+        let has_daily: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('accounts') WHERE name = 'last_daily'",
+            [],
+            |row| row.get(0),
+        )?;
+        if !has_daily {
+            // Day number (days since the Unix epoch, UTC) of the last /eco daily
+            conn.execute_batch("ALTER TABLE accounts ADD COLUMN last_daily INTEGER")?;
+        }
         Ok(Self { conn })
     }
 
@@ -133,6 +165,44 @@ impl Store {
         tx.execute("UPDATE accounts SET last_work = ? WHERE guild_id = ? AND user_id = ?", params![now, guild_id, user_id])?;
         tx.commit()?;
         Ok(Ok(balance))
+    }
+
+    /// Pays the daily reward into the wallet if it hasn't been claimed on day `today`.
+    pub fn claim_daily(&mut self, guild_id: u64, user_id: u64, amount: i64, today: i64) -> EcoResult<Balance> {
+        let tx = self.conn.transaction()?;
+        let Some(mut balance) = balance_in(&tx, guild_id, user_id)? else { return Ok(Err(EcoError::NoAccount)) };
+
+        let last_daily: Option<i64> =
+            tx.query_row("SELECT last_daily FROM accounts WHERE guild_id = ? AND user_id = ?", [guild_id, user_id], |row| row.get(0))?;
+        if last_daily.is_some_and(|day| day >= today) {
+            return Ok(Err(EcoError::DailyClaimed));
+        }
+
+        balance.wallet = (balance.wallet + amount).min(MAX_BALANCE);
+        set_balance(&tx, guild_id, user_id, balance)?;
+        tx.execute("UPDATE accounts SET last_daily = ? WHERE guild_id = ? AND user_id = ?", params![today, guild_id, user_id])?;
+        tx.commit()?;
+        Ok(Ok(balance))
+    }
+
+    pub fn daily_rates(&self, guild_id: u64) -> rusqlite::Result<Vec<DailyRate>> {
+        let mut stmt = self.conn.prepare("SELECT role_id, min_amount, max_amount FROM daily_rates WHERE guild_id = ? ORDER BY role_id")?;
+        let rows = stmt.query_map([guild_id], |row| Ok(DailyRate { role_id: row.get(0)?, min: row.get(1)?, max: row.get(2)? }))?;
+        rows.collect()
+    }
+
+    pub fn set_daily_rate(&self, guild_id: u64, rate: DailyRate) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO daily_rates (guild_id, role_id, min_amount, max_amount) VALUES (?, ?, ?, ?)",
+            params![guild_id, rate.role_id, rate.min, rate.max],
+        )?;
+        Ok(())
+    }
+
+    /// Returns false if the role had no rate set.
+    pub fn remove_daily_rate(&self, guild_id: u64, role_id: u64) -> rusqlite::Result<bool> {
+        let removed = self.conn.execute("DELETE FROM daily_rates WHERE guild_id = ? AND role_id = ?", [guild_id, role_id])?;
+        Ok(removed > 0)
     }
 
     /// Moves money between a user's own wallet and bank.
@@ -254,6 +324,48 @@ mod tests {
         assert_eq!(s.work(1, 10, 50, 1000, 100).unwrap(), Ok(Balance { wallet: 50, bank: 100 }));
         assert_eq!(s.work(1, 10, 50, 1050, 100).unwrap(), Err(EcoError::OnCooldown(1100)));
         assert_eq!(s.work(1, 10, 50, 1100, 100).unwrap().unwrap().wallet, 100);
+    }
+
+    #[test]
+    fn daily_can_be_claimed_once_per_day() {
+        let mut s = store();
+        assert_eq!(s.claim_daily(1, 10, 500, 20000).unwrap(), Err(EcoError::NoAccount));
+        s.join(1, 10).unwrap();
+        assert_eq!(s.claim_daily(1, 10, 500, 20000).unwrap(), Ok(Balance { wallet: 500, bank: 100 }));
+        assert_eq!(s.claim_daily(1, 10, 500, 20000).unwrap(), Err(EcoError::DailyClaimed));
+        assert_eq!(s.claim_daily(1, 10, 250, 20001).unwrap().unwrap().wallet, 750);
+    }
+
+    #[test]
+    fn daily_rates_per_role() {
+        let s = store();
+        assert!(s.daily_rates(1).unwrap().is_empty());
+        s.set_daily_rate(1, DailyRate { role_id: 0, min: 10, max: 20 }).unwrap();
+        s.set_daily_rate(1, DailyRate { role_id: 55, min: 100, max: 200 }).unwrap();
+        s.set_daily_rate(1, DailyRate { role_id: 55, min: 300, max: 400 }).unwrap();
+        assert_eq!(
+            s.daily_rates(1).unwrap(),
+            vec![DailyRate { role_id: 0, min: 10, max: 20 }, DailyRate { role_id: 55, min: 300, max: 400 }]
+        );
+        assert!(s.remove_daily_rate(1, 55).unwrap());
+        assert!(!s.remove_daily_rate(1, 55).unwrap());
+    }
+
+    #[test]
+    fn adds_daily_column_to_old_databases() {
+        let path = std::env::temp_dir().join(format!("economy-test-{}.db", std::process::id()));
+        let path = path.to_str().unwrap();
+        Connection::open(path)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE accounts (guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, wallet INTEGER NOT NULL DEFAULT 0,
+                 bank INTEGER NOT NULL DEFAULT 0, last_work INTEGER, PRIMARY KEY (guild_id, user_id));
+                 INSERT INTO accounts (guild_id, user_id, wallet, bank) VALUES (1, 10, 5, 100);",
+            )
+            .unwrap();
+        let mut s = Store::open_path(path).unwrap();
+        assert_eq!(s.claim_daily(1, 10, 1, 1).unwrap(), Ok(Balance { wallet: 6, bank: 100 }));
+        std::fs::remove_file(path).ok();
     }
 
     #[test]

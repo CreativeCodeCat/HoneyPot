@@ -7,7 +7,7 @@ use poise::serenity_prelude as serenity;
 use rand::Rng;
 
 use super::{Context, Error};
-use store::{Balance, EcoError, Pocket};
+use store::{Balance, DailyRate, EcoError, Pocket, DEFAULT_DAILY};
 
 const ICON: &str = "₪";
 const GREEN: u32 = 0x57f287;
@@ -65,8 +65,21 @@ async fn reply_error(ctx: Context<'_>, error: EcoError, target: Option<serenity:
         EcoError::NotEnough(available) => format!("There isn't enough money for that. Only {} is available.", money(available)),
         EcoError::TooLarge => format!("That would take the balance over the maximum of {}.", money(1_000_000_000_000)),
         EcoError::OnCooldown(until) => format!("You can only work once every 6 hours. Try again <t:{until}:R>."),
+        EcoError::DailyClaimed => {
+            format!("You've already claimed your daily today. The next one is ready <t:{}:R>.", next_daily_reset())
+        }
     };
     reply(ctx, format!("❌ {text}"), true).await
+}
+
+/// Today's day number (days since the Unix epoch, UTC); dailies reset at midnight UTC.
+fn today() -> i64 {
+    Utc::now().timestamp().div_euclid(86400)
+}
+
+/// Unix time of the next daily reset.
+fn next_daily_reset() -> i64 {
+    (today() + 1) * 86400
 }
 
 fn check_amount(amount: i64) -> Option<&'static str> {
@@ -79,7 +92,7 @@ fn check_amount(amount: i64) -> Option<&'static str> {
     prefix_command,
     guild_only,
     category = "Economy",
-    subcommands("join", "work", "balance", "deposit", "withdraw", "pay", "wallet", "bank"),
+    subcommands("join", "work", "daily", "balance", "deposit", "withdraw", "pay", "dailyrate", "wallet", "bank"),
     subcommand_required
 )]
 pub async fn eco(_ctx: Context<'_>) -> Result<(), Error> {
@@ -118,6 +131,134 @@ async fn work(ctx: Context<'_>) -> Result<(), Error> {
         }
         Err(e) => reply_error(ctx, e, None).await,
     }
+}
+
+/// The daily payout range for a member: their highest role with a rate set,
+/// otherwise the server default. Returns the rate and the role's name, if any.
+fn daily_rate_for(ctx: Context<'_>, rates: &[DailyRate], member_roles: &[serenity::RoleId]) -> (DailyRate, Option<String>) {
+    let default = rates.iter().find(|r| r.role_id == 0).copied().unwrap_or(DEFAULT_DAILY);
+    let Some(guild) = ctx.guild() else { return (default, None) };
+    member_roles
+        .iter()
+        .filter_map(|id| guild.roles.get(id))
+        .filter_map(|role| rates.iter().find(|r| r.role_id == role.id.get()).map(|rate| (role, *rate)))
+        .max_by_key(|(role, _)| role.position)
+        .map(|(role, rate)| (rate, Some(role.name.clone())))
+        .unwrap_or((default, None))
+}
+
+/// Claim your daily reward (once a day, resets at midnight UTC)
+#[poise::command(slash_command, prefix_command, guild_only, category = "Economy")]
+async fn daily(ctx: Context<'_>) -> Result<(), Error> {
+    let rates = ctx.data().economy.lock().unwrap().daily_rates(guild_id(ctx))?;
+    let roles = ctx.author_member().await.map(|m| m.roles.clone()).unwrap_or_default();
+    let (rate, role_name) = daily_rate_for(ctx, &rates, &roles);
+    let amount = rand::rng().random_range(rate.min..=rate.max);
+
+    let result = ctx.data().economy.lock().unwrap().claim_daily(guild_id(ctx), ctx.author().id.get(), amount, today())?;
+    match result {
+        Ok(balance) => {
+            let mut text = format!("<@{}> claimed their daily reward of {}!", ctx.author().id, money(amount));
+            if let Some(role) = role_name {
+                text += &format!("\n*{role} reward: {} – {}*", money(rate.min), money(rate.max));
+            }
+            text += &format!("\nWallet: {} · Next daily <t:{}:R>", money(balance.wallet), next_daily_reset());
+            let embed = serenity::CreateEmbed::new().colour(PURPLE).title("📅 Daily Reward").description(text);
+            ctx.send(poise::CreateReply::default().embed(embed)).await?;
+            Ok(())
+        }
+        Err(e) => reply_error(ctx, e, None).await,
+    }
+}
+
+/// Daily reward settings (Manage Server)
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    category = "Economy",
+    subcommands("dailyrate_set", "dailyrate_remove", "dailyrate_list"),
+    subcommand_required
+)]
+async fn dailyrate(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Set the daily reward range for a role, or the default for everyone
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    rename = "set",
+    category = "Economy",
+    required_permissions = "MANAGE_GUILD"
+)]
+async fn dailyrate_set(
+    ctx: Context<'_>,
+    #[description = "Smallest daily reward"]
+    #[min = 1]
+    #[max = 1_000_000_000]
+    min: i64,
+    #[description = "Largest daily reward"]
+    #[min = 1]
+    #[max = 1_000_000_000]
+    max: i64,
+    #[description = "Role this range is for (leave empty to set the default)"] role: Option<serenity::Role>,
+) -> Result<(), Error> {
+    if min < 1 || max > 1_000_000_000 || min > max {
+        return reply(ctx, "❌ The minimum must be at least 1 and no more than the maximum (up to 1,000,000,000).", true).await;
+    }
+    let role_id = role.as_ref().map(|r| r.id.get()).unwrap_or(0);
+    ctx.data().economy.lock().unwrap().set_daily_rate(guild_id(ctx), DailyRate { role_id, min, max })?;
+
+    let who = role.map(|r| format!("<@&{}>", r.id)).unwrap_or_else(|| "everyone (default)".to_string());
+    reply(ctx, format!("✅ Daily reward for {who} is now {} – {}.", money(min), money(max)), true).await
+}
+
+/// Remove a role's daily reward range
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    rename = "remove",
+    category = "Economy",
+    required_permissions = "MANAGE_GUILD"
+)]
+async fn dailyrate_remove(
+    ctx: Context<'_>,
+    #[description = "Role to remove (leave empty to reset the default)"] role: Option<serenity::Role>,
+) -> Result<(), Error> {
+    let role_id = role.as_ref().map(|r| r.id.get()).unwrap_or(0);
+    let removed = ctx.data().economy.lock().unwrap().remove_daily_rate(guild_id(ctx), role_id)?;
+    let text = match (removed, role) {
+        (true, Some(role)) => format!("✅ Removed the daily reward for <@&{}>.", role.id),
+        (true, None) => format!("✅ Reset the default daily reward to {} – {}.", money(DEFAULT_DAILY.min), money(DEFAULT_DAILY.max)),
+        (false, Some(role)) => format!("❌ <@&{}> doesn't have a daily reward set.", role.id),
+        (false, None) => "❌ The default daily reward is already the built-in one.".to_string(),
+    };
+    reply(ctx, text, true).await
+}
+
+/// Show the daily reward ranges
+#[poise::command(slash_command, prefix_command, guild_only, rename = "list", category = "Economy")]
+async fn dailyrate_list(ctx: Context<'_>) -> Result<(), Error> {
+    let rates = ctx.data().economy.lock().unwrap().daily_rates(guild_id(ctx))?;
+    let default = rates.iter().find(|r| r.role_id == 0).copied().unwrap_or(DEFAULT_DAILY);
+
+    let mut lines = vec![format!("**Everyone:** {} – {}", money(default.min), money(default.max))];
+    lines.extend(
+        rates
+            .iter()
+            .filter(|r| r.role_id != 0)
+            .map(|r| format!("<@&{}>: {} – {}", r.role_id, money(r.min), money(r.max))),
+    );
+    let embed = serenity::CreateEmbed::new()
+        .colour(PURPLE)
+        .title("📅 Daily Rewards")
+        .description(lines.join("\n"))
+        .footer(serenity::CreateEmbedFooter::new("Members get the range of their highest role that has one."));
+    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(true)).await?;
+    Ok(())
 }
 
 /// Check your balance, or another member's
