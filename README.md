@@ -109,6 +109,13 @@ All commands can be used with `!` prefix or as slash commands (`/`). Most comman
 
 Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handlers or admins) and **Transcript** (DMs an HTML transcript to whoever clicks it). On close, the ticket's details and HTML transcript are posted in the transcript channel and the ticket channel is deleted. Tickets also close automatically after 7 days without messages, or when the member who opened them leaves the server.
 
+### Lockdown Commands
+
+- `/lock [time] [reason]` - Stop @everyone from sending messages in this channel. `time` is optional (e.g. `30m`, `2h`, `1d`, `1h30m`) and defaults to 24 hours
+- `/unlock` - Lift the lockdown and restore the channel's original permissions
+
+Both need **Manage Channels**. Timed lockdowns are lifted automatically, even if the bot restarts in between.
+
 ### Other Commands
 
 - `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
@@ -117,7 +124,7 @@ Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handl
 
 ### Cog Management Commands
 
-Cogs: `automod`, `general`, `honeypot`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `general`, `honeypot`, `lockdown`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -153,6 +160,7 @@ The bot uses SQLite for persistent storage:
 - `database/honeypot.db` - Honeypot configuration, activity logs, offenders, audit log
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
+- `database/lockdown.db` - Active lockdowns and the permissions to restore
 
 ## Use Cases
 
@@ -180,6 +188,7 @@ HoneyPot/
         ├── cog_manager.rs  # Per-server enable/disable
         ├── general.rs      # /ping
         ├── automod.rs      # /automod
+        ├── lockdown.rs     # /lock and /unlock
         ├── stats.rs        # Voice channel stats
         ├── tickets/
         │   ├── mod.rs      # Panel, buttons, closing, auto-close

@@ -9,7 +9,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, general, honeypot, normalize_cog_name, stats, tickets, Context, Data,
+    automod, cog_manager, general, honeypot, lockdown, normalize_cog_name, stats, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -24,6 +24,8 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         cog_manager::disablecog(),
         cog_manager::cogstatus(),
         stats::updatestats(),
+        lockdown::lock(),
+        lockdown::unlock(),
     ];
     commands.extend(honeypot::commands::all());
     commands.push(tickets::commands::ticket_setup());
@@ -141,6 +143,7 @@ async fn event_handler(
                 tokio::spawn(stats::update_stats_loop(ctx.clone(), data.clone()));
                 tokio::spawn(honeypot::weekly_summary_loop(ctx.clone(), data.clone()));
                 tokio::spawn(tickets::auto_close_loop(ctx.clone(), data.clone()));
+                tokio::spawn(lockdown::expiry_loop(ctx.clone(), data.clone()));
             }
         }
         serenity::FullEvent::Message { new_message } => {
@@ -172,6 +175,7 @@ async fn main() {
         honeypot: Mutex::new(
             honeypot::store::Store::open().expect("failed to open honeypot database"),
         ),
+        lockdown: Mutex::new(lockdown::Store::open().expect("failed to open lockdown database")),
         tickets: Mutex::new(
             tickets::store::Store::open().expect("failed to open tickets database"),
         ),
