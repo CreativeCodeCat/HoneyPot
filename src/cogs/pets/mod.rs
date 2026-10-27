@@ -214,6 +214,12 @@ async fn autocomplete_animal(_ctx: Context<'_>, partial: &str) -> Vec<serenity::
         .collect()
 }
 
+#[derive(Clone, Copy, poise::ChoiceParameter)]
+enum Gender {
+    Male,
+    Female,
+}
+
 /// Buy a pet
 #[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
 async fn buy(
@@ -222,6 +228,7 @@ async fn buy(
     #[autocomplete = "autocomplete_animal"]
     kind: String,
     #[description = "Its name (up to 13 characters)"] name: String,
+    #[description = "Male or female (random if not chosen)"] gender: Option<Gender>,
 ) -> Result<(), Error> {
     let kind = kind.trim().to_lowercase().replace(' ', "_");
     let Some((kind, animal_name, emoji)) = ANIMALS.iter().find(|(key, name, _)| *key == kind || name.to_lowercase().replace(' ', "_") == kind)
@@ -240,7 +247,10 @@ async fn buy(
         return Ok(());
     }
 
-    let male = rand::rng().random_bool(0.5);
+    let male = match gender {
+        Some(gender) => matches!(gender, Gender::Male),
+        None => rand::rng().random_bool(0.5),
+    };
     let pet = Pet::new(guild_id(ctx), ctx.author().id.get(), kind, name, Utc::now().timestamp(), male);
     ctx.data().pets.lock().unwrap().create(&pet)?;
 
