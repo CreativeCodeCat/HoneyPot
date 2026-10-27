@@ -29,7 +29,7 @@ const RIGHT: f32 = 734.0;
 
 pub struct CardData {
     pub name: String,
-    /// e.g. "@CreativeCodeCat's male Saber Tooth Tiger"
+    /// e.g. "@CreativeCodeCat's Male Saber Tooth Tiger"
     pub subtitle: String,
     /// Animal key, e.g. "saber_tooth_tiger"
     pub kind: String,
@@ -192,7 +192,7 @@ mod tests {
     fn renders_a_png() {
         let data = CardData {
             name: "Scarlet".to_string(),
-            subtitle: "@CreativeCodeCat's male Saber Tooth Tiger".to_string(),
+            subtitle: "@CreativeCodeCat's Male Saber Tooth Tiger".to_string(),
             kind: "saber_tooth_tiger".to_string(),
             age: "6 minutes".to_string(),
             level: 4,

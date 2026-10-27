@@ -256,7 +256,7 @@ async fn buy(
     let pet = Pet::new(guild_id(ctx), ctx.author().id.get(), kind, name, Utc::now().timestamp(), male);
     ctx.data().pets.lock().unwrap().create(&pet)?;
 
-    let sex = if male { "male" } else { "female" };
+    let sex = if male { "Male" } else { "Female" };
     say_embed(
         ctx,
         GREEN,
@@ -281,7 +281,7 @@ async fn status(
     };
 
     let (animal_name, emoji) = animal(&pet.kind);
-    let sex = if pet.male { "male" } else { "female" };
+    let sex = if pet.male { "Male" } else { "Female" };
     let mood_text = match pet.mood() {
         Mood::Happy => "Happy!".to_string(),
         Mood::Meh => format!("A bit meh. Maybe you should play with {}.", pet.pronoun()),
