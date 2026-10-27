@@ -14,7 +14,7 @@ use super::economy::money;
 use super::economy::store::{EcoError, Pocket};
 use super::{Context, Data, Error};
 use crate::log;
-use store::{Alert, Mood, Pet, FOOD_TTL_HOURS};
+use store::{Alert, Mood, Pet, FOOD_TTL_HOURS, HAPPY_FUN, LEVEL_CAP};
 
 pub const COG_NAME: &str = "pets";
 
@@ -292,6 +292,9 @@ async fn status(
         .field("Age", format_age(Utc::now().timestamp() - pet.born), true)
         .field("Level", pet.level().to_string(), true)
         .field("Treats", format!("{:.0} / {:.0}", pet.food.ceil(), pet.max_food()), true)
+        .field("Fun", format!("{:.1} / {:.0}\n*happy at {HAPPY_FUN:.0}*", pet.fun, LEVEL_CAP / 2.0), true)
+        .field("Experience", format!("{:.2} / {LEVEL_CAP:.0}", pet.exp), true)
+        .field("\u{200b}", "\u{200b}", true)
         .field("Mood", mood, false)
         .field("Food lasts", format!("about {}", format_age(hours_left)), false);
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
