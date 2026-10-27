@@ -1,0 +1,23 @@
+[Unit]
+Description=Discord Honeypot Bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+# The bot reads .env and database/ relative to its working directory
+WorkingDirectory=@DIR@
+ExecStart=@DIR@/target/release/honeypot-bot
+Restart=on-failure
+RestartSec=10
+
+# Hardening: the bot only needs to write its database directory
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=@DIR@/database
+
+[Install]
+WantedBy=multi-user.target
