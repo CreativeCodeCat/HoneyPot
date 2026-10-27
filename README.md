@@ -138,6 +138,19 @@ Members earn 25–300 XP for chatting, at most once every 5 minutes. Each level 
 - `/reputation <user>` - Give a member +3 reputation (once every 2 hours)
 - `/rank-setup [rate] [min] [max] [channel]` - Change the XP per level (250–7,500), XP per message (25–500) and the level-up channel (**Administrator**)
 
+### Pet Commands
+
+A Discord version of the PhantomBot tamagotchi. Pets are bought and fed with money from the economy wallet (`/eco join` first). One treat lasts 24 hours; a pet that runs out of food dies. Owners get a DM when their pet has about a day of food left, and when it dies. Fun drains over time too, and happy pets (from playing) can hug and battle. Pets' needs pause while the cog is disabled.
+
+- `/pet buy <kind> <name>` - Buy a pet for ₪ 1,000 (20 kinds, from cats to dragons)
+- `/pet status [user]` - Age, level, treats, mood and how long the food will last
+- `/pet feed <amount>` - Give treats (₪ 5 each); pets can hold 30 plus their level
+- `/pet play` - Play for experience and fun (uses a treat)
+- `/pet hug <user>` - Hug someone, or their pet (your pet must be happy)
+- `/pet playdate <user>` - Both pets gain fun and experience
+- `/pet battle <user>` - Challenge someone's pet; they accept or decline with buttons. Higher-level pets have better odds
+- `/pet release` - Let your pet go
+
 ### Rules Commands
 
 Each server writes its own rules as sections (a title, text and colour), which are posted as embeds. Posting again deletes the previous rules messages first, so the channel only ever has one copy. All need **Manage Server**.
@@ -156,7 +169,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `automod`, `economy`, `general`, `honeypot`, `levels`, `lockdown`, `rules`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `economy`, `general`, `honeypot`, `levels`, `lockdown`, `pets`, `rules`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -196,6 +209,7 @@ The bot uses SQLite for persistent storage:
 - `database/economy.db` - Economy accounts
 - `database/levels.db` - XP, reputation and level settings
 - `database/rules.db` - Rules sections and the last posted messages
+- `database/pets.db` - Pets and their needs
 
 ## Use Cases
 
@@ -230,6 +244,9 @@ HoneyPot/
         │   ├── mod.rs      # XP on messages and level commands
         │   └── store.rs    # SQLite storage and the level curve
         ├── lockdown.rs     # /lock and /unlock
+        ├── pets/
+        │   ├── mod.rs      # /pet commands, battles and hunger DMs
+        │   └── store.rs    # SQLite storage and pet needs
         ├── rules.rs        # /rules
         ├── stats.rs        # Voice channel stats
         ├── tickets/

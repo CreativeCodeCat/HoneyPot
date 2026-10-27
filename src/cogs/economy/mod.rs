@@ -31,7 +31,7 @@ const JOBS: &[&str] = &[
 ];
 
 /// Formats an amount with the currency icon and thousands separators, e.g. "₪ 1,234".
-fn money(amount: i64) -> String {
+pub(crate) fn money(amount: i64) -> String {
     let digits = amount.unsigned_abs().to_string();
     let mut grouped = String::new();
     for (i, c) in digits.chars().enumerate() {

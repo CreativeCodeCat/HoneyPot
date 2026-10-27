@@ -9,7 +9,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, economy, general, honeypot, levels, lockdown, rules, normalize_cog_name, stats, tickets, Context, Data,
+    automod, cog_manager, economy, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, stats, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -28,6 +28,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         lockdown::unlock(),
         economy::eco(),
         rules::rules(),
+        pets::pet(),
         levels::rank_setup(),
         levels::rank(),
         levels::leaderboard(),
@@ -150,6 +151,7 @@ async fn event_handler(
                 tokio::spawn(honeypot::weekly_summary_loop(ctx.clone(), data.clone()));
                 tokio::spawn(tickets::auto_close_loop(ctx.clone(), data.clone()));
                 tokio::spawn(lockdown::expiry_loop(ctx.clone(), data.clone()));
+                tokio::spawn(pets::needs_loop(ctx.clone(), data.clone()));
             }
         }
         serenity::FullEvent::Message { new_message } => {
@@ -184,6 +186,7 @@ async fn main() {
         ),
         economy: Mutex::new(economy::store::Store::open().expect("failed to open economy database")),
         levels: Mutex::new(levels::store::Store::open().expect("failed to open levels database")),
+        pets: Mutex::new(pets::store::Store::open().expect("failed to open pets database")),
         rules: Mutex::new(rules::Store::open().expect("failed to open rules database")),
         lockdown: Mutex::new(lockdown::Store::open().expect("failed to open lockdown database")),
         tickets: Mutex::new(

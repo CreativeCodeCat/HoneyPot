@@ -9,6 +9,7 @@ pub mod general;
 pub mod honeypot;
 pub mod levels;
 pub mod lockdown;
+pub mod pets;
 pub mod rules;
 pub mod stats;
 pub mod tickets;
@@ -31,6 +32,7 @@ pub const COGS: &[&str] = &[
     "HoneyPot",
     "Levels",
     "Lockdown",
+    "Pets",
     "Rules",
     "ServerStats",
     "Tickets",
@@ -46,6 +48,7 @@ pub struct State {
     pub honeypot: Mutex<honeypot::store::Store>,
     pub levels: Mutex<levels::store::Store>,
     pub lockdown: Mutex<lockdown::Store>,
+    pub pets: Mutex<pets::store::Store>,
     pub rules: Mutex<rules::Store>,
     pub tickets: Mutex<tickets::store::Store>,
 }
