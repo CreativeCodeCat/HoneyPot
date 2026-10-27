@@ -1,6 +1,7 @@
 //! Pets cog: a Discord version of the PhantomBot tamagotchi. Members buy a pet with
 //! economy money, keep it fed and happy, and play, hug, go on playdates and battle.
 
+mod card;
 pub mod store;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -9,6 +10,7 @@ use std::time::{Duration, Instant};
 use chrono::Utc;
 use poise::serenity_prelude as serenity;
 use rand::Rng;
+use unicode_normalization::UnicodeNormalization;
 
 use super::economy::money;
 use super::economy::store::{EcoError, Pocket};
@@ -279,17 +281,59 @@ async fn status(
     };
 
     let (animal_name, emoji) = animal(&pet.kind);
+    let sex = if pet.male { "male" } else { "female" };
+    let mood_text = match pet.mood() {
+        Mood::Happy => "Happy!".to_string(),
+        Mood::Meh => format!("A bit meh. Maybe you should play with {}.", pet.pronoun()),
+        Mood::Sad => format!("Sad! You should play with {}!", pet.pronoun()),
+    };
+    let age = format_age(Utc::now().timestamp() - pet.born);
+    let hours_left = (pet.food * FOOD_TTL_HOURS * 3600.0) as i64;
+
+    // Owner's server nickname or display name; stylised letters become plain ones
+    let owner = match ctx.guild_id().unwrap().member(ctx, user.id).await {
+        Ok(member) => member.display_name().to_string(),
+        Err(_) => user.display_name().to_string(),
+    };
+    let owner: String = owner.nfkc().collect();
+    let owner = if owner.chars().any(char::is_alphanumeric) { owner } else { user.name.clone() };
+
+    let card = card::CardData {
+        name: pet.name.clone(),
+        subtitle: format!("@{owner}'s {sex} {animal_name}"),
+        kind: pet.kind.clone(),
+        age: age.clone(),
+        level: pet.level(),
+        exp: pet.exp,
+        max_exp: LEVEL_CAP,
+        fun: pet.fun,
+        max_fun: LEVEL_CAP / 2.0,
+        happy_at: HAPPY_FUN,
+        mood: pet.mood(),
+        mood_text,
+        treats: pet.food,
+        max_treats: pet.max_food(),
+        food_lasts: format!("about {}", format_age(hours_left)),
+    };
+    match tokio::task::spawn_blocking(move || card::render(&card)).await {
+        Ok(Some(png)) => {
+            let file = serenity::CreateAttachment::bytes(png, "pet.png");
+            ctx.send(poise::CreateReply::default().attachment(file)).await?;
+            return Ok(());
+        }
+        _ => log::warning("[PETS] Could not render pet card, sending an embed instead"),
+    }
+
     let mood = match pet.mood() {
         Mood::Happy => "😄 Happy".to_string(),
         Mood::Meh => format!("😐 A bit meh. Maybe you should play with {}.", pet.pronoun()),
         Mood::Sad => format!("😢 Sad! You should play with {}!", pet.pronoun()),
     };
-    let hours_left = (pet.food * FOOD_TTL_HOURS * 3600.0) as i64;
     let embed = serenity::CreateEmbed::new()
         .title(format!("{emoji} {}", pet.name))
-        .description(format!("<@{}>'s {} {animal_name}", user.id, if pet.male { "male" } else { "female" }))
+        .description(format!("<@{}>'s {sex} {animal_name}", user.id))
         .colour(PURPLE)
-        .field("Age", format_age(Utc::now().timestamp() - pet.born), true)
+        .field("Age", age, true)
         .field("Level", pet.level().to_string(), true)
         .field("Treats", format!("{:.0} / {:.0}", pet.food.ceil(), pet.max_food()), true)
         .field("Fun", format!("{:.1} / {:.0}\n*happy at {HAPPY_FUN:.0}*", pet.fun, LEVEL_CAP / 2.0), true)

@@ -143,7 +143,7 @@ Members earn 25–300 XP for chatting, at most once every 5 minutes. Each level 
 A Discord version of the PhantomBot tamagotchi. Pets are bought and fed with money from the economy wallet (`/eco join` first). One treat lasts 24 hours; a pet that runs out of food dies. Owners get a DM when their pet has about a day of food left, and when it dies. Fun drains over time too, and happy pets (from playing) can hug and battle. Pets' needs pause while the cog is disabled.
 
 - `/pet buy <kind> <name> [gender]` - Buy a pet for ₪ 1,000 (20 kinds, from cats to dragons); gender is random if not chosen
-- `/pet status [user]` - Age, level, treats, mood and how long the food will last
+- `/pet status [user]` - A picture card with the pet, its age, level, experience, fun, mood, treats and how long the food will last
 - `/pet feed <amount>` - Give treats (₪ 5 each); pets can hold 30 plus their level
 - `/pet play` - Play for experience and fun (uses a treat)
 - `/pet hug <user>` - Hug someone, or their pet (your pet must be happy)
@@ -225,6 +225,9 @@ The bot uses SQLite for persistent storage:
 ```
 HoneyPot/
 ├── Cargo.toml              # Rust dependencies
+├── assets/
+│   ├── fonts/              # Noto Sans (SIL OFL), built into the bot
+│   └── emoji/              # Twemoji pictures for pet cards (CC-BY 4.0)
 ├── .env.example            # Environment variables template
 ├── database/               # SQLite database files (created at runtime)
 │   ├── honeypot.db         # Honeypot data
@@ -232,6 +235,7 @@ HoneyPot/
 └── src/
     ├── main.rs             # Startup, event dispatch, cog check, error handling
     ├── log.rs              # Colored console logging
+    ├── render.rs           # Shared drawing code for the image cards
     └── cogs/
         ├── mod.rs          # Shared state, cog list, helpers
         ├── cog_manager.rs  # Per-server enable/disable
@@ -246,6 +250,7 @@ HoneyPot/
         ├── lockdown.rs     # /lock and /unlock
         ├── pets/
         │   ├── mod.rs      # /pet commands, battles and hunger DMs
+        │   ├── card.rs     # /pet status picture card
         │   └── store.rs    # SQLite storage and pet needs
         ├── rules.rs        # /rules
         ├── stats.rs        # Voice channel stats

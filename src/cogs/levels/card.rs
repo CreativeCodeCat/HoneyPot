@@ -1,15 +1,10 @@
 //! Draws the /rank card as a PNG: a dark card with a glowing cyan-to-orange border,
 //! a glowing avatar ring, and a segmented gradient XP bar.
 
-use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
+use tiny_skia::{PathBuilder, Pixmap};
 use unicode_normalization::UnicodeNormalization;
-use tiny_skia::{
-    Color, FillRule, FilterQuality, GradientStop, LinearGradient, Mask, Paint, Path, PathBuilder, Pixmap, PixmapPaint,
-    Point, PremultipliedColorU8, Shader, SpreadMode, Stroke, Transform,
-};
 
-const REGULAR: &[u8] = include_bytes!("../../../assets/fonts/NotoSans-Regular.ttf");
-const BOLD: &[u8] = include_bytes!("../../../assets/fonts/NotoSans-Bold.ttf");
+use crate::render::{colour, draw_png, fill, glow, gradient, mask_for, rounded_rect, solid, stroke, Align, Fonts, Weight};
 
 const WIDTH: u32 = 1080;
 const HEIGHT: u32 = 400;
@@ -57,199 +52,10 @@ pub struct CardData {
     pub next_level_xp: i64,
 }
 
-fn colour(rgb: u32, alpha: u8) -> Color {
-    Color::from_rgba8((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8, alpha)
-}
-
-fn solid(rgb: u32, alpha: u8) -> Paint<'static> {
-    let mut paint = Paint::default();
-    paint.set_color(colour(rgb, alpha));
-    paint.anti_alias = true;
-    paint
-}
-
-/// A left-to-right gradient between two colours over `x0..x1`.
-fn gradient(x0: f32, x1: f32, from: u32, to: u32, alpha: u8) -> Paint<'static> {
-    let stops = vec![GradientStop::new(0.0, colour(from, alpha)), GradientStop::new(1.0, colour(to, alpha))];
-    let shader = LinearGradient::new(Point::from_xy(x0, 0.0), Point::from_xy(x1, 0.0), stops, SpreadMode::Pad, Transform::identity())
-        .unwrap_or(Shader::SolidColor(colour(from, alpha)));
-    Paint { shader, anti_alias: true, ..Default::default() }
-}
-
-fn rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32) -> Option<Path> {
-    let r = r.min(w / 2.0).min(h / 2.0).max(0.0);
-    let mut pb = PathBuilder::new();
-    pb.move_to(x + r, y);
-    pb.line_to(x + w - r, y);
-    pb.quad_to(x + w, y, x + w, y + r);
-    pb.line_to(x + w, y + h - r);
-    pb.quad_to(x + w, y + h, x + w - r, y + h);
-    pb.line_to(x + r, y + h);
-    pb.quad_to(x, y + h, x, y + h - r);
-    pb.line_to(x, y + r);
-    pb.quad_to(x, y, x + r, y);
-    pb.close();
-    pb.finish()
-}
-
-fn fill(pixmap: &mut Pixmap, path: &Path, paint: &Paint, mask: Option<&Mask>) {
-    pixmap.fill_path(path, paint, FillRule::Winding, Transform::identity(), mask);
-}
-
-fn stroke(pixmap: &mut Pixmap, path: &Path, paint: &Paint, width: f32) {
-    let stroke = Stroke { width, ..Default::default() };
-    pixmap.stroke_path(path, paint, &stroke, Transform::identity(), None);
-}
-
-/// A soft glow: wide, faint strokes underneath a crisp one.
-fn glow(pixmap: &mut Pixmap, path: &Path, paint_at: impl Fn(u8) -> Paint<'static>, width: f32) {
-    for (extra, alpha) in [(18.0, 10), (12.0, 18), (7.0, 32), (3.0, 70)] {
-        stroke(pixmap, path, &paint_at(alpha), width + extra);
-    }
-    if width > 0.0 {
-        stroke(pixmap, path, &paint_at(255), width);
-    }
-}
-
-fn mask_for(path: &Path) -> Option<Mask> {
-    let mut mask = Mask::new(WIDTH, HEIGHT)?;
-    mask.fill_path(path, FillRule::Winding, true, Transform::identity());
-    Some(mask)
-}
-
-/// Draws a PNG scaled into a square box, optionally clipped to a circle.
-fn draw_image(pixmap: &mut Pixmap, png: &[u8], x: f32, y: f32, size: f32, circle: bool) {
-    let Ok(image) = Pixmap::decode_png(png) else { return };
-    let transform = Transform::from_row(size / image.width() as f32, 0.0, 0.0, size / image.height() as f32, x, y);
-    let mask = if circle {
-        PathBuilder::from_circle(x + size / 2.0, y + size / 2.0, size / 2.0).and_then(|p| mask_for(&p))
-    } else {
-        None
-    };
-    let paint = PixmapPaint { quality: FilterQuality::Bicubic, ..Default::default() };
-    pixmap.draw_pixmap(0, 0, image.as_ref(), &paint, transform, mask.as_ref());
-}
-
-#[derive(Clone, Copy)]
-enum Weight {
-    Regular,
-    Bold,
-}
-
-#[derive(Clone, Copy)]
-enum Align {
-    Left,
-    Center,
-    Right,
-}
-
-struct Fonts<'a> {
-    regular: FontRef<'a>,
-    bold: FontRef<'a>,
-}
-
-impl Fonts<'_> {
-    fn font(&self, weight: Weight) -> &FontRef<'_> {
-        match weight {
-            Weight::Regular => &self.regular,
-            Weight::Bold => &self.bold,
-        }
-    }
-
-    /// Converts a CSS-style font size (the em size) to ab_glyph's scale (the full line height).
-    fn scale(&self, weight: Weight, size: f32) -> PxScale {
-        let font = self.font(weight);
-        PxScale::from(size * font.height_unscaled() / font.units_per_em().unwrap_or(1000.0))
-    }
-
-    /// Glyphs the font can draw; anything else (like emoji) is skipped.
-    fn glyphs(&self, weight: Weight, text: &str) -> Vec<ab_glyph::GlyphId> {
-        let font = self.font(weight);
-        text.chars().map(|c| font.glyph_id(c)).filter(|id| id.0 != 0).collect()
-    }
-
-    fn width(&self, weight: Weight, text: &str, size: f32) -> f32 {
-        let scaled = self.font(weight).as_scaled(self.scale(weight, size));
-        let ids = self.glyphs(weight, text);
-        let kerning: f32 = ids.windows(2).map(|w| scaled.kern(w[0], w[1])).sum();
-        ids.iter().map(|id| scaled.h_advance(*id)).sum::<f32>() + kerning
-    }
-
-    /// Draws runs of differently styled text on one baseline at `y`.
-    fn draw_spans(&self, pixmap: &mut Pixmap, spans: &[(&str, Weight, u32)], size: f32, x: f32, y: f32, align: Align) {
-        let total: f32 = spans.iter().map(|(text, weight, _)| self.width(*weight, text, size)).sum();
-        let mut pen = match align {
-            Align::Left => x,
-            Align::Center => x - total / 2.0,
-            Align::Right => x - total,
-        };
-        for (text, weight, rgb) in spans {
-            self.draw_run(pixmap, (text, *weight, *rgb), size, pen, y);
-            pen += self.width(*weight, text, size);
-        }
-    }
-
-    fn draw_run(&self, pixmap: &mut Pixmap, (text, weight, rgb): (&str, Weight, u32), size: f32, x: f32, y: f32) {
-        let font = self.font(weight);
-        let scale = self.scale(weight, size);
-        let scaled = font.as_scaled(scale);
-        let (width, height) = (pixmap.width() as i32, pixmap.height() as i32);
-        let [r, g, b] = [(rgb >> 16) as u8 as f32, (rgb >> 8) as u8 as f32, rgb as u8 as f32];
-        let pixels = pixmap.pixels_mut();
-
-        let mut pen = x;
-        let mut previous = None;
-        for id in self.glyphs(weight, text) {
-            if let Some(prev) = previous {
-                pen += scaled.kern(prev, id);
-            }
-            let glyph = id.with_scale_and_position(scale, ab_glyph::point(pen, y));
-            pen += scaled.h_advance(id);
-            previous = Some(id);
-
-            let Some(outline) = font.outline_glyph(glyph) else { continue };
-            let bounds = outline.px_bounds();
-            outline.draw(|gx, gy, coverage| {
-                let px = bounds.min.x as i32 + gx as i32;
-                let py = bounds.min.y as i32 + gy as i32;
-                if px < 0 || py < 0 || px >= width || py >= height {
-                    return;
-                }
-                // Source-over blend into premultiplied pixels
-                let a = coverage.clamp(0.0, 1.0);
-                let dst = &mut pixels[(py * width + px) as usize];
-                let blend = |src: f32, dst: u8| (src * a + dst as f32 * (1.0 - a)).round().clamp(0.0, 255.0) as u8;
-                let alpha = blend(255.0, dst.alpha());
-                let channel = |src: f32, dst: u8| blend(src, dst).min(alpha);
-                if let Some(c) = PremultipliedColorU8::from_rgba(channel(r, dst.red()), channel(g, dst.green()), channel(b, dst.blue()), alpha) {
-                    *dst = c;
-                }
-            });
-        }
-    }
-
-    /// Shrinks `text` (down to `min_size`, then by trimming with "…") until it fits `max_width`.
-    fn fit(&self, weight: Weight, text: &str, size: f32, min_size: f32, max_width: f32) -> (String, f32) {
-        let mut size = size;
-        while size > min_size && self.width(weight, text, size) > max_width {
-            size -= 1.0;
-        }
-        let mut text = text.to_string();
-        while self.width(weight, &text, size) > max_width && text.chars().count() > 1 {
-            text.pop();
-            while text.ends_with('…') {
-                text.pop();
-            }
-            text.push('…');
-        }
-        (text, size)
-    }
-}
-
 /// Renders the rank card. Returns PNG bytes.
 pub fn render(data: &CardData) -> Option<Vec<u8>> {
     let mut pixmap = Pixmap::new(WIDTH, HEIGHT)?;
-    let fonts = Fonts { regular: FontRef::try_from_slice(REGULAR).ok()?, bold: FontRef::try_from_slice(BOLD).ok()? };
+    let fonts = Fonts::load()?;
     pixmap.fill(colour(PAGE, 255));
 
     // Card body
@@ -257,7 +63,7 @@ pub fn render(data: &CardData) -> Option<Vec<u8>> {
     fill(&mut pixmap, &card, &gradient(CARD_X, CARD_X + CARD_W, CARD_LEFT, CARD_RIGHT, 255), None);
 
     // Left panel, clipped to the card's rounded corners
-    let card_mask = mask_for(&card)?;
+    let card_mask = mask_for(&card, WIDTH, HEIGHT)?;
     let panel = rounded_rect(CARD_X, CARD_Y, PANEL_RIGHT - CARD_X, CARD_H, 0.0)?;
     fill(&mut pixmap, &panel, &solid(PANEL, 200), Some(&card_mask));
     let divider = rounded_rect(PANEL_RIGHT - 1.0, CARD_Y, 2.0, CARD_H, 0.0)?;
@@ -271,7 +77,7 @@ pub fn render(data: &CardData) -> Option<Vec<u8>> {
     let ring = PathBuilder::from_circle(avatar_cx, avatar_cy, avatar_r + 5.0)?;
     fill(&mut pixmap, &ring, &solid(TRACK, 255), None);
     if let Some(avatar) = &data.avatar {
-        draw_image(&mut pixmap, avatar, avatar_cx - avatar_r, avatar_cy - avatar_r, avatar_r * 2.0, true);
+        draw_png(&mut pixmap, avatar, avatar_cx - avatar_r, avatar_cy - avatar_r, avatar_r * 2.0, true);
     }
     glow(&mut pixmap, &ring, |alpha| solid(CYAN, alpha), 3.0);
 
@@ -306,7 +112,7 @@ pub fn render(data: &CardData) -> Option<Vec<u8>> {
     if let Some(role) = &data.role_name {
         let mut x = CONTENT_X;
         if let Some(icon) = &data.role_icon {
-            draw_image(&mut pixmap, icon, CONTENT_X, 118.0, 44.0, false);
+            draw_png(&mut pixmap, icon, CONTENT_X, 118.0, 44.0, false);
             x += 56.0;
         }
         let (role, size) = fonts.fit(Weight::Bold, role, 46.0, 26.0, CONTENT_RIGHT - x);

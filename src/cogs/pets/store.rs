@@ -34,6 +34,7 @@ pub struct Pet {
     pub male: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mood {
     Happy,
     Meh,

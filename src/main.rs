@@ -1,5 +1,6 @@
 mod cogs;
 mod log;
+mod render;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
