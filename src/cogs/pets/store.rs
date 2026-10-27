@@ -11,8 +11,20 @@ const DB_FILE: &str = "database/pets.db";
 pub const FOOD_TTL_HOURS: f64 = 24.0;
 /// Treats a pet can hold, plus one per level
 pub const BASE_FOOD_MAX: f64 = 30.0;
-/// Highest experience; fun is capped at half of this
-pub const LEVEL_CAP: f64 = 100.0;
+/// Each level needs this much more experience than the one before:
+/// level 2 at 10, level 3 at 30, level 4 at 60, ...
+pub const EXP_STEP: f64 = 10.0;
+/// Highest level a pet can reach
+pub const MAX_LEVEL: i64 = 100;
+/// Experience at the highest level (49,500); pets stop gaining experience there
+pub const MAX_EXP: f64 = EXP_STEP * (MAX_LEVEL * (MAX_LEVEL - 1)) as f64 / 2.0;
+/// Highest fun a pet can have
+pub const MAX_FUN: f64 = 50.0;
+
+/// Total experience needed to reach `level`.
+pub fn exp_for_level(level: i64) -> f64 {
+    EXP_STEP * (level * (level - 1)) as f64 / 2.0
+}
 /// Fun at or above this counts as happy
 pub const HAPPY_FUN: f64 = 7.0;
 /// Owners are warned when food drops to this many treats (about a day left)
@@ -47,11 +59,21 @@ impl Pet {
     }
 
     pub fn level(&self) -> i64 {
-        self.exp.floor() as i64
+        let mut level = 1;
+        while level < MAX_LEVEL && exp_for_level(level + 1) <= self.exp {
+            level += 1;
+        }
+        level
+    }
+
+    /// Total experience needed for the next level, or `None` at the highest level.
+    pub fn next_level_exp(&self) -> Option<f64> {
+        let level = self.level();
+        (level < MAX_LEVEL).then(|| exp_for_level(level + 1))
     }
 
     pub fn max_food(&self) -> f64 {
-        BASE_FOOD_MAX + self.exp.floor()
+        BASE_FOOD_MAX + self.level() as f64
     }
 
     pub fn is_happy(&self) -> bool {
@@ -74,11 +96,11 @@ impl Pet {
     }
 
     pub fn add_exp(&mut self, amount: f64) {
-        self.exp = (self.exp + amount).clamp(0.0, LEVEL_CAP);
+        self.exp = (self.exp + amount).clamp(0.0, MAX_EXP);
     }
 
     pub fn add_fun(&mut self, amount: f64) {
-        self.fun = (self.fun + amount).clamp(0.0, LEVEL_CAP / 2.0);
+        self.fun = (self.fun + amount).clamp(0.0, MAX_FUN);
     }
 
     /// Applies `hours` of hunger and boredom.
@@ -225,12 +247,31 @@ mod tests {
     #[test]
     fn stats_are_capped() {
         let mut pet = Pet::new(1, 10, "cat", "Tom", 0, true);
-        pet.add_exp(500.0);
+        pet.add_exp(MAX_EXP * 2.0);
         pet.add_fun(500.0);
-        assert_eq!((pet.exp, pet.fun), (LEVEL_CAP, LEVEL_CAP / 2.0));
+        assert_eq!((pet.exp, pet.fun), (MAX_EXP, MAX_FUN));
+        assert_eq!((pet.level(), pet.next_level_exp()), (MAX_LEVEL, None));
+        assert_eq!(MAX_EXP, 49_500.0);
         pet.add_fun(-500.0);
         assert_eq!(pet.fun, 0.0);
-        assert_eq!(pet.max_food(), BASE_FOOD_MAX + LEVEL_CAP);
+    }
+
+    #[test]
+    fn levels_need_more_experience_each_time() {
+        let mut pet = Pet::new(1, 10, "cat", "Tom", 0, true);
+        assert_eq!((pet.level(), pet.next_level_exp()), (1, Some(10.0)));
+        // One play (+1.5) no longer levels up
+        pet.add_exp(1.5);
+        assert_eq!(pet.level(), 1);
+        pet.add_exp(8.5);
+        assert_eq!((pet.level(), pet.next_level_exp()), (2, Some(30.0)));
+        pet.add_exp(19.99);
+        assert_eq!(pet.level(), 2);
+        pet.add_exp(0.01);
+        assert_eq!(pet.level(), 3);
+        pet.exp = exp_for_level(10);
+        assert_eq!((pet.level(), pet.exp), (10, 450.0));
+        assert_eq!(pet.max_food(), BASE_FOOD_MAX + 10.0);
     }
 
     #[test]

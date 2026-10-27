@@ -36,7 +36,8 @@ pub struct CardData {
     pub age: String,
     pub level: i64,
     pub exp: f64,
-    pub max_exp: f64,
+    /// Total experience needed for the next level; `None` at the highest level
+    pub next_level_exp: Option<f64>,
     pub fun: f64,
     pub max_fun: f64,
     pub happy_at: f64,
@@ -133,7 +134,10 @@ pub fn render(data: &CardData) -> Option<Vec<u8>> {
     // Top row
     stat(&mut pixmap, &fonts, LEFT, 290.0, "Age:", Some("hourglass"), &data.age);
     stat(&mut pixmap, &fonts, CENTER, 290.0, "Level:", Some("shield"), &data.level.to_string());
-    stat(&mut pixmap, &fonts, RIGHT, 290.0, "Experience:", Some("star"), &format!("{:.2} / {:.0}", data.exp, data.max_exp));
+    stat(&mut pixmap, &fonts, RIGHT, 290.0, "Experience:", Some("star"), &match data.next_level_exp {
+        Some(next) => format!("{:.2} / {next:.0}", data.exp),
+        None => format!("{:.0} (max)", data.exp),
+    });
 
     // Fun, with a face for the mood
     let fun = format!("{:.1} / {:.0}", data.fun, data.max_fun);
@@ -196,8 +200,8 @@ mod tests {
             kind: "saber_tooth_tiger".to_string(),
             age: "6 minutes".to_string(),
             level: 4,
-            exp: 4.5,
-            max_exp: 100.0,
+            exp: 34.5,
+            next_level_exp: Some(60.0),
             fun: 3.3,
             max_fun: 50.0,
             happy_at: 7.0,

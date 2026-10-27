@@ -16,7 +16,7 @@ use super::economy::money;
 use super::economy::store::{EcoError, Pocket};
 use super::{Context, Data, Error};
 use crate::log;
-use store::{Alert, Mood, Pet, FOOD_TTL_HOURS, HAPPY_FUN, LEVEL_CAP};
+use store::{Alert, Mood, Pet, FOOD_TTL_HOURS, HAPPY_FUN, MAX_FUN};
 
 pub const COG_NAME: &str = "pets";
 
@@ -305,9 +305,9 @@ async fn status(
         age: age.clone(),
         level: pet.level(),
         exp: pet.exp,
-        max_exp: LEVEL_CAP,
+        next_level_exp: pet.next_level_exp(),
         fun: pet.fun,
-        max_fun: LEVEL_CAP / 2.0,
+        max_fun: MAX_FUN,
         happy_at: HAPPY_FUN,
         mood: pet.mood(),
         mood_text,
@@ -336,8 +336,15 @@ async fn status(
         .field("Age", age, true)
         .field("Level", pet.level().to_string(), true)
         .field("Treats", format!("{:.0} / {:.0}", pet.food.ceil(), pet.max_food()), true)
-        .field("Fun", format!("{:.1} / {:.0}\n*happy at {HAPPY_FUN:.0}*", pet.fun, LEVEL_CAP / 2.0), true)
-        .field("Experience", format!("{:.2} / {LEVEL_CAP:.0}", pet.exp), true)
+        .field("Fun", format!("{:.1} / {MAX_FUN:.0}\n*happy at {HAPPY_FUN:.0}*", pet.fun), true)
+        .field(
+            "Experience",
+            match pet.next_level_exp() {
+                Some(next) => format!("{:.2} / {next:.0}", pet.exp),
+                None => format!("{:.0} (max)", pet.exp),
+            },
+            true,
+        )
         .field("\u{200b}", "\u{200b}", true)
         .field("Mood", mood, false)
         .field("Food lasts", format!("about {}", format_age(hours_left)), false);
@@ -530,8 +537,8 @@ async fn battle(ctx: Context<'_>, #[description = "Who to challenge"] user: sere
         return Ok(());
     };
 
-    // Higher level gives up to a ±10 in 25 edge, as in the original
-    let edge = (challenger.exp - opponent.exp).clamp(-10.0, 10.0);
+    // Each level ahead gives a 2 in 25 edge, up to ±10, as the original's experience gap did
+    let edge = (2 * (challenger.level() - opponent.level())).clamp(-10, 10) as f64;
     let challenger_wins = (rand::rng().random_range(0..=24) as f64) <= 10.0 + edge;
     let (winner, loser) = if challenger_wins { (&mut challenger, &mut opponent) } else { (&mut opponent, &mut challenger) };
     winner.add_exp(BATTLE_EXP * 2.0);

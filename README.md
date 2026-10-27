@@ -145,7 +145,7 @@ A Discord version of the PhantomBot tamagotchi. Pets are bought and fed with mon
 - `/pet buy <kind> <name> [gender]` - Buy a pet for ₪ 1,000 (20 kinds, from cats to dragons); gender is random if not chosen
 - `/pet status [user]` - A picture card with the pet, its age, level, experience, fun, mood, treats and how long the food will last
 - `/pet feed <amount>` - Give treats (₪ 5 each); pets can hold 30 plus their level
-- `/pet play` - Play for experience and fun (uses a treat)
+- `/pet play` - Play for experience and fun (uses a treat). Each level needs 10 more experience than the last, up to level 100
 - `/pet hug <user>` - Hug someone, or their pet (your pet must be happy)
 - `/pet playdate <user>` - Both pets gain fun and experience
 - `/pet battle <user>` - Challenge someone's pet; they accept or decline with buttons. Higher-level pets have better odds
