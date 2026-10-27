@@ -2,8 +2,14 @@ SERVICE  := honeypot-bot
 UNIT_DIR := /etc/systemd/system
 DIR      := $(CURDIR)
 USER     ?= $(shell id -un)
+BIN      := target/release/$(SERVICE)
 
-.PHONY: help not-root build run test install uninstall start stop restart status logs
+# Static (musl) build used for `make dist`, runs on any x86_64 Linux
+MUSL     := x86_64-unknown-linux-musl
+VERSION  := $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml 2>/dev/null | head -1)
+PKG      := $(SERVICE)-$(VERSION)-x86_64-linux
+
+.PHONY: help not-root build run test install uninstall start stop restart status logs dist
 
 help:
 	@echo "make build      Build the release binary"
@@ -13,17 +19,23 @@ help:
 	@echo "make uninstall  Stop, disable and remove the systemd service"
 	@echo "make start|stop|restart|status"
 	@echo "make logs       Follow the service logs"
+	@echo "make dist       Package a static binary for other servers into dist/"
 
 # The Makefile calls sudo itself where needed. Running it under sudo would
 # lose cargo from PATH and install the service to run as root.
 not-root:
 	@if [ "$$(id -u)" = 0 ]; then echo "Run 'make $(MAKECMDGOALS)' without sudo; it asks for sudo when needed."; exit 1; fi
 
+# In a `make dist` package there is no Cargo.toml: use the bundled binary.
 build:
+ifneq ($(wildcard Cargo.toml),)
 	cargo build --release
+else
+	@test -x $(BIN) || { echo "Missing $(BIN)"; exit 1; }
+endif
 
 run: build
-	./target/release/$(SERVICE)
+	./$(BIN)
 
 test:
 	cargo test
@@ -41,6 +53,20 @@ uninstall:
 	-sudo systemctl disable --now $(SERVICE)
 	sudo rm -f $(UNIT_DIR)/$(SERVICE).service
 	sudo systemctl daemon-reload
+
+# Packages a static binary with the Makefile and service template, so on
+# another server: extract, add .env, then `make install` (no Rust needed).
+dist:
+	@test -d "$$(rustc --print sysroot)/lib/rustlib/$(MUSL)" && command -v musl-gcc >/dev/null || \
+		{ echo "Missing musl toolchain: sudo pacman -S rust-musl musl"; exit 1; }
+	cargo build --release --target $(MUSL)
+	rm -rf dist/$(PKG)
+	mkdir -p dist/$(PKG)/target/release
+	install -m 755 target/$(MUSL)/release/$(SERVICE) dist/$(PKG)/$(BIN)
+	cp Makefile $(SERVICE).service.in .env.example README.md dist/$(PKG)/
+	tar -czf dist/$(PKG).tar.gz -C dist $(PKG)
+	rm -rf dist/$(PKG)
+	@echo "Created dist/$(PKG).tar.gz"
 
 # Rebuild before restarting so code changes take effect
 restart: not-root build
