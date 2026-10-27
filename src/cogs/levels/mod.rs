@@ -183,6 +183,11 @@ async fn card_data(
 
     // Highest role (by position) and the member's display colour (highest coloured role)
     let member = ctx.guild_id().unwrap().member(ctx, user.id).await.ok();
+    // Server nickname, else global display name, else username
+    let display_name = member
+        .as_ref()
+        .map(|m| m.display_name().to_string())
+        .unwrap_or_else(|| user.display_name().to_string());
     let (role_name, role_colour, role_icon_url) = member
         .and_then(|member| {
             let guild = ctx.guild()?;
@@ -201,7 +206,7 @@ async fn card_data(
     };
 
     card::CardData {
-        username: user.name.clone(),
+        username: display_name,
         avatar: download(&avatar_url).await,
         level,
         rep,
