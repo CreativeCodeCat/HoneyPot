@@ -118,10 +118,10 @@ Both need **Manage Channels**. Timed lockdowns are lifted automatically, even if
 
 ### Economy Commands
 
-Each server has its own economy. Members start with ₪100 in the bank after joining.
+Each server has its own economy. Members start with ₪ 100 in the bank after joining.
 
 - `/eco join` - Open an account
-- `/eco work` - Work a random job for ₪1–1,320 (once every 6 hours)
+- `/eco work` - Work a random job for ₪ 1–1,320 (once every 6 hours)
 - `/eco balance [user]` - Show a wallet and bank balance
 - `/eco deposit <amount>` / `/eco withdraw <amount>` - Move money between your wallet and bank
 - `/eco pay <user> <amount>` - Pay another member from your wallet

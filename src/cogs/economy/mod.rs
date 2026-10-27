@@ -30,7 +30,7 @@ const JOBS: &[&str] = &[
     "Space Invader",
 ];
 
-/// Formats an amount with the currency icon and thousands separators, e.g. "₪1,234".
+/// Formats an amount with the currency icon and thousands separators, e.g. "₪ 1,234".
 fn money(amount: i64) -> String {
     let digits = amount.unsigned_abs().to_string();
     let mut grouped = String::new();
@@ -40,7 +40,7 @@ fn money(amount: i64) -> String {
         }
         grouped.push(c);
     }
-    format!("{}{ICON}{grouped}", if amount < 0 { "-" } else { "" })
+    format!("{}{ICON} {grouped}", if amount < 0 { "-" } else { "" })
 }
 
 fn guild_id(ctx: Context<'_>) -> u64 {
@@ -354,10 +354,10 @@ mod tests {
 
     #[test]
     fn formats_money() {
-        assert_eq!(money(0), "₪0");
-        assert_eq!(money(999), "₪999");
-        assert_eq!(money(1234), "₪1,234");
-        assert_eq!(money(1_000_000), "₪1,000,000");
-        assert_eq!(money(-5000), "-₪5,000");
+        assert_eq!(money(0), "₪ 0");
+        assert_eq!(money(999), "₪ 999");
+        assert_eq!(money(1234), "₪ 1,234");
+        assert_eq!(money(1_000_000), "₪ 1,000,000");
+        assert_eq!(money(-5000), "-₪ 5,000");
     }
 }
