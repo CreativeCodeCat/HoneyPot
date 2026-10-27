@@ -11,6 +11,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 use super::economy::money;
 use super::economy::store::{EcoError, Pocket};
 use super::{Context, Error};
+use scripts::{Script, DENIED, GRANTED};
+
+mod scripts;
 
 /// Money paid into the wallet for a cracked password
 const HACK_REWARD: i64 = 2500;
@@ -89,13 +92,6 @@ const FRAME_DELAY: Duration = Duration::from_millis(2000);
 /// Room left in an embed description for the code fences
 const EMBED_TEXT_LIMIT: usize = 4000;
 
-const DENIED_QUIPS: &[&str] = &[
-    "Impressive aesthetics. Questionable password.\n> Even the mainframe is disappointed.",
-    "The firewall didn't even need to wake up for that one.",
-    "Bold strategy. It did not pay off.",
-    "The mainframe has logged this attempt under \"comedy\".",
-];
-
 const ACCESS_ART: &[&str] = &[
     " █████╗  ██████╗ ██████╗███████╗███████╗███████╗",
     "██╔══██╗██╔════╝██╔════╝██╔════╝██╔════╝██╔════╝",
@@ -104,10 +100,6 @@ const ACCESS_ART: &[&str] = &[
     "██║  ██║╚██████╗╚██████╗███████╗███████║███████║",
     "╚═╝  ╚═╝ ╚═════╝ ╚═════╝╚══════╝╚══════╝╚══════╝",
 ];
-
-fn pick<'a>(items: &[&'a str]) -> &'a str {
-    items[rand::rng().random_range(0..items.len())]
-}
 
 /// Timestamps for the log lines, ticking on roughly as fast as the lines are printed.
 struct Clock {
@@ -194,242 +186,114 @@ fn terminal(lines: &[String], colour: u32) -> poise::CreateReply {
     })
 }
 
-/// What the player sees: the user, their guess and the password the bot picked.
-struct Attempt<'a> {
-    user: &'a str,
-    guess: &'a str,
-    answer: &'a str,
-    session: [u16; 3],
+/// The values filled into a script's placeholders.
+struct Vars(Vec<(&'static str, String)>);
+
+impl Vars {
+    fn fill(&self, text: &str) -> String {
+        self.0.iter().fold(text.to_string(), |text, (key, value)| text.replace(key, value))
+    }
+
+    /// `key : value` rows with the keys lined up.
+    fn pairs(&self, prefix: &str, pairs: &[(&str, &str)]) -> Vec<String> {
+        let width = pairs.iter().map(|(key, _)| key.chars().count()).max().unwrap_or(0);
+        pairs.iter().map(|(key, value)| format!("{prefix}{key:<width$} : {}", self.fill(value))).collect()
+    }
 }
 
-/// Lines added in each frame of a failed hack.
-fn denied(a: &Attempt, clock: &mut Clock) -> Vec<Vec<String>> {
-    let [s1, s2, s3] = a.session;
+/// The lines added in each stage of `script`. Granted scripts end with the big ACCESS banner.
+fn play(script: &Script, granted: bool, vars: &Vars, clock: &mut Clock) -> Vec<Vec<String>> {
     let mut frames = vec![];
+    let logs = |clock: &mut Clock, lines: &[&str]| lines.iter().map(|line| clock.log(&vars.fill(line))).collect::<Vec<_>>();
+    let tasks = |clock: &mut Clock, tasks: &[(&str, &str)]| {
+        tasks
+            .iter()
+            .map(|(text, status)| match *status {
+                "" => clock.log(&vars.fill(text)),
+                status => clock.task(&vars.fill(text), status),
+            })
+            .collect::<Vec<_>>()
+    };
 
-    let mut lines = frame(
-        &[
-            centre("░▒▓  HONEYPOT :: CYBER OPERATIONS TERMINAL  ▓▒░"),
-            format!("SESSION ID : 0x{s1:04X}-{s2:04X}-{s3:04X}"),
-            "CLEARANCE  : UNAUTHORIZED".into(),
-        ],
-        1,
-    );
+    let mut header = vec![centre(script.title)];
+    header.extend(script.header.iter().map(|row| vars.fill(row)));
+    let mut lines = frame(&header, 1);
     lines.push(String::new());
-    lines.push(clock.log("INITIALIZING SECURE SHELL..."));
-    lines.push(clock.task("Loading cryptographic modules", "OK"));
-    lines.push(clock.task("Establishing encrypted tunnel", "OK"));
+    lines.extend(tasks(clock, script.boot));
     frames.push(lines);
 
     clock.pause();
-    let mut lines = vec![
-        clock.task("Resolving MAINFRAME://UNKNOWN", "OK"),
-        clock.task("Analyzing network perimeter", "DONE"),
-    ];
-    lines.extend(
-        [
-            "",
-            "┌─[ SYSTEM RECONNAISSANCE ]",
-            "│",
-            "├─ Target Status      : ONLINE",
-            "├─ Firewall           : ACTIVE",
-            "├─ Encryption         : AES-256 (SIMULATED)",
-            "├─ Authentication     : MULTI-FACTOR",
-            "├─ Intrusion Detection: ENABLED",
-            "└─ Security Rating    : ██████████ CRITICAL",
-            "",
-        ]
-        .map(String::from),
-    );
-    frames.push(lines);
-
-    clock.pause();
-    frames.push(vec![
-        clock.log(&format!("{} has entered the session.", a.user)),
-        clock.log("Authentication challenge detected."),
-        clock.log(&format!("Submitting candidate credential: \"{}\"", a.guess)),
-        clock.log("Validating credential signature..."),
-        clock.log("Comparing authentication hashes..."),
-        clock.log("Verifying access token..."),
-        clock.log("Cross-checking security clearance..."),
-    ]);
-
-    clock.pause();
-    let mut lines: Vec<String> = [
-        "",
-        "    ACCESS TOKEN:  0x00000000",
-        "    HASH MATCH:    FALSE",
-        "    SESSION KEY:   INVALID",
-        "    AUTH STATUS:   DENIED",
-        "",
-    ]
-    .map(String::from)
-    .into();
-    lines.push(clock.log("WARNING: Authentication mismatch."));
-    lines.push(clock.log("WARNING: Privilege exceeds clearance."));
-    lines.push(clock.log("Starting countermeasure sequence..."));
-    lines.extend(
-        [
-            "",
-            "  [##########----------] 50%  Analyzing request",
-            "  [###############-----] 75%  Auditing credentials",
-            "  [####################] 100% Security audit complete",
-            "",
-        ]
-        .map(String::from),
-    );
-    frames.push(lines);
-
-    clock.pause();
-    let mut lines = frame(
-        &[
-            centre("ACCESS DENIED"),
-            format!("USER       : {}", a.user),
-            format!("INPUT      : {}", a.guess),
-            "RESULT     : AUTHENTICATION FAILURE".into(),
-            format!("ERROR CODE : AUTH_ERR_0x{:04X}", rand::rng().random_range(1..0x100u32)),
-            "CLEARANCE  : INSUFFICIENT".into(),
-        ],
-        1,
-    );
+    let (heading, intel) = script.intel;
+    let mut lines = vec![String::new(), format!("┌─[ {heading} ]"), "│".into()];
+    let rows = vars.pairs("", intel);
+    let last = rows.len().saturating_sub(1);
+    lines.extend(rows.into_iter().enumerate().map(|(i, row)| format!("{}─ {row}", if i == last { "└" } else { "├" })));
     lines.push(String::new());
-    lines.push(clock.log("Performing final diagnostic..."));
-    lines.push(clock.log("Diagnostic complete."));
-    lines.extend([
-        String::new(),
-        "> SECURITY REPORT:".into(),
-        format!("> The password \"{}\" was incorrect.", a.guess),
-        format!("> The correct password was: \"{}\"", a.answer),
-        String::new(),
-        "> SYSTEM MESSAGE:".into(),
-        format!("> {}", pick(DENIED_QUIPS)),
-        String::new(),
-        "[SESSION TERMINATED]".into(),
-        "[CONNECTION CLOSED] ░▒▓█".into(),
-    ]);
+    frames.push(lines);
+
+    clock.pause();
+    let mut lines = logs(clock, script.attempt);
+    lines.extend(tasks(clock, script.checks));
+    frames.push(lines);
+
+    clock.pause();
+    let mut lines = vec![String::new()];
+    lines.extend(vars.pairs("    ", script.verdict));
+    lines.push(String::new());
+    lines.extend(logs(clock, script.notices));
+    lines.push(String::new());
+    lines.extend(script.progress.iter().map(|(percent, label)| {
+        let filled = *percent as usize / 5;
+        format!("  [{}{}] {:<4} {label}", "#".repeat(filled), "-".repeat(20 - filled), format!("{percent}%"))
+    }));
+    lines.push(String::new());
+    frames.push(lines);
+
+    clock.pause();
+    let rows = vars.pairs("", script.result);
+    let mut lines = if granted {
+        let mut body = vec![String::new()];
+        body.extend(ACCESS_ART.iter().map(|line| centre(line)));
+        body.extend([String::new(), centre(script.banner), String::new()]);
+        body.extend(rows);
+        body.push(String::new());
+        frame(&body, 0)
+    } else {
+        let mut body = vec![centre(script.banner)];
+        body.extend(rows);
+        frame(&body, 1)
+    };
+    lines.push(String::new());
+    lines.extend(logs(clock, script.closing));
+    lines.push(String::new());
+    lines.extend(script.message.iter().map(|line| match *line {
+        "" => String::new(),
+        line => format!("> {}", vars.fill(line)),
+    }));
+    lines.push(String::new());
+    lines.extend(script.end.iter().map(|line| line.to_string()));
     frames.push(lines);
     frames
 }
 
-/// Lines added in each frame of a successful hack. `payout` says what happened to the reward.
-fn granted(a: &Attempt, payout: &str, clock: &mut Clock) -> Vec<Vec<String>> {
-    let [s1, s2, s3] = a.session;
-    let mut frames = vec![];
-
-    let mut lines = frame(
-        &[
-            centre("░▒▓█  HONEYPOT :: CYBER OPERATIONS TERMINAL  █▓▒░"),
-            format!("SESSION ID     : 0x{s1:04X}-{s2:04X}-{s3:04X}"),
-            "SECURITY LEVEL : ROOT".into(),
-            "NETWORK        : MAINFRAME://CLASSIFIED".into(),
-            "STATUS         : AUTHENTICATED".into(),
-        ],
-        1,
-    );
-    lines.push(String::new());
-    lines.push(clock.log("BOOTSTRAPPING CYBER OPS ENVIRONMENT..."));
-    lines.push(clock.task("Loading cryptographic libraries", "OK"));
-    lines.push(clock.task("Initializing secure comms", "OK"));
-    lines.push(clock.task("Establishing encrypted session", "OK"));
-    lines.push(clock.task("Connecting to auth gateway", "OK"));
-    frames.push(lines);
-
-    clock.pause();
-    frames.push(
-        [
-            "",
-            "┌─[ TARGET INTELLIGENCE ]",
-            "│",
-            "├─ HOSTNAME       : MAINFRAME-01",
-            "├─ FIREWALL       : ACTIVE",
-            "├─ ENCRYPTION     : AES-256",
-            "├─ AUTHENTICATION : PASSWORD-BASED",
-            "├─ SECURITY LEVEL : MAXIMUM",
-            "└─ SESSION STATUS : AWAITING CREDENTIALS",
-            "",
-        ]
-        .map(String::from)
-        .into(),
-    );
-
-    clock.pause();
-    frames.push(vec![
-        clock.log(&format!("{} has entered the session.", a.user)),
-        clock.log("Authentication challenge received."),
-        clock.log(&format!("Submitting credential: {}", "*".repeat(a.answer.len()))),
-        clock.task("Validating signature", "OK"),
-        clock.task("Comparing credential hash", "MATCH"),
-        clock.task("Verifying auth token", "OK"),
-        clock.task("Checking permissions", "OK"),
-    ]);
-
-    clock.pause();
-    let (hash, id): (u32, u32) = (rand::rng().random(), rand::rng().random());
-    let mut lines = vec![
-        String::new(),
-        format!("    PASSWORD HASH : 0x{:04X}••••••{:04X}", hash >> 16, hash & 0xffff),
-        "    AUTH TOKEN    : VALID".into(),
-        format!("    USER ID       : 0x{id:08X}"),
-        "    ACCESS LEVEL  : ROOT".into(),
-        "    TRUST STATUS  : VERIFIED".into(),
-        String::new(),
-        clock.log("Authentication successful."),
-        clock.log("Generating secure session identifier..."),
-        clock.log(&format!("Session identifier assigned: 0xROOT-{s1:04X}")),
-        clock.log("Verifying authorized permissions..."),
-        clock.log("All authentication checks passed."),
-    ];
-    lines.extend(
-        [
-            "",
-            "  [#####---------------] 25%  Identity verified",
-            "  [##########----------] 50%  Credentials accepted",
-            "  [###############-----] 75%  Permissions validated",
-            "  [####################] 100% Authentication complete",
-            "",
-        ]
-        .map(String::from),
-    );
-    frames.push(lines);
-
-    clock.pause();
-    let mut rows = vec![String::new()];
-    rows.extend(ACCESS_ART.iter().map(|line| centre(line)));
-    rows.extend([
-        String::new(),
-        centre(">>> ACCESS GRANTED <<<"),
-        String::new(),
-        format!("OPERATOR   : {}", a.user),
-        format!("PASSWORD   : {}", a.answer),
-        "CLEARANCE  : ROOT ACCESS".into(),
-        "SESSION    : FULLY AUTHENTICATED".into(),
-        "STATUS     : ALL SYSTEMS OPERATIONAL".into(),
-        String::new(),
-    ]);
-    let mut lines = frame(&rows, 0);
-    lines.push(String::new());
-    lines.push(clock.log("Welcome back, operator."));
-    lines.push(clock.log("Secure session established."));
-    lines.push(clock.log("All checks completed successfully."));
-    lines.extend([
-        String::new(),
-        "> MAINFRAME MESSAGE:".into(),
-        "> Identity confirmed.".into(),
-        "> Credentials accepted.".into(),
-        "> Authorization granted.".into(),
-        format!("> Welcome to the system, {}.", a.user),
-        format!("> {payout}"),
-        String::new(),
-        "> STATUS: ████████████████████ 100%".into(),
-        "> CONNECTION: SECURE".into(),
-        "> AUTHENTICATION: SUCCESSFUL".into(),
-        "> SESSION: ACTIVE".into(),
-        String::new(),
-        "[SYSTEM READY] :: [AWAITING COMMANDS]".into(),
-        "[CONNECTION ESTABLISHED] ░▒▓█".into(),
-    ]);
-    frames.push(lines);
-    frames
+/// Placeholder values for one hack attempt.
+fn vars(user: &str, guess: &str, answer: &str, payout: &str) -> Vars {
+    let mut rng = rand::rng();
+    let [s1, s2, s3]: [u16; 3] = rng.random();
+    let hash: u32 = rng.random();
+    // The player's own text goes in last, so anything in it that looks like a placeholder stays as typed
+    Vars(vec![
+        ("{answer}", answer.to_string()),
+        ("{stars}", "*".repeat(answer.len())),
+        ("{session}", format!("0x{s1:04X}-{s2:04X}-{s3:04X}")),
+        ("{short}", format!("{s1:04X}")),
+        ("{hash}", format!("0x{:04X}••••••{:04X}", hash >> 16, hash & 0xffff)),
+        ("{id}", format!("0x{:08X}", rng.random::<u32>())),
+        ("{code}", format!("0x{:04X}", rng.random_range(1..0x100u32))),
+        ("{payout}", payout.to_string()),
+        ("{guess}", guess.to_string()),
+        ("{user}", user.to_string()),
+    ])
 }
 
 /// Try to hack the bot by guessing its password
@@ -462,21 +326,20 @@ pub async fn hack(
     // Backticks would end the code block early
     let guess_shown = guess.replace('`', "'");
     let user = format!("@{}", ctx.author().name.replace('`', "'"));
-    let session: [u16; 3] = rand::rng().random();
-    let attempt = Attempt { user: &user, guess: &guess_shown, answer, session };
 
-    let mut clock = Clock::new();
-    let (frames, colour) = if cracked {
+    let (scripts, payout, colour) = if cracked {
         let paid = ctx.data().economy.lock().unwrap().adjust(guild_id, user_id.get(), Pocket::Wallet, HACK_REWARD)?;
         let payout = match paid {
             Ok(_) => format!("{} has been transferred to your wallet.", money(HACK_REWARD)),
             Err(EcoError::NoAccount) => format!("Join with /eco join to earn {} next time.", money(HACK_REWARD)),
             Err(_) => "Your wallet is full, so the loot stays put.".to_string(),
         };
-        (granted(&attempt, &payout, &mut clock), GREEN)
+        (GRANTED, payout, GREEN)
     } else {
-        (denied(&attempt, &mut clock), RED)
+        (DENIED, String::new(), RED)
     };
+    let script = &scripts[rand::rng().random_range(0..scripts.len())];
+    let frames = play(script, cracked, &vars(&user, &guess_shown, answer, &payout), &mut Clock::new());
 
     // Print a few lines at a time, pausing a little longer between stages
     let mut lines = vec![];
@@ -532,12 +395,19 @@ mod tests {
     }
 
     #[test]
-    fn both_endings_fit_in_one_message() {
-        let attempt = Attempt { user: &"@".repeat(33), guess: &"x".repeat(MAX_GUESS_LEN), answer: "changeme", session: [0; 3] };
-        for frames in [denied(&attempt, &mut Clock::new()), granted(&attempt, "paid", &mut Clock::new())] {
-            let lines: Vec<String> = frames.concat().iter().flat_map(|l| wrap(l)).collect();
-            assert!(lines.iter().map(|l| l.chars().count() + 1).sum::<usize>() + 20 < 6000);
-            assert!(lines.iter().all(|l| l.chars().count() <= MAX_LINE));
+    fn every_script_fits_and_reveals_the_answer() {
+        let vars = vars(&format!("@{}", "u".repeat(32)), &"x".repeat(MAX_GUESS_LEN), "changeme", "paid");
+        for (scripts, granted) in [(DENIED, false), (GRANTED, true)] {
+            for script in scripts {
+                let frames = play(script, granted, &vars, &mut Clock::new());
+                let lines: Vec<String> = frames.concat().iter().flat_map(|l| wrap(l)).collect();
+                assert!(lines.iter().map(|l| l.chars().count() + 1).sum::<usize>() + 20 < 6000, "{}", script.title);
+                assert!(lines.iter().all(|l| l.chars().count() <= MAX_LINE), "{}", script.title);
+                let text = lines.join("\n");
+                assert!(text.contains("changeme"), "{}", script.title);
+                assert!(!text.contains('{'), "{}", script.title);
+                assert_eq!(text.contains("paid"), granted, "{}", script.title);
+            }
         }
     }
 
