@@ -52,7 +52,8 @@ A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenit
        - `Ban Members` (required for ban functionality)
        - `Kick Members` (required for kick functionality)
        - `Moderate Members` (required for timeout functionality)
-       - `Manage Channels` (for honeypot setup)
+       - `Manage Channels` (for stats channels and ticket channels)
+       - `Manage Roles` (for ticket channel permissions)
        - `Administrator` (recommended for full functionality)
    - Use the generated URL to invite the bot to your server
 
@@ -100,6 +101,14 @@ All commands can be used with `!` prefix or as slash commands (`/`). Most comman
 - `/checkoffender [user]` - Check if user is in offender list
 - `/crossservercheck [user]` - Check user's activity across all servers
 
+### Ticket Commands
+
+- `/ticket-setup <category> <channel> <transcript> <handlers> <description>` - Post the ticket panel in `channel`. Members pick a type (Support, Purchase, Other), fill in a reason, and get a private channel in `category`
+- `/ticket add <member>` / `/ticket remove <member>` - Give or remove a member's access to the current ticket
+- `/ticket followup` - Post a follow-up; the ticket closes 48 hours later unless someone replies
+
+Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handlers or admins) and **Transcript** (DMs an HTML transcript to whoever clicks it). On close, the ticket's details and HTML transcript are posted in the transcript channel and the ticket channel is deleted. Tickets also close automatically after 7 days without messages, or when the member who opened them leaves the server.
+
 ### Other Commands
 
 - `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
@@ -107,7 +116,7 @@ All commands can be used with `!` prefix or as slash commands (`/`). Most comman
 
 ### Cog Management Commands
 
-Cogs: `automod`, `general`, `honeypot`, `serverstats`, `cogmanager`. All cogs are enabled by default. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `general`, `honeypot`, `serverstats`, `tickets`, `cogmanager`. All cogs are enabled by default. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -142,6 +151,7 @@ The bot includes 6 pre-configured templates for quick honeypot setup:
 The bot uses SQLite for persistent storage:
 - `database/honeypot.db` - Honeypot configuration, activity logs, offenders, audit log
 - `database/cog_config.db` - Per-server cog enable/disable configuration
+- `database/tickets.db` - Ticket system setup and tickets
 
 ## Use Cases
 
@@ -170,6 +180,11 @@ HoneyPot/
         ├── general.rs      # /ping
         ├── automod.rs      # /automod
         ├── stats.rs        # Voice channel stats
+        ├── tickets/
+        │   ├── mod.rs      # Panel, buttons, closing, auto-close
+        │   ├── commands.rs # /ticket-setup and /ticket
+        │   ├── store.rs    # SQLite storage
+        │   └── transcript.rs # HTML transcripts
         └── honeypot/
             ├── mod.rs      # Message trap, punishments, weekly summary
             ├── commands.rs # Honeypot commands

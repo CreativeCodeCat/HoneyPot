@@ -7,6 +7,7 @@ pub mod cog_manager;
 pub mod general;
 pub mod honeypot;
 pub mod stats;
+pub mod tickets;
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -24,6 +25,7 @@ pub const COGS: &[&str] = &[
     "General",
     "HoneyPot",
     "ServerStats",
+    "Tickets",
 ];
 
 /// The cog that manages the others; it can never be disabled.
@@ -33,6 +35,7 @@ pub struct State {
     pub start_time: Instant,
     pub cog_config: Mutex<cog_manager::CogConfig>,
     pub honeypot: Mutex<honeypot::store::Store>,
+    pub tickets: Mutex<tickets::store::Store>,
 }
 
 impl State {

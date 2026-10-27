@@ -9,8 +9,8 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, general, honeypot, normalize_cog_name, stats, Context, Data, Error,
-    State, COG_MANAGER,
+    automod, cog_manager, general, honeypot, normalize_cog_name, stats, tickets, Context, Data,
+    Error, State, COG_MANAGER,
 };
 
 /// Background loops are spawned once, on the first CacheReady (it can fire again after reconnects).
@@ -25,6 +25,8 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         cog_manager::cogstatus(),
     ];
     commands.extend(honeypot::commands::all());
+    commands.push(tickets::commands::ticket_setup());
+    commands.push(tickets::commands::ticket());
     commands
 }
 
@@ -137,22 +139,28 @@ async fn event_handler(
             if !TASKS_STARTED.swap(true, Ordering::SeqCst) {
                 tokio::spawn(stats::update_stats_loop(ctx.clone(), data.clone()));
                 tokio::spawn(honeypot::weekly_summary_loop(ctx.clone(), data.clone()));
+                tokio::spawn(tickets::auto_close_loop(ctx.clone(), data.clone()));
             }
         }
         serenity::FullEvent::Message { new_message } => {
             honeypot::on_message(ctx, data, new_message).await;
+            tickets::on_message(data, new_message);
         }
         serenity::FullEvent::GuildMemberAddition { new_member } => {
             stats::update_guild_channels(ctx, data, new_member.guild_id).await;
         }
-        serenity::FullEvent::GuildMemberRemoval { guild_id, .. } => {
+        serenity::FullEvent::GuildMemberRemoval { guild_id, user, .. } => {
             stats::update_guild_channels(ctx, data, *guild_id).await;
+            tickets::on_member_leave(ctx, data, *guild_id, user).await;
         }
         serenity::FullEvent::ChannelCreate { channel } => {
             stats::update_guild_channels(ctx, data, channel.guild_id).await;
         }
         serenity::FullEvent::ChannelDelete { channel, .. } => {
             stats::update_guild_channels(ctx, data, channel.guild_id).await;
+        }
+        serenity::FullEvent::InteractionCreate { interaction } => {
+            tickets::on_interaction(ctx, data, interaction).await;
         }
         _ => {}
     }
@@ -172,6 +180,9 @@ async fn main() {
         ),
         honeypot: Mutex::new(
             honeypot::store::Store::open().expect("failed to open honeypot database"),
+        ),
+        tickets: Mutex::new(
+            tickets::store::Store::open().expect("failed to open tickets database"),
         ),
     });
 
