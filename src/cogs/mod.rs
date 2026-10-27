@@ -7,6 +7,7 @@ pub mod cog_manager;
 pub mod economy;
 pub mod general;
 pub mod honeypot;
+pub mod levels;
 pub mod lockdown;
 pub mod stats;
 pub mod tickets;
@@ -27,6 +28,7 @@ pub const COGS: &[&str] = &[
     "Economy",
     "General",
     "HoneyPot",
+    "Levels",
     "Lockdown",
     "ServerStats",
     "Tickets",
@@ -40,6 +42,7 @@ pub struct State {
     pub cog_config: Mutex<cog_manager::CogConfig>,
     pub economy: Mutex<economy::store::Store>,
     pub honeypot: Mutex<honeypot::store::Store>,
+    pub levels: Mutex<levels::store::Store>,
     pub lockdown: Mutex<lockdown::Store>,
     pub tickets: Mutex<tickets::store::Store>,
 }

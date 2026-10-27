@@ -127,6 +127,15 @@ Each server has its own economy. Members start with ₪ 100 in the bank after jo
 - `/eco pay <user> <amount>` - Pay another member from your wallet
 - `/eco wallet add|remove <amount> [user]` and `/eco bank add|remove <amount> [user]` - Adjust balances (**Manage Server**)
 
+### Levels Commands
+
+Members earn 25–300 XP for chatting, at most once every 5 minutes. Each level needs 2,500 more XP than the last. Level-ups are announced in the level-up channel set with `/rank-setup`, otherwise the server's system channel, otherwise the channel the member was chatting in.
+
+- `/rank [user]` - Show level, rank, reputation and progress to the next level
+- `/leaderboard` - Show the top 10 members by XP
+- `/reputation <user>` - Give a member +3 reputation (once every 2 hours)
+- `/rank-setup [rate] [min] [max] [channel]` - Change the XP per level (250–7,500), XP per message (25–500) and the level-up channel (**Administrator**)
+
 ### Other Commands
 
 - `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
@@ -135,7 +144,7 @@ Each server has its own economy. Members start with ₪ 100 in the bank after jo
 
 ### Cog Management Commands
 
-Cogs: `automod`, `economy`, `general`, `honeypot`, `lockdown`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `economy`, `general`, `honeypot`, `levels`, `lockdown`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -173,6 +182,7 @@ The bot uses SQLite for persistent storage:
 - `database/tickets.db` - Ticket system setup and tickets
 - `database/lockdown.db` - Active lockdowns and the permissions to restore
 - `database/economy.db` - Economy accounts
+- `database/levels.db` - XP, reputation and level settings
 
 ## Use Cases
 
@@ -203,6 +213,9 @@ HoneyPot/
         │   └── store.rs    # SQLite storage
         ├── general.rs      # /ping
         ├── automod.rs      # /automod
+        ├── levels/
+        │   ├── mod.rs      # XP on messages and level commands
+        │   └── store.rs    # SQLite storage and the level curve
         ├── lockdown.rs     # /lock and /unlock
         ├── stats.rs        # Voice channel stats
         ├── tickets/
