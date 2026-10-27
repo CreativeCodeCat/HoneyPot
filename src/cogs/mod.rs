@@ -18,7 +18,13 @@ pub type Context<'a> = poise::Context<'a, Data, Error>;
 pub type Data = Arc<State>;
 
 /// Every cog compiled into the bot, by display name.
-pub const COGS: &[&str] = &["AutoMod", "CogManager", "General", "HoneyPot", "ServerStats"];
+pub const COGS: &[&str] = &[
+    "AutoMod",
+    "CogManager",
+    "General",
+    "HoneyPot",
+    "ServerStats",
+];
 
 /// The cog that manages the others; it can never be disabled.
 pub const COG_MANAGER: &str = "cogmanager";
@@ -31,7 +37,10 @@ pub struct State {
 
 impl State {
     pub fn is_cog_enabled(&self, guild_id: u64, cog_name: &str) -> bool {
-        self.cog_config.lock().unwrap().is_enabled(guild_id, cog_name)
+        self.cog_config
+            .lock()
+            .unwrap()
+            .is_enabled(guild_id, cog_name)
     }
 }
 
@@ -49,7 +58,9 @@ pub fn now_iso() -> String {
 pub fn parse_iso(timestamp: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(timestamp)
         .map(|dt| dt.with_timezone(&Utc))
-        .or_else(|_| NaiveDateTime::parse_from_str(timestamp, "%Y-%m-%dT%H:%M:%S%.f").map(|dt| dt.and_utc()))
+        .or_else(|_| {
+            NaiveDateTime::parse_from_str(timestamp, "%Y-%m-%dT%H:%M:%S%.f").map(|dt| dt.and_utc())
+        })
         .ok()
 }
 
@@ -64,7 +75,11 @@ pub fn title_case(text: &str) -> String {
     let mut prev_alpha = false;
     text.chars()
         .map(|c| {
-            let out = if prev_alpha { c.to_lowercase().to_string() } else { c.to_uppercase().to_string() };
+            let out = if prev_alpha {
+                c.to_lowercase().to_string()
+            } else {
+                c.to_uppercase().to_string()
+            };
             prev_alpha = c.is_alphabetic();
             out
         })
@@ -82,10 +97,19 @@ mod tests {
 
     #[test]
     fn helpers_match_python() {
-        assert_eq!(title_case("user_banned".replace('_', " ").as_str()), "User Banned");
+        assert_eq!(
+            title_case("user_banned".replace('_', " ").as_str()),
+            "User Banned"
+        );
         assert_eq!(title_case("flagged code-blocks"), "Flagged Code-Blocks");
-        assert_eq!(format_time("2026-09-30T13:26:35.965988+00:00"), "2026-09-30 13:26:35");
-        assert_eq!(format_time("2026-09-30T13:26:35.965988"), "2026-09-30 13:26:35");
+        assert_eq!(
+            format_time("2026-09-30T13:26:35.965988+00:00"),
+            "2026-09-30 13:26:35"
+        );
+        assert_eq!(
+            format_time("2026-09-30T13:26:35.965988"),
+            "2026-09-30 13:26:35"
+        );
         assert!(parse_iso(&now_iso()).is_some());
         assert_eq!(normalize_cog_name("Server Stats"), "serverstats");
     }

@@ -29,10 +29,19 @@ impl CogConfig {
         let mut config: HashMap<u64, HashMap<String, bool>> = HashMap::new();
         {
             let mut stmt = conn.prepare("SELECT guild_id, cog_name, enabled FROM cog_config")?;
-            let rows = stmt.query_map([], |row| Ok((row.get::<_, u64>(0)?, row.get::<_, String>(1)?, row.get::<_, bool>(2)?)))?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, u64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, bool>(2)?,
+                ))
+            })?;
             for row in rows {
                 let (guild_id, cog_name, enabled) = row?;
-                config.entry(guild_id).or_default().insert(cog_name, enabled);
+                config
+                    .entry(guild_id)
+                    .or_default()
+                    .insert(cog_name, enabled);
             }
         }
 
@@ -40,15 +49,27 @@ impl CogConfig {
     }
 
     pub fn is_enabled(&self, guild_id: u64, cog_name: &str) -> bool {
-        self.config.get(&guild_id).and_then(|cogs| cogs.get(cog_name)).copied().unwrap_or(true)
+        self.config
+            .get(&guild_id)
+            .and_then(|cogs| cogs.get(cog_name))
+            .copied()
+            .unwrap_or(true)
     }
 
-    pub fn set_enabled(&mut self, guild_id: u64, cog_name: &str, enabled: bool) -> rusqlite::Result<()> {
+    pub fn set_enabled(
+        &mut self,
+        guild_id: u64,
+        cog_name: &str,
+        enabled: bool,
+    ) -> rusqlite::Result<()> {
         self.conn.execute(
             "INSERT OR REPLACE INTO cog_config (guild_id, cog_name, enabled) VALUES (?, ?, ?)",
             params![guild_id, cog_name, enabled],
         )?;
-        self.config.entry(guild_id).or_default().insert(cog_name.to_string(), enabled);
+        self.config
+            .entry(guild_id)
+            .or_default()
+            .insert(cog_name.to_string(), enabled);
         Ok(())
     }
 
@@ -62,8 +83,13 @@ impl CogConfig {
             .collect();
 
         for guild_id in stale {
-            crate::log::warning(format!("Guild {guild_id} no longer exists, removing from cog config"));
-            if let Err(e) = self.conn.execute("DELETE FROM cog_config WHERE guild_id = ?", [guild_id]) {
+            crate::log::warning(format!(
+                "Guild {guild_id} no longer exists, removing from cog config"
+            ));
+            if let Err(e) = self
+                .conn
+                .execute("DELETE FROM cog_config WHERE guild_id = ?", [guild_id])
+            {
                 crate::log::error(format!("Error cleaning up stale cog config: {e}"));
                 continue;
             }
@@ -72,10 +98,15 @@ impl CogConfig {
     }
 }
 
-async fn autocomplete_cog_name(_ctx: Context<'_>, partial: &str) -> Vec<serenity::AutocompleteChoice> {
+async fn autocomplete_cog_name(
+    _ctx: Context<'_>,
+    partial: &str,
+) -> Vec<serenity::AutocompleteChoice> {
     let partial = partial.to_lowercase();
     COGS.iter()
-        .filter(|cog| normalize_cog_name(cog) != COG_MANAGER && cog.to_lowercase().contains(&partial))
+        .filter(|cog| {
+            normalize_cog_name(cog) != COG_MANAGER && cog.to_lowercase().contains(&partial)
+        })
         .map(|cog| serenity::AutocompleteChoice::new(*cog, normalize_cog_name(cog)))
         .collect()
 }
@@ -83,7 +114,9 @@ async fn autocomplete_cog_name(_ctx: Context<'_>, partial: &str) -> Vec<serenity
 /// Resolves user input to a known cog's config name.
 fn resolve_cog(input: &str) -> Option<String> {
     let input = normalize_cog_name(input);
-    COGS.iter().map(|cog| normalize_cog_name(cog)).find(|cog| *cog == input)
+    COGS.iter()
+        .map(|cog| normalize_cog_name(cog))
+        .find(|cog| *cog == input)
 }
 
 /// Enable a cog for this server
@@ -109,8 +142,15 @@ pub async fn enablecog(
         return Ok(());
     };
 
-    ctx.data().cog_config.lock().unwrap().set_enabled(guild_id, &cog_name, true)?;
-    ctx.say(format!("✅ Cog '{cog_name}' has been enabled for this server.")).await?;
+    ctx.data()
+        .cog_config
+        .lock()
+        .unwrap()
+        .set_enabled(guild_id, &cog_name, true)?;
+    ctx.say(format!(
+        "✅ Cog '{cog_name}' has been enabled for this server."
+    ))
+    .await?;
     Ok(())
 }
 
@@ -142,8 +182,15 @@ pub async fn disablecog(
         return Ok(());
     }
 
-    ctx.data().cog_config.lock().unwrap().set_enabled(guild_id, &cog_name, false)?;
-    ctx.say(format!("✅ Cog '{cog_name}' has been disabled for this server.")).await?;
+    ctx.data()
+        .cog_config
+        .lock()
+        .unwrap()
+        .set_enabled(guild_id, &cog_name, false)?;
+    ctx.say(format!(
+        "✅ Cog '{cog_name}' has been disabled for this server."
+    ))
+    .await?;
     Ok(())
 }
 
@@ -164,14 +211,21 @@ pub async fn cogstatus(ctx: Context<'_>) -> Result<(), Error> {
         let config = ctx.data().cog_config.lock().unwrap();
         COGS.iter()
             .map(|cog| {
-                let status = if config.is_enabled(guild_id, &normalize_cog_name(cog)) { "✅ Enabled" } else { "❌ Disabled" };
+                let status = if config.is_enabled(guild_id, &normalize_cog_name(cog)) {
+                    "✅ Enabled"
+                } else {
+                    "❌ Disabled"
+                };
                 format!("{status}: {cog}")
             })
             .collect::<Vec<_>>()
             .join("\n")
     };
 
-    let embed = serenity::CreateEmbed::new().title("Cog Status").description(status_msg).colour(0x3498db);
+    let embed = serenity::CreateEmbed::new()
+        .title("Cog Status")
+        .description(status_msg)
+        .colour(0x3498db);
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }

@@ -53,7 +53,9 @@ pub struct GuildData {
 
 impl GuildData {
     pub fn channel_mut(&mut self, channel_id: u64) -> Option<&mut ChannelConfig> {
-        self.channels.iter_mut().find(|c| c.channel_id == channel_id)
+        self.channels
+            .iter_mut()
+            .find(|c| c.channel_id == channel_id)
     }
 }
 
@@ -81,11 +83,13 @@ pub struct Offender {
 }
 
 fn id_list(json: Option<String>) -> Vec<u64> {
-    json.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    json.and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
 }
 
 fn json_value(json: Option<String>) -> Value {
-    json.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_else(|| Value::Object(Default::default()))
+    json.and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| Value::Object(Default::default()))
 }
 
 pub struct Store {
@@ -155,9 +159,15 @@ impl Store {
             );",
         )?;
 
-        let mut store = Self { conn, guilds: HashMap::new() };
+        let mut store = Self {
+            conn,
+            guilds: HashMap::new(),
+        };
         store.load()?;
-        crate::log::info(format!("[HONEYPOT] Loaded data for {} guilds", store.guilds.len()));
+        crate::log::info(format!(
+            "[HONEYPOT] Loaded data for {} guilds",
+            store.guilds.len()
+        ));
         Ok(store)
     }
 
@@ -196,7 +206,9 @@ impl Store {
                     enabled: row.get::<_, Option<bool>>(2)?.unwrap_or(true),
                     auto_ban: row.get::<_, Option<bool>>(3)?.unwrap_or(false),
                     custom_message: row.get(4)?,
-                    punishment_type: row.get::<_, Option<String>>(5)?.unwrap_or_else(|| "ban".to_string()),
+                    punishment_type: row
+                        .get::<_, Option<String>>(5)?
+                        .unwrap_or_else(|| "ban".to_string()),
                     punishment_duration: row.get::<_, Option<i64>>(6)?.unwrap_or(0),
                     whitelisted_users: id_list(row.get(7)?),
                     whitelisted_roles: id_list(row.get(8)?),
@@ -216,7 +228,9 @@ impl Store {
 
     /// Writes one guild's in-memory config (including its channels) to the database.
     pub fn save_guild(&mut self, guild_id: u64) -> rusqlite::Result<()> {
-        let Some(guild) = self.guilds.get(&guild_id) else { return Ok(()) };
+        let Some(guild) = self.guilds.get(&guild_id) else {
+            return Ok(());
+        };
         let tx = self.conn.transaction()?;
         tx.execute(
             "INSERT OR REPLACE INTO guilds
@@ -231,7 +245,10 @@ impl Store {
                 serde_json::to_string(&guild.admin_user_ids).unwrap(),
             ],
         )?;
-        tx.execute("DELETE FROM honeypot_channels WHERE guild_id = ?", [guild_id])?;
+        tx.execute(
+            "DELETE FROM honeypot_channels WHERE guild_id = ?",
+            [guild_id],
+        )?;
         for channel in &guild.channels {
             tx.execute(
                 "INSERT INTO honeypot_channels
@@ -262,10 +279,15 @@ impl Store {
         let guild_ids: Vec<u64> = self.guilds.keys().copied().collect();
         for guild_id in guild_ids {
             let Some(channels) = current.get(&guild_id) else {
-                crate::log::warning(format!("[HONEYPOT] Guild {guild_id} no longer exists, removing from database"));
+                crate::log::warning(format!(
+                    "[HONEYPOT] Guild {guild_id} no longer exists, removing from database"
+                ));
                 let tx = self.conn.transaction()?;
                 for table in ["guilds", "honeypot_channels", "activity_logs", "audit_log"] {
-                    tx.execute(&format!("DELETE FROM {table} WHERE guild_id = ?"), [guild_id])?;
+                    tx.execute(
+                        &format!("DELETE FROM {table} WHERE guild_id = ?"),
+                        [guild_id],
+                    )?;
                 }
                 tx.commit()?;
                 self.guilds.remove(&guild_id);
@@ -291,7 +313,13 @@ impl Store {
         Ok(())
     }
 
-    pub fn add_audit_log(&self, guild_id: u64, admin_id: u64, action: &str, details: Value) -> rusqlite::Result<()> {
+    pub fn add_audit_log(
+        &self,
+        guild_id: u64,
+        admin_id: u64,
+        action: &str,
+        details: Value,
+    ) -> rusqlite::Result<()> {
         self.conn.execute(
             "INSERT INTO audit_log (guild_id, admin_id, action, details, timestamp) VALUES (?, ?, ?, ?, ?)",
             params![guild_id, admin_id, action, details.to_string(), now_iso()],
@@ -306,7 +334,14 @@ impl Store {
         Ok(())
     }
 
-    pub fn log_activity(&self, guild_id: u64, user_id: u64, username: &str, action: &str, details: Value) -> rusqlite::Result<()> {
+    pub fn log_activity(
+        &self,
+        guild_id: u64,
+        user_id: u64,
+        username: &str,
+        action: &str,
+        details: Value,
+    ) -> rusqlite::Result<()> {
         self.conn.execute(
             "INSERT INTO activity_logs (guild_id, user_id, username, action, details, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
             params![guild_id, user_id, username, action, details.to_string(), now_iso()],
@@ -315,7 +350,12 @@ impl Store {
     }
 
     /// Activity logs for a guild, newest first. `user_id` narrows to one user.
-    pub fn activity_logs(&self, guild_id: u64, user_id: Option<u64>, limit: Option<i64>) -> rusqlite::Result<Vec<ActivityLog>> {
+    pub fn activity_logs(
+        &self,
+        guild_id: u64,
+        user_id: Option<u64>,
+        limit: Option<i64>,
+    ) -> rusqlite::Result<Vec<ActivityLog>> {
         let mut stmt = self.conn.prepare(
             "SELECT user_id, username, action, details, timestamp FROM activity_logs
              WHERE guild_id = ?1 AND (?2 IS NULL OR user_id = ?2)
@@ -324,10 +364,16 @@ impl Store {
         let rows = stmt.query_map(params![guild_id, user_id, limit.unwrap_or(-1)], |row| {
             Ok(ActivityLog {
                 user_id: row.get::<_, Option<u64>>(0)?.unwrap_or(0),
-                username: row.get::<_, Option<String>>(1)?.unwrap_or_else(|| "Unknown".to_string()),
-                action: row.get::<_, Option<String>>(2)?.unwrap_or_else(|| "Unknown".to_string()),
+                username: row
+                    .get::<_, Option<String>>(1)?
+                    .unwrap_or_else(|| "Unknown".to_string()),
+                action: row
+                    .get::<_, Option<String>>(2)?
+                    .unwrap_or_else(|| "Unknown".to_string()),
                 details: json_value(row.get(3)?),
-                timestamp: row.get::<_, Option<String>>(4)?.unwrap_or_else(|| "Unknown".to_string()),
+                timestamp: row
+                    .get::<_, Option<String>>(4)?
+                    .unwrap_or_else(|| "Unknown".to_string()),
             })
         })?;
         rows.collect()
@@ -341,7 +387,9 @@ impl Store {
         let rows = stmt.query_map([guild_id], |row| {
             Ok([
                 row.get::<_, Option<String>>(0)?.unwrap_or_default(),
-                row.get::<_, Option<u64>>(1)?.map(|id| id.to_string()).unwrap_or_default(),
+                row.get::<_, Option<u64>>(1)?
+                    .map(|id| id.to_string())
+                    .unwrap_or_default(),
                 row.get::<_, Option<String>>(2)?.unwrap_or_default(),
                 row.get::<_, Option<String>>(3)?.unwrap_or_default(),
                 row.get::<_, Option<String>>(4)?.unwrap_or_default(),
@@ -351,13 +399,16 @@ impl Store {
     }
 
     pub fn clear_activity_logs(&self, guild_id: u64) -> rusqlite::Result<()> {
-        self.conn.execute("DELETE FROM activity_logs WHERE guild_id = ?", [guild_id])?;
+        self.conn
+            .execute("DELETE FROM activity_logs WHERE guild_id = ?", [guild_id])?;
         Ok(())
     }
 
     /// Guilds that have activity logged for this user.
     pub fn guilds_with_activity(&self, user_id: u64) -> rusqlite::Result<Vec<u64>> {
-        let mut stmt = self.conn.prepare("SELECT DISTINCT guild_id FROM activity_logs WHERE user_id = ?")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT guild_id FROM activity_logs WHERE user_id = ?")?;
         let rows = stmt.query_map([user_id], |row| row.get(0))?;
         rows.collect()
     }
@@ -377,15 +428,24 @@ impl Store {
         let rows = stmt.query_map(params![guild_id, limit], |row| {
             Ok(AuditEntry {
                 admin_id: row.get::<_, Option<u64>>(0)?.unwrap_or(0),
-                action: row.get::<_, Option<String>>(1)?.unwrap_or_else(|| "Unknown".to_string()),
+                action: row
+                    .get::<_, Option<String>>(1)?
+                    .unwrap_or_else(|| "Unknown".to_string()),
                 details: json_value(row.get(2)?),
-                timestamp: row.get::<_, Option<String>>(3)?.unwrap_or_else(|| "Unknown".to_string()),
+                timestamp: row
+                    .get::<_, Option<String>>(3)?
+                    .unwrap_or_else(|| "Unknown".to_string()),
             })
         })?;
         rows.collect()
     }
 
-    pub fn add_offender(&self, user_id: u64, username: &str, guild_id: u64) -> rusqlite::Result<()> {
+    pub fn add_offender(
+        &self,
+        user_id: u64,
+        username: &str,
+        guild_id: u64,
+    ) -> rusqlite::Result<()> {
         let now = now_iso();
         match self.offender(user_id)? {
             Some(mut offender) => {
@@ -434,7 +494,9 @@ mod tests {
     /// Loads a copy of the real database (if present) and checks a save round-trips.
     #[test]
     fn loads_and_round_trips_existing_database() {
-        let Ok(_) = std::fs::metadata(DB_FILE) else { return };
+        let Ok(_) = std::fs::metadata(DB_FILE) else {
+            return;
+        };
         let copy = std::env::temp_dir().join(format!("honeypot-test-{}.db", std::process::id()));
         std::fs::copy(DB_FILE, &copy).unwrap();
 

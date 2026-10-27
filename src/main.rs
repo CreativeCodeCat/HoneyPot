@@ -8,7 +8,10 @@ use std::time::Instant;
 
 use poise::serenity_prelude as serenity;
 
-use cogs::{automod, cog_manager, general, honeypot, normalize_cog_name, stats, Context, Data, Error, State, COG_MANAGER};
+use cogs::{
+    automod, cog_manager, general, honeypot, normalize_cog_name, stats, Context, Data, Error,
+    State, COG_MANAGER,
+};
 
 /// Background loops are spawned once, on the first CacheReady (it can fire again after reconnects).
 static TASKS_STARTED: AtomicBool = AtomicBool::new(false);
@@ -27,7 +30,8 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
 
 /// Blocks commands whose cog is disabled in the current guild.
 async fn cog_enabled_check(ctx: Context<'_>) -> Result<bool, Error> {
-    let (Some(guild_id), Some(category)) = (ctx.guild_id(), ctx.command().category.as_deref()) else {
+    let (Some(guild_id), Some(category)) = (ctx.guild_id(), ctx.command().category.as_deref())
+    else {
         return Ok(true);
     };
     let cog_name = normalize_cog_name(category);
@@ -44,18 +48,35 @@ async fn reply_ephemeral(ctx: Context<'_>, text: impl Into<String>) {
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
         poise::FrameworkError::MissingUserPermissions { ctx, .. } => {
-            reply_ephemeral(ctx, "❌ You need administrator permissions to use this command.").await;
+            reply_ephemeral(
+                ctx,
+                "❌ You need administrator permissions to use this command.",
+            )
+            .await;
         }
-        poise::FrameworkError::CooldownHit { remaining_cooldown, ctx, .. } => {
+        poise::FrameworkError::CooldownHit {
+            remaining_cooldown,
+            ctx,
+            ..
+        } => {
             let secs = remaining_cooldown.as_secs();
-            reply_ephemeral(ctx, format!("⏱️ This command is on cooldown. Try again in {secs} seconds.")).await;
+            reply_ephemeral(
+                ctx,
+                format!("⏱️ This command is on cooldown. Try again in {secs} seconds."),
+            )
+            .await;
         }
-        poise::FrameworkError::CommandCheckFailed { error: None, ctx, .. } => {
+        poise::FrameworkError::CommandCheckFailed {
+            error: None, ctx, ..
+        } => {
             let cog = ctx.command().category.clone().unwrap_or_default();
             reply_ephemeral(ctx, format!("❌ The {cog} cog is disabled on this server.")).await;
         }
         poise::FrameworkError::Command { error, ctx, .. } => {
-            log::error(format!("Error in command '{}': {error}", ctx.command().name));
+            log::error(format!(
+                "Error in command '{}': {error}",
+                ctx.command().name
+            ));
             reply_ephemeral(ctx, format!("An error occurred: {error}")).await;
         }
         other => {
@@ -91,9 +112,18 @@ async fn event_handler(
     match event {
         serenity::FullEvent::GuildCreate { guild, is_new } => {
             // Request the full member list so member counts and permission checks work
-            ctx.shard.chunk_guild(guild.id, None, false, serenity::ChunkGuildFilter::None, None);
+            ctx.shard.chunk_guild(
+                guild.id,
+                None,
+                false,
+                serenity::ChunkGuildFilter::None,
+                None,
+            );
             if *is_new == Some(true) {
-                log::info(format!("Joined new guild: {} (ID: {})", guild.name, guild.id));
+                log::info(format!(
+                    "Joined new guild: {} (ID: {})",
+                    guild.name, guild.id
+                ));
             }
         }
         serenity::FullEvent::GuildDelete { incomplete, full } => {
@@ -137,17 +167,26 @@ async fn main() {
     std::fs::create_dir_all("database").expect("failed to create database directory");
     let data: Data = Arc::new(State {
         start_time: Instant::now(),
-        cog_config: Mutex::new(cog_manager::CogConfig::open().expect("failed to open cog config database")),
-        honeypot: Mutex::new(honeypot::store::Store::open().expect("failed to open honeypot database")),
+        cog_config: Mutex::new(
+            cog_manager::CogConfig::open().expect("failed to open cog config database"),
+        ),
+        honeypot: Mutex::new(
+            honeypot::store::Store::open().expect("failed to open honeypot database"),
+        ),
     });
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: commands(),
-            prefix_options: poise::PrefixFrameworkOptions { prefix: Some("!".into()), ..Default::default() },
+            prefix_options: poise::PrefixFrameworkOptions {
+                prefix: Some("!".into()),
+                ..Default::default()
+            },
             command_check: Some(|ctx| Box::pin(cog_enabled_check(ctx))),
             on_error: |error| Box::pin(on_error(error)),
-            event_handler: |ctx, event, framework, data| Box::pin(event_handler(ctx, event, framework, data)),
+            event_handler: |ctx, event, framework, data| {
+                Box::pin(event_handler(ctx, event, framework, data))
+            },
             ..Default::default()
         })
         .setup(|ctx, ready, framework| {
@@ -159,7 +198,10 @@ async fn main() {
                 for guild in &ready.guilds {
                     match guild.id.set_commands(ctx, vec![]).await {
                         Ok(_) => log::warning(format!("Cleared commands for guild: {}", guild.id)),
-                        Err(e) => log::error(format!("Error clearing commands for guild {}: {e}", guild.id)),
+                        Err(e) => log::error(format!(
+                            "Error clearing commands for guild {}: {e}",
+                            guild.id
+                        )),
                     }
                 }
 

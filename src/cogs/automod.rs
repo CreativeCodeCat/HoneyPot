@@ -104,18 +104,25 @@ pub async fn automod(
     ctx.defer_ephemeral().await?;
     let guild_id = ctx.guild_id().unwrap();
     let bot_name = ctx.cache().current_user().name.clone();
-    let rule_name = format!("AutoMod {} by {}", title_case(&rule_type.slug().replace('-', " ")), bot_name);
+    let rule_name = format!(
+        "AutoMod {} by {}",
+        title_case(&rule_type.slug().replace('-', " ")),
+        bot_name
+    );
 
     let existing = guild_id.automod_rules(ctx.http()).await?;
     if existing.iter().any(|rule| rule.name == rule_name) {
-        ctx.say(format!("❌ AutoMod rule '{rule_name}' already exists!")).await?;
+        ctx.say(format!("❌ AutoMod rule '{rule_name}' already exists!"))
+            .await?;
         return Ok(());
     }
 
     ctx.say("Creating AutoMod rule...").await?;
 
     let mut actions = vec![Action::BlockMessage {
-        custom_message: Some(format!("This message was prevented by AutoMod rule created by {bot_name}")),
+        custom_message: Some(format!(
+            "This message was prevented by AutoMod rule created by {bot_name}"
+        )),
     }];
     let system_channel = ctx.guild().and_then(|g| g.system_channel_id);
     if let Some(channel_id) = system_channel {
@@ -138,13 +145,19 @@ pub async fn automod(
                 .colour(0x2ecc71);
             ctx.send(poise::CreateReply::default().embed(embed)).await?;
         }
-        Err(serenity::Error::Http(serenity::HttpError::UnsuccessfulRequest(resp))) if resp.status_code.as_u16() == 403 => {
-            crate::log::error(format!("Permission error creating AutoMod rule: {}", resp.error.message));
+        Err(serenity::Error::Http(serenity::HttpError::UnsuccessfulRequest(resp)))
+            if resp.status_code.as_u16() == 403 =>
+        {
+            crate::log::error(format!(
+                "Permission error creating AutoMod rule: {}",
+                resp.error.message
+            ));
             ctx.say("❌ I don't have permission to create AutoMod rules. I need 'Manage Guild' permission.").await?;
         }
         Err(e) => {
             crate::log::error(format!("Error creating AutoMod rule: {e}"));
-            ctx.say(format!("❌ Error creating AutoMod rule: {e}")).await?;
+            ctx.say(format!("❌ Error creating AutoMod rule: {e}"))
+                .await?;
         }
     }
     Ok(())

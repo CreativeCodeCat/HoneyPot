@@ -1,8 +1,8 @@
 use poise::serenity_prelude as serenity;
 use serde_json::{json, Value};
 
-use super::store::ChannelConfig;
 use super::honeypot_embed;
+use super::store::ChannelConfig;
 use crate::cogs::{format_time, title_case, truncate, Context, Error};
 use crate::log;
 
@@ -88,10 +88,15 @@ impl Template {
 }
 
 fn guild_id(ctx: Context<'_>) -> u64 {
-    ctx.guild_id().expect("honeypot commands are guild_only").get()
+    ctx.guild_id()
+        .expect("honeypot commands are guild_only")
+        .get()
 }
 
-fn target_channel(ctx: Context<'_>, channel: Option<serenity::GuildChannel>) -> serenity::ChannelId {
+fn target_channel(
+    ctx: Context<'_>,
+    channel: Option<serenity::GuildChannel>,
+) -> serenity::ChannelId {
     channel.map(|c| c.id).unwrap_or(ctx.channel_id())
 }
 
@@ -139,17 +144,37 @@ async fn update_channel<T>(
 }
 
 /// Edits the bot's honeypot warning among the channel's last 10 messages.
-async fn update_honeypot_message(ctx: Context<'_>, channel_id: serenity::ChannelId, message: Option<&str>) -> Result<(), Error> {
+async fn update_honeypot_message(
+    ctx: Context<'_>,
+    channel_id: serenity::ChannelId,
+    message: Option<&str>,
+) -> Result<(), Error> {
     let bot_id = ctx.cache().current_user().id;
-    let messages = channel_id.messages(ctx, serenity::GetMessages::new().limit(10)).await?;
+    let messages = channel_id
+        .messages(ctx, serenity::GetMessages::new().limit(10))
+        .await?;
     if let Some(mut warning) = messages.into_iter().find(|m| m.author.id == bot_id) {
-        warning.edit(ctx, serenity::EditMessage::new().embed(honeypot_embed(message))).await?;
+        warning
+            .edit(
+                ctx,
+                serenity::EditMessage::new().embed(honeypot_embed(message)),
+            )
+            .await?;
     }
     Ok(())
 }
 
-async fn send_honeypot_message(ctx: Context<'_>, channel_id: serenity::ChannelId, message: Option<&str>) -> Result<(), Error> {
-    channel_id.send_message(ctx, serenity::CreateMessage::new().embed(honeypot_embed(message))).await?;
+async fn send_honeypot_message(
+    ctx: Context<'_>,
+    channel_id: serenity::ChannelId,
+    message: Option<&str>,
+) -> Result<(), Error> {
+    channel_id
+        .send_message(
+            ctx,
+            serenity::CreateMessage::new().embed(honeypot_embed(message)),
+        )
+        .await?;
     Ok(())
 }
 
@@ -158,7 +183,11 @@ async fn member_display_name(ctx: Context<'_>, user_id: u64) -> Option<String> {
     if user_id == 0 {
         return None;
     }
-    let member = ctx.guild_id()?.member(ctx, serenity::UserId::new(user_id)).await.ok()?;
+    let member = ctx
+        .guild_id()?
+        .member(ctx, serenity::UserId::new(user_id))
+        .await
+        .ok()?;
     Some(member.display_name().to_string())
 }
 
@@ -168,13 +197,22 @@ fn cached_channel_name(ctx: Context<'_>, channel_id: u64) -> Option<String> {
     if channel_id == 0 {
         return None;
     }
-    ctx.cache().channel(serenity::ChannelId::new(channel_id)).map(|c| c.name.clone())
+    ctx.cache()
+        .channel(serenity::ChannelId::new(channel_id))
+        .map(|c| c.name.clone())
 }
 
 fn channel_name(ctx: Context<'_>, channel_id: Option<u64>) -> String {
     channel_id
         .and_then(|id| cached_channel_name(ctx, id))
-        .unwrap_or_else(|| format!("ID: {}", channel_id.map(|id| id.to_string()).unwrap_or_else(|| "None".to_string())))
+        .unwrap_or_else(|| {
+            format!(
+                "ID: {}",
+                channel_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "None".to_string())
+            )
+        })
 }
 
 fn user_name(ctx: Context<'_>, user_id: Option<u64>) -> String {
@@ -185,7 +223,14 @@ fn user_name(ctx: Context<'_>, user_id: Option<u64>) -> String {
                 .user(serenity::UserId::new(id))
                 .map(|u| u.global_name.clone().unwrap_or_else(|| u.name.clone()))
         })
-        .unwrap_or_else(|| format!("ID: {}", user_id.map(|id| id.to_string()).unwrap_or_else(|| "None".to_string())))
+        .unwrap_or_else(|| {
+            format!(
+                "ID: {}",
+                user_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "None".to_string())
+            )
+        })
 }
 
 fn value_text(value: &Value) -> String {
@@ -201,30 +246,66 @@ fn format_audit_details(ctx: Context<'_>, action: &str, details: &Value) -> Stri
     }
     let channel = || channel_name(ctx, details["channel_id"].as_u64());
     let user = || user_name(ctx, details["user_id"].as_u64());
-    let status = || if details["new_status"].as_bool().unwrap_or(false) { "Enabled" } else { "Disabled" };
+    let status = || {
+        if details["new_status"].as_bool().unwrap_or(false) {
+            "Enabled"
+        } else {
+            "Disabled"
+        }
+    };
 
     match action {
-        "set_honeypot" => format!("Channel: #{}\nAuto-ban: {}", channel(), details["auto_ban"].as_bool().unwrap_or(false)),
-        "remove_honeypot" | "set_notification_channel" | "set_message" => format!("Channel: #{}", channel()),
-        "apply_template" => format!("Template: {}\nChannel: #{}", value_text(&details["template"]), channel()),
+        "set_honeypot" => format!(
+            "Channel: #{}\nAuto-ban: {}",
+            channel(),
+            details["auto_ban"].as_bool().unwrap_or(false)
+        ),
+        "remove_honeypot" | "set_notification_channel" | "set_message" => {
+            format!("Channel: #{}", channel())
+        }
+        "apply_template" => format!(
+            "Template: {}\nChannel: #{}",
+            value_text(&details["template"]),
+            channel()
+        ),
         "set_punishment" => {
             let duration = details["duration"].as_i64().unwrap_or(0);
-            let duration = if duration > 0 { format!("{duration} min") } else { "N/A".to_string() };
-            format!("Channel: #{}\nPunishment: {}\nDuration: {duration}", channel(), value_text(&details["punishment"]))
+            let duration = if duration > 0 {
+                format!("{duration} min")
+            } else {
+                "N/A".to_string()
+            };
+            format!(
+                "Channel: #{}\nPunishment: {}\nDuration: {duration}",
+                channel(),
+                value_text(&details["punishment"])
+            )
         }
-        "whitelist_user" | "unwhitelist_user" => format!("User: {}\nChannel: #{}", user(), channel()),
-        "set_account_age" => format!("Channel: #{}\nMin Age: {} days", channel(), details["days"].as_i64().unwrap_or(0)),
+        "whitelist_user" | "unwhitelist_user" => {
+            format!("User: {}\nChannel: #{}", user(), channel())
+        }
+        "set_account_age" => format!(
+            "Channel: #{}\nMin Age: {} days",
+            channel(),
+            details["days"].as_i64().unwrap_or(0)
+        ),
         "toggle_dm_notifications" => format!("New Status: {}", status()),
         "add_admin" | "remove_admin" => format!("User: {}", user()),
         "toggle_auto_ban" => format!("Channel: #{}\nNew Status: {}", channel(), status()),
         "clear_logs" => "Logs cleared".to_string(),
         "reset_ban_count" => "Ban counter reset".to_string(),
-        "export_logs" => format!("Logs exported ({} entries)", details["log_count"].as_i64().unwrap_or(0)),
+        "export_logs" => format!(
+            "Logs exported ({} entries)",
+            details["log_count"].as_i64().unwrap_or(0)
+        ),
         _ => truncate(&details.to_string(), 200),
     }
 }
 
-async fn autocomplete_template(_ctx: Context<'_>, partial: &str) -> Vec<serenity::AutocompleteChoice> {
+async fn autocomplete_template(
+    _ctx: Context<'_>,
+    partial: &str,
+) -> Vec<serenity::AutocompleteChoice> {
     let partial = partial.to_lowercase();
     TEMPLATES
         .iter()
@@ -233,7 +314,10 @@ async fn autocomplete_template(_ctx: Context<'_>, partial: &str) -> Vec<serenity
         .collect()
 }
 
-async fn autocomplete_punishment(_ctx: Context<'_>, partial: &str) -> Vec<serenity::AutocompleteChoice> {
+async fn autocomplete_punishment(
+    _ctx: Context<'_>,
+    partial: &str,
+) -> Vec<serenity::AutocompleteChoice> {
     let partial = partial.to_lowercase();
     PUNISHMENTS
         .iter()
@@ -243,7 +327,14 @@ async fn autocomplete_punishment(_ctx: Context<'_>, partial: &str) -> Vec<sereni
 }
 
 /// Set a channel as a honeypot for this server
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn sethoneypot(
     ctx: Context<'_>,
     #[description = "Channel to turn into a honeypot (defaults to this one)"]
@@ -274,21 +365,37 @@ pub async fn sethoneypot(
     };
 
     if !added {
-        ctx.say(format!("❌ <#{channel_id}> is already a honeypot channel.")).await?;
+        ctx.say(format!("❌ <#{channel_id}> is already a honeypot channel."))
+            .await?;
         return Ok(());
     }
 
-    audit(ctx, "set_honeypot", json!({ "channel_id": channel_id.get(), "auto_ban": auto_ban }));
+    audit(
+        ctx,
+        "set_honeypot",
+        json!({ "channel_id": channel_id.get(), "auto_ban": auto_ban }),
+    );
     send_honeypot_message(ctx, channel_id, message.as_deref()).await?;
 
-    let ban_status = if auto_ban { "with auto-ban enabled" } else { "without auto-ban" };
+    let ban_status = if auto_ban {
+        "with auto-ban enabled"
+    } else {
+        "without auto-ban"
+    };
     ctx.say(format!("✅ Honeypot channel set to <#{channel_id}> {ban_status}. All messages in this channel will be logged."))
         .await?;
     Ok(())
 }
 
 /// Remove a honeypot channel for this server
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn removehoneypot(
     ctx: Context<'_>,
     #[description = "Honeypot channel to remove (defaults to this one)"]
@@ -316,33 +423,60 @@ pub async fn removehoneypot(
     };
 
     match removed {
-        None => ctx.say("❌ No honeypot channels are set for this server.").await?,
+        None => {
+            ctx.say("❌ No honeypot channels are set for this server.")
+                .await?
+        }
         Some(false) => ctx.say(not_a_honeypot(channel_id)).await?,
         Some(true) => {
-            audit(ctx, "remove_honeypot", json!({ "channel_id": channel_id.get() }));
-            ctx.say(format!("✅ Honeypot channel <#{channel_id}> removed.")).await?
+            audit(
+                ctx,
+                "remove_honeypot",
+                json!({ "channel_id": channel_id.get() }),
+            );
+            ctx.say(format!("✅ Honeypot channel <#{channel_id}> removed."))
+                .await?
         }
     };
     Ok(())
 }
 
 /// Check the honeypot status for this server
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot"
+)]
 pub async fn honeypotstatus(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
-    let guild = ctx.data().honeypot.lock().unwrap().guilds.get(&guild_id(ctx)).cloned();
+    let guild = ctx
+        .data()
+        .honeypot
+        .lock()
+        .unwrap()
+        .guilds
+        .get(&guild_id(ctx))
+        .cloned();
     let Some(guild) = guild.filter(|g| !g.channels.is_empty()) else {
         ctx.say(NO_HONEYPOT).await?;
         return Ok(());
     };
 
-    let mut embed = serenity::CreateEmbed::new().title("🍯 Honeypot Status").colour(0xe67e22);
+    let mut embed = serenity::CreateEmbed::new()
+        .title("🍯 Honeypot Status")
+        .colour(0xe67e22);
     for (i, config) in guild.channels.iter().enumerate() {
         let name = match cached_channel_name(ctx, config.channel_id) {
             Some(channel) => format!("Channel {}: #{channel}", i + 1),
             None => format!("Channel {}: Unknown (ID: {})", i + 1, config.channel_id),
         };
-        let status = if config.enabled { "✅ Enabled" } else { "❌ Disabled" };
+        let status = if config.enabled {
+            "✅ Enabled"
+        } else {
+            "❌ Disabled"
+        };
         let auto_ban = if config.auto_ban { "✅" } else { "❌" };
         let punishment = title_case(&config.punishment_type);
         let duration = if config.punishment_duration > 0 && punishment == "Timeout" {
@@ -350,7 +484,11 @@ pub async fn honeypotstatus(ctx: Context<'_>) -> Result<(), Error> {
         } else {
             String::new()
         };
-        embed = embed.field(name, format!("Status: {status}\nAuto-ban: {auto_ban}\nPunishment: {punishment}{duration}"), false);
+        embed = embed.field(
+            name,
+            format!("Status: {status}\nAuto-ban: {auto_ban}\nPunishment: {punishment}{duration}"),
+            false,
+        );
     }
     embed = embed.field("Total Bans", guild.ban_count.to_string(), false);
 
@@ -359,7 +497,14 @@ pub async fn honeypotstatus(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// View recent honeypot activity logs
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn honeypotlogs(
     ctx: Context<'_>,
     #[description = "Number of entries to show (max 12)"]
@@ -370,16 +515,25 @@ pub async fn honeypotlogs(
     ctx.defer_ephemeral().await?;
     // Each entry uses two embed fields and Discord allows 25
     let limit = limit.unwrap_or(10).clamp(1, 12);
-    let logs = ctx.data().honeypot.lock().unwrap().activity_logs(guild_id(ctx), None, Some(limit))?;
+    let logs =
+        ctx.data()
+            .honeypot
+            .lock()
+            .unwrap()
+            .activity_logs(guild_id(ctx), None, Some(limit))?;
 
     if logs.is_empty() {
         ctx.say("No recent activity to show.").await?;
         return Ok(());
     }
 
-    let mut embed = serenity::CreateEmbed::new().title(format!("Recent Honeypot Activity (Last {})", logs.len())).colour(0xe67e22);
+    let mut embed = serenity::CreateEmbed::new()
+        .title(format!("Recent Honeypot Activity (Last {})", logs.len()))
+        .colour(0xe67e22);
     for (i, entry) in logs.iter().enumerate() {
-        let display_name = member_display_name(ctx, entry.user_id).await.unwrap_or_else(|| entry.username.clone());
+        let display_name = member_display_name(ctx, entry.user_id)
+            .await
+            .unwrap_or_else(|| entry.username.clone());
 
         let mut details_text = String::new();
         match entry.details.as_object() {
@@ -405,9 +559,15 @@ pub async fn honeypotlogs(
             None => details_text = value_text(&entry.details),
         }
 
-        let value = format!("**Action:** {}\n{details_text}", title_case(&entry.action.replace('_', " ")));
+        let value = format!(
+            "**Action:** {}\n{details_text}",
+            title_case(&entry.action.replace('_', " "))
+        );
         embed = embed.field(
-            truncate(&format!("{display_name} - {}", format_time(&entry.timestamp)), 256),
+            truncate(
+                &format!("{display_name} - {}", format_time(&entry.timestamp)),
+                256,
+            ),
             truncate(&value, 1024),
             false,
         );
@@ -421,17 +581,35 @@ pub async fn honeypotlogs(
 }
 
 /// Clear honeypot activity logs for this server
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn clearhoneypotlogs(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
-    ctx.data().honeypot.lock().unwrap().clear_activity_logs(guild_id(ctx))?;
+    ctx.data()
+        .honeypot
+        .lock()
+        .unwrap()
+        .clear_activity_logs(guild_id(ctx))?;
     audit(ctx, "clear_logs", json!({}));
     ctx.say("✅ Honeypot logs cleared for this server.").await?;
     Ok(())
 }
 
 /// Export honeypot logs to CSV
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn exportlogs(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let gid = guild_id(ctx);
@@ -447,12 +625,20 @@ pub async fn exportlogs(ctx: Context<'_>) -> Result<(), Error> {
     audit(ctx, "export_logs", json!({ "log_count": rows.len() }));
 
     let file = serenity::CreateAttachment::bytes(bytes, format!("honeypot_export_{gid}.csv"));
-    ctx.send(poise::CreateReply::default().attachment(file)).await?;
+    ctx.send(poise::CreateReply::default().attachment(file))
+        .await?;
     Ok(())
 }
 
 /// Reset the ban counter for this server
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn resetbancount(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let gid = guild_id(ctx);
@@ -479,7 +665,14 @@ pub async fn resetbancount(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Toggle auto-ban for a honeypot channel
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn toggleautoban(
     ctx: Context<'_>,
     #[description = "Honeypot channel (defaults to this one)"]
@@ -498,21 +691,50 @@ pub async fn toggleautoban(
         return Ok(());
     };
 
-    audit(ctx, "toggle_auto_ban", json!({ "channel_id": channel_id.get(), "new_status": new_status }));
+    audit(
+        ctx,
+        "toggle_auto_ban",
+        json!({ "channel_id": channel_id.get(), "new_status": new_status }),
+    );
     let status_text = if new_status { "enabled" } else { "disabled" };
-    ctx.say(format!("✅ Auto-ban has been {status_text} for <#{channel_id}>.")).await?;
+    ctx.say(format!(
+        "✅ Auto-ban has been {status_text} for <#{channel_id}>."
+    ))
+    .await?;
     Ok(())
 }
 
 /// Check the current ban count for this server
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn bancount(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
-    let guild = ctx.data().honeypot.lock().unwrap().guilds.get(&guild_id(ctx)).cloned();
+    let guild = ctx
+        .data()
+        .honeypot
+        .lock()
+        .unwrap()
+        .guilds
+        .get(&guild_id(ctx))
+        .cloned();
     match guild {
         Some(guild) => {
-            let auto_ban = if guild.channels.iter().any(|c| c.auto_ban) { "enabled" } else { "disabled" };
-            ctx.say(format!("🍯 Total bans: {}\nAuto-ban: {auto_ban}", guild.ban_count)).await?
+            let auto_ban = if guild.channels.iter().any(|c| c.auto_ban) {
+                "enabled"
+            } else {
+                "disabled"
+            };
+            ctx.say(format!(
+                "🍯 Total bans: {}\nAuto-ban: {auto_ban}",
+                guild.ban_count
+            ))
+            .await?
         }
         None => ctx.say(NO_HONEYPOT).await?,
     };
@@ -520,7 +742,14 @@ pub async fn bancount(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Set a custom message for a honeypot channel
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn setmessage(
     ctx: Context<'_>,
     #[description = "Honeypot channel (defaults to this one)"]
@@ -536,10 +765,19 @@ pub async fn setmessage(
         return Ok(());
     };
 
-    if update_channel(ctx, channel_id, |c| c.custom_message = Some(message.clone())).await?.is_none() {
+    if update_channel(ctx, channel_id, |c| {
+        c.custom_message = Some(message.clone())
+    })
+    .await?
+    .is_none()
+    {
         return Ok(());
     }
-    audit(ctx, "set_message", json!({ "channel_id": channel_id.get() }));
+    audit(
+        ctx,
+        "set_message",
+        json!({ "channel_id": channel_id.get() }),
+    );
 
     if let Err(e) = update_honeypot_message(ctx, channel_id, Some(&message)).await {
         log::error(format!("Error updating honeypot message: {e}"));
@@ -549,7 +787,14 @@ pub async fn setmessage(
 }
 
 /// Set punishment type for a honeypot channel
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn setpunishment(
     ctx: Context<'_>,
     #[description = "Honeypot channel (defaults to this one)"]
@@ -565,11 +810,13 @@ pub async fn setpunishment(
     let duration = duration.unwrap_or(0);
 
     let Some(punishment) = punishment.map(|p| p.to_lowercase()) else {
-        ctx.say("❌ Please specify a punishment type: ban, kick, or timeout").await?;
+        ctx.say("❌ Please specify a punishment type: ban, kick, or timeout")
+            .await?;
         return Ok(());
     };
     if !PUNISHMENTS.contains(&punishment.as_str()) {
-        ctx.say("❌ Invalid punishment type. Use: ban, kick, or timeout").await?;
+        ctx.say("❌ Invalid punishment type. Use: ban, kick, or timeout")
+            .await?;
         return Ok(());
     }
 
@@ -582,14 +829,32 @@ pub async fn setpunishment(
         return Ok(());
     }
 
-    audit(ctx, "set_punishment", json!({ "channel_id": channel_id.get(), "punishment": punishment, "duration": duration }));
-    let duration_text = if punishment == "timeout" && duration > 0 { format!(" for {duration} minutes") } else { String::new() };
-    ctx.say(format!("✅ Punishment set to {punishment}{duration_text} for <#{channel_id}>.")).await?;
+    audit(
+        ctx,
+        "set_punishment",
+        json!({ "channel_id": channel_id.get(), "punishment": punishment, "duration": duration }),
+    );
+    let duration_text = if punishment == "timeout" && duration > 0 {
+        format!(" for {duration} minutes")
+    } else {
+        String::new()
+    };
+    ctx.say(format!(
+        "✅ Punishment set to {punishment}{duration_text} for <#{channel_id}>."
+    ))
+    .await?;
     Ok(())
 }
 
 /// Whitelist a user from honeypot
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn whitelistuser(
     ctx: Context<'_>,
     #[description = "User to whitelist"] user: serenity::Member,
@@ -614,16 +879,31 @@ pub async fn whitelistuser(
     };
 
     if added {
-        audit(ctx, "whitelist_user", json!({ "user_id": user_id.get(), "channel_id": channel_id.get() }));
-        ctx.say(format!("✅ <@{user_id}> has been whitelisted from <#{channel_id}>.")).await?;
+        audit(
+            ctx,
+            "whitelist_user",
+            json!({ "user_id": user_id.get(), "channel_id": channel_id.get() }),
+        );
+        ctx.say(format!(
+            "✅ <@{user_id}> has been whitelisted from <#{channel_id}>."
+        ))
+        .await?;
     } else {
-        ctx.say(format!("❌ <@{user_id}> is already whitelisted.")).await?;
+        ctx.say(format!("❌ <@{user_id}> is already whitelisted."))
+            .await?;
     }
     Ok(())
 }
 
 /// Remove user from honeypot whitelist
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn unwhitelistuser(
     ctx: Context<'_>,
     #[description = "User to remove from the whitelist"] user: serenity::Member,
@@ -646,16 +926,29 @@ pub async fn unwhitelistuser(
     };
 
     if removed {
-        audit(ctx, "unwhitelist_user", json!({ "user_id": user_id.get(), "channel_id": channel_id.get() }));
-        ctx.say(format!("✅ <@{user_id}> has been removed from whitelist.")).await?;
+        audit(
+            ctx,
+            "unwhitelist_user",
+            json!({ "user_id": user_id.get(), "channel_id": channel_id.get() }),
+        );
+        ctx.say(format!("✅ <@{user_id}> has been removed from whitelist."))
+            .await?;
     } else {
-        ctx.say(format!("❌ <@{user_id}> is not whitelisted.")).await?;
+        ctx.say(format!("❌ <@{user_id}> is not whitelisted."))
+            .await?;
     }
     Ok(())
 }
 
 /// Set minimum account age (in days) for honeypot
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn setaccountage(
     ctx: Context<'_>,
     #[description = "Honeypot channel (defaults to this one)"]
@@ -669,21 +962,41 @@ pub async fn setaccountage(
     let channel_id = target_channel(ctx, channel);
     let days = days.unwrap_or(0);
 
-    if update_channel(ctx, channel_id, |c| c.min_account_age_days = days).await?.is_none() {
+    if update_channel(ctx, channel_id, |c| c.min_account_age_days = days)
+        .await?
+        .is_none()
+    {
         return Ok(());
     }
-    audit(ctx, "set_account_age", json!({ "channel_id": channel_id.get(), "days": days }));
+    audit(
+        ctx,
+        "set_account_age",
+        json!({ "channel_id": channel_id.get(), "days": days }),
+    );
 
     if days == 0 {
-        ctx.say(format!("✅ Account age requirement removed for <#{channel_id}>.")).await?;
+        ctx.say(format!(
+            "✅ Account age requirement removed for <#{channel_id}>."
+        ))
+        .await?;
     } else {
-        ctx.say(format!("✅ Account age requirement set to {days} days for <#{channel_id}>.")).await?;
+        ctx.say(format!(
+            "✅ Account age requirement set to {days} days for <#{channel_id}>."
+        ))
+        .await?;
     }
     Ok(())
 }
 
 /// Set channel for honeypot notifications
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn setadminchannel(
     ctx: Context<'_>,
     #[description = "Channel to receive notifications"]
@@ -694,16 +1007,32 @@ pub async fn setadminchannel(
     let gid = guild_id(ctx);
     {
         let mut honeypot = ctx.data().honeypot.lock().unwrap();
-        honeypot.guilds.entry(gid).or_default().notification_channel_id = Some(channel.id.get());
+        honeypot
+            .guilds
+            .entry(gid)
+            .or_default()
+            .notification_channel_id = Some(channel.id.get());
         honeypot.save_guild(gid)?;
     }
-    audit(ctx, "set_notification_channel", json!({ "channel_id": channel.id.get() }));
-    ctx.say(format!("✅ Notification channel set to <#{}>.", channel.id)).await?;
+    audit(
+        ctx,
+        "set_notification_channel",
+        json!({ "channel_id": channel.id.get() }),
+    );
+    ctx.say(format!("✅ Notification channel set to <#{}>.", channel.id))
+        .await?;
     Ok(())
 }
 
 /// Toggle DM notifications for admins
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn toggleadminnotifications(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let gid = guild_id(ctx);
@@ -715,14 +1044,32 @@ pub async fn toggleadminnotifications(ctx: Context<'_>) -> Result<(), Error> {
         honeypot.save_guild(gid)?;
         new_status
     };
-    audit(ctx, "toggle_dm_notifications", json!({ "new_status": new_status }));
-    ctx.say(format!("✅ DM notifications {}.", if new_status { "enabled" } else { "disabled" })).await?;
+    audit(
+        ctx,
+        "toggle_dm_notifications",
+        json!({ "new_status": new_status }),
+    );
+    ctx.say(format!(
+        "✅ DM notifications {}.",
+        if new_status { "enabled" } else { "disabled" }
+    ))
+    .await?;
     Ok(())
 }
 
 /// Add an admin to receive notifications
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
-pub async fn addadmin(ctx: Context<'_>, #[description = "User to notify"] user: serenity::Member) -> Result<(), Error> {
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
+pub async fn addadmin(
+    ctx: Context<'_>,
+    #[description = "User to notify"] user: serenity::Member,
+) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let gid = guild_id(ctx);
     let user_id = user.user.id;
@@ -741,16 +1088,28 @@ pub async fn addadmin(ctx: Context<'_>, #[description = "User to notify"] user: 
 
     if added {
         audit(ctx, "add_admin", json!({ "user_id": user_id.get() }));
-        ctx.say(format!("✅ <@{user_id}> added to admin list.")).await?;
+        ctx.say(format!("✅ <@{user_id}> added to admin list."))
+            .await?;
     } else {
-        ctx.say(format!("❌ <@{user_id}> is already an admin.")).await?;
+        ctx.say(format!("❌ <@{user_id}> is already an admin."))
+            .await?;
     }
     Ok(())
 }
 
 /// Remove an admin from notifications
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
-pub async fn removeadmin(ctx: Context<'_>, #[description = "User to stop notifying"] user: serenity::Member) -> Result<(), Error> {
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
+pub async fn removeadmin(
+    ctx: Context<'_>,
+    #[description = "User to stop notifying"] user: serenity::Member,
+) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let gid = guild_id(ctx);
     let user_id = user.user.id;
@@ -769,7 +1128,8 @@ pub async fn removeadmin(ctx: Context<'_>, #[description = "User to stop notifyi
 
     if removed {
         audit(ctx, "remove_admin", json!({ "user_id": user_id.get() }));
-        ctx.say(format!("✅ <@{user_id}> removed from admin list.")).await?;
+        ctx.say(format!("✅ <@{user_id}> removed from admin list."))
+            .await?;
     } else {
         ctx.say(format!("❌ <@{user_id}> is not an admin.")).await?;
     }
@@ -777,7 +1137,14 @@ pub async fn removeadmin(ctx: Context<'_>, #[description = "User to stop notifyi
 }
 
 /// View honeypot audit log
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn auditlog(
     ctx: Context<'_>,
     #[description = "Number of entries to show (max 25)"]
@@ -787,14 +1154,21 @@ pub async fn auditlog(
 ) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let limit = limit.unwrap_or(10).clamp(1, 25);
-    let entries = ctx.data().honeypot.lock().unwrap().audit_log(guild_id(ctx), limit)?;
+    let entries = ctx
+        .data()
+        .honeypot
+        .lock()
+        .unwrap()
+        .audit_log(guild_id(ctx), limit)?;
 
     if entries.is_empty() {
         ctx.say("No audit log entries.").await?;
         return Ok(());
     }
 
-    let mut embed = serenity::CreateEmbed::new().title(format!("Audit Log (Last {})", entries.len())).colour(0x3498db);
+    let mut embed = serenity::CreateEmbed::new()
+        .title(format!("Audit Log (Last {})", entries.len()))
+        .colour(0x3498db);
     // Oldest first, like the Python bot
     for entry in entries.iter().rev() {
         let admin_name = match member_display_name(ctx, entry.admin_id).await {
@@ -807,7 +1181,10 @@ pub async fn auditlog(
         };
         let details = format_audit_details(ctx, &entry.action, &entry.details);
         embed = embed.field(
-            truncate(&format!("{admin_name} - {}", format_time(&entry.timestamp)), 256),
+            truncate(
+                &format!("{admin_name} - {}", format_time(&entry.timestamp)),
+                256,
+            ),
             truncate(&format!("**Action:** {}\n{details}", entry.action), 1024),
             false,
         );
@@ -818,10 +1195,25 @@ pub async fn auditlog(
 }
 
 /// Check if a user is in the offender list
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
-pub async fn checkoffender(ctx: Context<'_>, #[description = "User to check"] user: serenity::Member) -> Result<(), Error> {
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
+pub async fn checkoffender(
+    ctx: Context<'_>,
+    #[description = "User to check"] user: serenity::Member,
+) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
-    let offender = ctx.data().honeypot.lock().unwrap().offender(user.user.id.get())?;
+    let offender = ctx
+        .data()
+        .honeypot
+        .lock()
+        .unwrap()
+        .offender(user.user.id.get())?;
 
     match offender {
         Some(offender) => {
@@ -836,15 +1228,29 @@ pub async fn checkoffender(ctx: Context<'_>, #[description = "User to check"] us
             ctx.send(poise::CreateReply::default().embed(embed)).await?;
         }
         None => {
-            ctx.say(format!("✅ <@{}> is not in the offender list.", user.user.id)).await?;
+            ctx.say(format!(
+                "✅ <@{}> is not in the offender list.",
+                user.user.id
+            ))
+            .await?;
         }
     }
     Ok(())
 }
 
 /// Check a user's activity across all servers
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
-pub async fn crossservercheck(ctx: Context<'_>, #[description = "User to check"] user: serenity::Member) -> Result<(), Error> {
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
+pub async fn crossservercheck(
+    ctx: Context<'_>,
+    #[description = "User to check"] user: serenity::Member,
+) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let user_id = user.user.id;
 
@@ -862,18 +1268,28 @@ pub async fn crossservercheck(ctx: Context<'_>, #[description = "User to check"]
     };
 
     if per_guild.is_empty() {
-        ctx.say(format!("✅ No activity found for <@{user_id}> across all servers.")).await?;
+        ctx.say(format!(
+            "✅ No activity found for <@{user_id}> across all servers."
+        ))
+        .await?;
         return Ok(());
     }
 
     let mut embed = serenity::CreateEmbed::new()
-        .title(format!("🌍 Cross-Server Activity for {}", user.display_name()))
+        .title(format!(
+            "🌍 Cross-Server Activity for {}",
+            user.display_name()
+        ))
         .colour(0x3498db);
     let mut total_events = 0;
 
     for (gid, logs) in per_guild.iter().take(24) {
         total_events += logs.len();
-        let guild_name = ctx.cache().guild(*gid).map(|g| g.name.clone()).unwrap_or_else(|| format!("ID: {gid}"));
+        let guild_name = ctx
+            .cache()
+            .guild(*gid)
+            .map(|g| g.name.clone())
+            .unwrap_or_else(|| format!("ID: {gid}"));
 
         let mut actions: Vec<(String, usize)> = vec![];
         let mut channels: Vec<u64> = vec![];
@@ -889,8 +1305,10 @@ pub async fn crossservercheck(ctx: Context<'_>, #[description = "User to check"]
             }
         }
 
-        let action_summary: Vec<String> =
-            actions.iter().map(|(action, count)| format!("{}: {count}", title_case(&action.replace('_', " ")))).collect();
+        let action_summary: Vec<String> = actions
+            .iter()
+            .map(|(action, count)| format!("{}: {count}", title_case(&action.replace('_', " "))))
+            .collect();
         let channel_names: Vec<String> = channels
             .iter()
             .map(|id| match cached_channel_name(ctx, *id) {
@@ -899,9 +1317,21 @@ pub async fn crossservercheck(ctx: Context<'_>, #[description = "User to check"]
             })
             .collect();
 
-        let mut value = format!("Total Events: {}\nActions: {}\n", logs.len(), action_summary.join(", "));
+        let mut value = format!(
+            "Total Events: {}\nActions: {}\n",
+            logs.len(),
+            action_summary.join(", ")
+        );
         if !channel_names.is_empty() {
-            value += &format!("Channels: {}", channel_names.iter().take(5).cloned().collect::<Vec<_>>().join(", "));
+            value += &format!(
+                "Channels: {}",
+                channel_names
+                    .iter()
+                    .take(5)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
             if channel_names.len() > 5 {
                 value += &format!(" (+{} more)", channel_names.len() - 5);
             }
@@ -909,16 +1339,31 @@ pub async fn crossservercheck(ctx: Context<'_>, #[description = "User to check"]
         }
         value += &format!("Latest: {}", format_time(&logs[0].timestamp));
 
-        embed = embed.field(truncate(&format!("📊 {guild_name}"), 256), truncate(&value, 1024), false);
+        embed = embed.field(
+            truncate(&format!("📊 {guild_name}"), 256),
+            truncate(&value, 1024),
+            false,
+        );
     }
 
-    embed = embed.field("📈 Summary", format!("Total Events: {total_events}\nServers: {}", per_guild.len()), false);
+    embed = embed.field(
+        "📈 Summary",
+        format!("Total Events: {total_events}\nServers: {}", per_guild.len()),
+        false,
+    );
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// Apply a pre-configured honeypot template
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "HoneyPot", required_permissions = "ADMINISTRATOR")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "HoneyPot",
+    required_permissions = "ADMINISTRATOR"
+)]
 pub async fn applytemplate(
     ctx: Context<'_>,
     #[description = "strict, lenient, stealth, moderate, newbie or investigation"]
@@ -957,7 +1402,11 @@ pub async fn applytemplate(
         existed
     };
 
-    audit(ctx, "apply_template", json!({ "template": template.name, "channel_id": channel_id.get() }));
+    audit(
+        ctx,
+        "apply_template",
+        json!({ "template": template.name, "channel_id": channel_id.get() }),
+    );
 
     if existed {
         let _ = update_honeypot_message(ctx, channel_id, Some(template.custom_message)).await;
@@ -965,7 +1414,11 @@ pub async fn applytemplate(
         send_honeypot_message(ctx, channel_id, Some(template.custom_message)).await?;
     }
 
-    ctx.say(format!("✅ Template '{}' applied to <#{channel_id}>.", template.name)).await?;
+    ctx.say(format!(
+        "✅ Template '{}' applied to <#{channel_id}>.",
+        template.name
+    ))
+    .await?;
     Ok(())
 }
 

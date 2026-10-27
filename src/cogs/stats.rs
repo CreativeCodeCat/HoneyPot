@@ -28,7 +28,13 @@ fn stat_value(guild: &serenity::Guild, keyword: &str) -> u64 {
 
 fn to_small_caps(text: &str) -> String {
     text.chars()
-        .map(|c| UPPERCASE.chars().position(|u| u == c).and_then(|i| SMALL_CAPS.chars().nth(i)).unwrap_or(c))
+        .map(|c| {
+            UPPERCASE
+                .chars()
+                .position(|u| u == c)
+                .and_then(|i| SMALL_CAPS.chars().nth(i))
+                .unwrap_or(c)
+        })
         .collect()
 }
 
@@ -42,17 +48,27 @@ fn normalize_text(text: &str) -> String {
         })
         .collect();
 
-    ascii.nfkd().filter(|c| canonical_combining_class(*c) == 0).collect::<String>().to_uppercase()
+    ascii
+        .nfkd()
+        .filter(|c| canonical_combining_class(*c) == 0)
+        .collect::<String>()
+        .to_uppercase()
 }
 
-pub async fn update_guild_channels(ctx: &serenity::Context, data: &Data, guild_id: serenity::GuildId) {
+pub async fn update_guild_channels(
+    ctx: &serenity::Context,
+    data: &Data,
+    guild_id: serenity::GuildId,
+) {
     if !data.is_cog_enabled(guild_id.get(), COG_NAME) {
         return;
     }
 
     // Work out renames from the cache first; cache references can't be held across awaits.
     let renames: Vec<(serenity::ChannelId, String)> = {
-        let Some(guild) = ctx.cache.guild(guild_id) else { return };
+        let Some(guild) = ctx.cache.guild(guild_id) else {
+            return;
+        };
         guild
             .channels
             .values()
@@ -60,14 +76,20 @@ pub async fn update_guild_channels(ctx: &serenity::Context, data: &Data, guild_i
             .filter_map(|channel| {
                 let normalized = normalize_text(&channel.name);
                 let keyword = STAT_KEYWORDS.iter().find(|k| normalized.contains(*k))?;
-                let new_name = format!("【📺】{}: {}", to_small_caps(keyword), stat_value(&guild, keyword));
+                let new_name = format!(
+                    "【📺】{}: {}",
+                    to_small_caps(keyword),
+                    stat_value(&guild, keyword)
+                );
                 (channel.name != new_name).then_some((channel.id, new_name))
             })
             .collect()
     };
 
     for (channel_id, new_name) in renames {
-        let edit = serenity::EditChannel::new().name(new_name).audit_log_reason("Automatic server statistics update");
+        let edit = serenity::EditChannel::new()
+            .name(new_name)
+            .audit_log_reason("Automatic server statistics update");
         // Missing permissions or rate limits are expected here; skip quietly.
         let _ = channel_id.edit(&ctx.http, edit).await;
     }
