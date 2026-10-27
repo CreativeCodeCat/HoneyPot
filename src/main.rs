@@ -9,7 +9,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, general, honeypot, lockdown, normalize_cog_name, stats, tickets, Context, Data,
+    automod, cog_manager, economy, general, honeypot, lockdown, normalize_cog_name, stats, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -26,6 +26,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         stats::updatestats(),
         lockdown::lock(),
         lockdown::unlock(),
+        economy::eco(),
     ];
     commands.extend(honeypot::commands::all());
     commands.push(tickets::commands::ticket_setup());
@@ -175,6 +176,7 @@ async fn main() {
         honeypot: Mutex::new(
             honeypot::store::Store::open().expect("failed to open honeypot database"),
         ),
+        economy: Mutex::new(economy::store::Store::open().expect("failed to open economy database")),
         lockdown: Mutex::new(lockdown::Store::open().expect("failed to open lockdown database")),
         tickets: Mutex::new(
             tickets::store::Store::open().expect("failed to open tickets database"),

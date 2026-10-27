@@ -4,6 +4,7 @@
 
 pub mod automod;
 pub mod cog_manager;
+pub mod economy;
 pub mod general;
 pub mod honeypot;
 pub mod lockdown;
@@ -23,6 +24,7 @@ pub type Data = Arc<State>;
 pub const COGS: &[&str] = &[
     "AutoMod",
     "CogManager",
+    "Economy",
     "General",
     "HoneyPot",
     "Lockdown",
@@ -36,6 +38,7 @@ pub const COG_MANAGER: &str = "cogmanager";
 pub struct State {
     pub start_time: Instant,
     pub cog_config: Mutex<cog_manager::CogConfig>,
+    pub economy: Mutex<economy::store::Store>,
     pub honeypot: Mutex<honeypot::store::Store>,
     pub lockdown: Mutex<lockdown::Store>,
     pub tickets: Mutex<tickets::store::Store>,

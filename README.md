@@ -116,6 +116,17 @@ Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handl
 
 Both need **Manage Channels**. Timed lockdowns are lifted automatically, even if the bot restarts in between.
 
+### Economy Commands
+
+Each server has its own economy. Members start with ₪100 in the bank after joining.
+
+- `/eco join` - Open an account
+- `/eco work` - Work a random job for ₪1–1,320 (once every 6 hours)
+- `/eco balance [user]` - Show a wallet and bank balance
+- `/eco deposit <amount>` / `/eco withdraw <amount>` - Move money between your wallet and bank
+- `/eco pay <user> <amount>` - Pay another member from your wallet
+- `/eco wallet add|remove <amount> [user]` and `/eco bank add|remove <amount> [user]` - Adjust balances (**Manage Server**)
+
 ### Other Commands
 
 - `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
@@ -124,7 +135,7 @@ Both need **Manage Channels**. Timed lockdowns are lifted automatically, even if
 
 ### Cog Management Commands
 
-Cogs: `automod`, `general`, `honeypot`, `lockdown`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `economy`, `general`, `honeypot`, `lockdown`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -161,6 +172,7 @@ The bot uses SQLite for persistent storage:
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
 - `database/lockdown.db` - Active lockdowns and the permissions to restore
+- `database/economy.db` - Economy accounts
 
 ## Use Cases
 
@@ -186,6 +198,9 @@ HoneyPot/
     └── cogs/
         ├── mod.rs          # Shared state, cog list, helpers
         ├── cog_manager.rs  # Per-server enable/disable
+        ├── economy/
+        │   ├── mod.rs      # /eco commands
+        │   └── store.rs    # SQLite storage
         ├── general.rs      # /ping
         ├── automod.rs      # /automod
         ├── lockdown.rs     # /lock and /unlock
