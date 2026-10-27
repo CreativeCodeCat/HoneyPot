@@ -23,6 +23,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         cog_manager::enablecog(),
         cog_manager::disablecog(),
         cog_manager::cogstatus(),
+        stats::updatestats(),
     ];
     commands.extend(honeypot::commands::all());
     commands.push(tickets::commands::ticket_setup());

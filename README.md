@@ -113,6 +113,7 @@ Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handl
 
 - `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
 - `/ping` - Show latency and uptime (5-minute cooldown)
+- `/updatestats` - Update the voice channel stats now instead of waiting for the next minute (admin)
 
 ### Cog Management Commands
 
