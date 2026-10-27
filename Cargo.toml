@@ -14,3 +14,6 @@ chrono = "0.4"
 serde_json = { version = "1", features = ["preserve_order"] }
 csv = "1"
 rand = "0.9"
+tiny-skia = "0.11"
+ab_glyph = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }

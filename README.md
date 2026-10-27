@@ -131,7 +131,7 @@ Each server has its own economy. Members start with ₪ 100 in the bank after jo
 
 Members earn 25–300 XP for chatting, at most once every 5 minutes. Each level needs 2,500 more XP than the last. Level-ups are announced in the level-up channel set with `/rank-setup`, otherwise the server's system channel, otherwise the channel the member was chatting in.
 
-- `/rank [user]` - Show level, rank, reputation and progress to the next level
+- `/rank [user]` - Show a rank card image with level, rank, reputation, highest role and progress to the next level
 - `/leaderboard` - Show the top 10 members by XP
 - `/reputation <user>` - Give a member +3 reputation (once every 2 hours)
 - `/rank-setup [rate] [min] [max] [channel]` - Change the XP per level (250–7,500), XP per message (25–500) and the level-up channel (**Administrator**)

@@ -1,6 +1,10 @@
 //! Levels cog: members earn XP for chatting, level up, and can give each other reputation.
 
+mod card;
 pub mod store;
+
+use std::sync::OnceLock;
+use std::time::Duration;
 
 use chrono::Utc;
 use poise::serenity_prelude as serenity;
@@ -153,6 +157,63 @@ pub async fn rank_setup(
     Ok(())
 }
 
+/// Downloads an image, giving up quietly after a few seconds.
+async fn download(url: &str) -> Option<Vec<u8>> {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    let client = CLIENT.get_or_init(|| reqwest::Client::builder().timeout(Duration::from_secs(5)).build().unwrap());
+    let response = client.get(url).send().await.ok()?.error_for_status().ok()?;
+    Some(response.bytes().await.ok()?.to_vec())
+}
+
+/// Gathers everything the rank card shows for a member.
+async fn card_data(
+    ctx: Context<'_>,
+    user: &serenity::User,
+    level: i64,
+    rep: i64,
+    position: Option<i64>,
+    xp: i64,
+    next_level_xp: i64,
+) -> card::CardData {
+    // Discord serves PNGs for any avatar; the card renderer only decodes PNG
+    let avatar_url = match &user.avatar {
+        Some(hash) => format!("https://cdn.discordapp.com/avatars/{}/{hash}.png?size=256", user.id),
+        None => user.default_avatar_url(),
+    };
+
+    // Highest role (by position) and the member's display colour (highest coloured role)
+    let member = ctx.guild_id().unwrap().member(ctx, user.id).await.ok();
+    let (role_name, role_colour, role_icon_url) = member
+        .and_then(|member| {
+            let guild = ctx.guild()?;
+            let mut roles: Vec<&serenity::Role> = member.roles.iter().filter_map(|id| guild.roles.get(id)).collect();
+            roles.sort_by_key(|role| std::cmp::Reverse(role.position));
+            let highest = roles.first()?;
+            let colour = roles.iter().map(|r| r.colour.0).find(|c| *c != 0).unwrap_or(0xe5e9f0);
+            let icon = highest.icon.as_ref().map(|hash| format!("https://cdn.discordapp.com/role-icons/{}/{hash}.png?size=64", highest.id));
+            Some((Some(highest.name.clone()), colour, icon))
+        })
+        .unwrap_or((None, 0xe5e9f0, None));
+
+    let role_icon = match role_icon_url {
+        Some(url) => download(&url).await,
+        None => None,
+    };
+
+    card::CardData {
+        username: user.name.clone(),
+        avatar: download(&avatar_url).await,
+        level,
+        rep,
+        position,
+        role_name,
+        role_colour,
+        role_icon,
+        xp,
+        next_level_xp,
+    }
+}
+
 /// Show a member's level, XP and reputation
 #[poise::command(slash_command, prefix_command, guild_only, category = "Levels")]
 pub async fn rank(
@@ -171,6 +232,17 @@ pub async fn rank(
     let next_level = xp_for(level + 1, settings.rate);
     let progress = member.xp - level_start;
     let needed = next_level - level_start;
+
+    ctx.defer().await?;
+    let card = card_data(ctx, user, level, member.rep, (member.xp > 0).then_some(member.position), member.xp, next_level).await;
+    match tokio::task::spawn_blocking(move || card::render(&card)).await {
+        Ok(Some(png)) => {
+            let file = serenity::CreateAttachment::bytes(png, "rank.png");
+            ctx.send(poise::CreateReply::default().attachment(file)).await?;
+            return Ok(());
+        }
+        _ => log::warning("[LEVELS] Could not render rank card, sending an embed instead"),
+    }
 
     let position = if member.xp > 0 { format!("#{}", member.position) } else { "Unranked".to_string() };
     let embed = serenity::CreateEmbed::new()
