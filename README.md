@@ -151,6 +151,10 @@ A Discord version of the PhantomBot tamagotchi. Pets are bought and fed with mon
 - `/pet battle <user>` - Challenge someone's pet; they accept or decline with buttons. Higher-level pets have better odds
 - `/pet release` - Let your pet go
 
+### Games Commands
+
+- `/hack <password>` - Try to hack the bot: it picks one of 25 common passwords at random, and if your guess matches you win ₪ 2,500 for your `/eco` wallet. Once every 5 minutes
+
 ### Rules Commands
 
 Each server writes its own rules as sections (a title, text and colour), which are posted as embeds. Posting again deletes the previous rules messages first, so the channel only ever has one copy. All need **Manage Server**.
@@ -169,7 +173,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `automod`, `economy`, `general`, `honeypot`, `levels`, `lockdown`, `pets`, `rules`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `pets`, `rules`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -210,6 +214,7 @@ The bot uses SQLite for persistent storage:
 - `database/levels.db` - XP, reputation and level settings
 - `database/rules.db` - Rules sections and the last posted messages
 - `database/pets.db` - Pets and their needs
+- `database/games.db` - Mini-game cooldowns
 
 ## Use Cases
 
@@ -242,6 +247,7 @@ HoneyPot/
         ├── economy/
         │   ├── mod.rs      # /eco commands
         │   └── store.rs    # SQLite storage
+        ├── games.rs        # /hack
         ├── general.rs      # /ping
         ├── automod.rs      # /automod
         ├── levels/
