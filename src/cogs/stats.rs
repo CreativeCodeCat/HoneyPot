@@ -10,6 +10,9 @@ use super::{Context, Data, Error};
 
 const COG_NAME: &str = "serverstats";
 
+/// Discord allows 2 renames per channel every 10 minutes, so stats refresh this often.
+const UPDATE_INTERVAL: Duration = Duration::from_secs(10 * 60);
+
 const UPPERCASE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const SMALL_CAPS: &str = "ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢ";
 
@@ -133,7 +136,7 @@ pub async fn updatestats(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 pub async fn update_stats_loop(ctx: serenity::Context, data: Data) {
-    let mut interval = tokio::time::interval(Duration::from_secs(60));
+    let mut interval = tokio::time::interval(UPDATE_INTERVAL);
     loop {
         interval.tick().await;
         for guild_id in ctx.cache.guilds() {

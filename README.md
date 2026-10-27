@@ -23,7 +23,7 @@ A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenit
 ### Bot Management
 - **Per-server cog control**: Enable/disable cogs per server
 - **Slash commands**: Modern Discord slash command support with autocomplete
-- **Voice channel stats**: Voice channels named like `MEMBERS`, `BOTS`, `ROLES`, `BOOSTS` or `CHANNELS` are renamed with live counts every minute
+- **Voice channel stats**: Voice channels named like `MEMBERS`, `BOTS`, `ROLES`, `BOOSTS` or `CHANNELS` are renamed with live counts every 10 minutes (Discord's rename limit)
 - **AutoMod setup**: Create Discord AutoMod rules with one command
 - **SQLite database**: Persistent storage
 
@@ -113,7 +113,7 @@ Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handl
 
 - `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
 - `/ping` - Show latency and uptime (5-minute cooldown)
-- `/updatestats` - Update the voice channel stats now instead of waiting for the next minute (admin)
+- `/updatestats` - Update the voice channel stats now instead of waiting for the next 10-minute refresh (admin)
 
 ### Cog Management Commands
 

@@ -147,18 +147,8 @@ async fn event_handler(
             honeypot::on_message(ctx, data, new_message).await;
             tickets::on_message(data, new_message);
         }
-        serenity::FullEvent::GuildMemberAddition { new_member } => {
-            stats::update_guild_channels(ctx, data, new_member.guild_id).await;
-        }
         serenity::FullEvent::GuildMemberRemoval { guild_id, user, .. } => {
-            stats::update_guild_channels(ctx, data, *guild_id).await;
             tickets::on_member_leave(ctx, data, *guild_id, user).await;
-        }
-        serenity::FullEvent::ChannelCreate { channel } => {
-            stats::update_guild_channels(ctx, data, channel.guild_id).await;
-        }
-        serenity::FullEvent::ChannelDelete { channel, .. } => {
-            stats::update_guild_channels(ctx, data, channel.guild_id).await;
         }
         serenity::FullEvent::InteractionCreate { interaction } => {
             tickets::on_interaction(ctx, data, interaction).await;
