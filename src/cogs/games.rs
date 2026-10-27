@@ -81,8 +81,11 @@ impl Store {
 const MAX_LINE: usize = 54;
 /// Inner width of the boxes drawn in the terminal
 const BOX_WIDTH: usize = MAX_LINE - 4;
-/// Delay between frames of the terminal animation
-const FRAME_DELAY: Duration = Duration::from_millis(1500);
+/// Lines printed at a time, and the delay between them
+const LINES_PER_STEP: usize = 3;
+const STEP_DELAY: Duration = Duration::from_millis(1000);
+/// Extra pause between the stages of the hack
+const FRAME_DELAY: Duration = Duration::from_millis(2000);
 /// Room left in an embed description for the code fences
 const EMBED_TEXT_LIMIT: usize = 4000;
 
@@ -106,26 +109,24 @@ fn pick<'a>(items: &[&'a str]) -> &'a str {
     items[rand::rng().random_range(0..items.len())]
 }
 
-/// Timestamps for the log lines: each line ticks the clock on by a fraction of a second, and
-/// each frame starts where the animation will really be when it is shown.
+/// Timestamps for the log lines, ticking on roughly as fast as the lines are printed.
 struct Clock {
-    start: DateTime<Utc>,
     now: DateTime<Utc>,
 }
 
 impl Clock {
     fn new() -> Self {
-        let now = Utc::now();
-        Self { start: now, now }
+        Self { now: Utc::now() }
     }
 
-    fn frame(&mut self, index: u32) {
-        self.now = self.start + FRAME_DELAY * index;
+    /// Moves the clock on by the pause between stages.
+    fn pause(&mut self) {
+        self.now += FRAME_DELAY;
     }
 
     /// A timestamped log line.
     fn log(&mut self, text: &str) -> String {
-        self.now += chrono::Duration::milliseconds(rand::rng().random_range(180..260));
+        self.now += chrono::Duration::milliseconds(rand::rng().random_range(250..400));
         format!("{} {text}", self.now.format("[%H:%M:%S]"))
     }
 
@@ -188,19 +189,9 @@ fn terminal(lines: &[String], colour: u32) -> poise::CreateReply {
         chunk.push_str(line);
         chunk.push('\n');
     }
-    let last = chunks.len() - 1;
-    let mut reply = poise::CreateReply::default();
-    for (i, chunk) in chunks.into_iter().enumerate() {
-        let mut embed = serenity::CreateEmbed::new().colour(colour).description(format!("```\n{chunk}```"));
-        if i == 0 {
-            embed = embed.title("💻 Hack");
-        }
-        if i == last {
-            embed = embed.footer(serenity::CreateEmbedFooter::new("This is a fictional terminal animation, not a real system intrusion."));
-        }
-        reply = reply.embed(embed);
-    }
-    reply
+    chunks.into_iter().fold(poise::CreateReply::default(), |reply, chunk| {
+        reply.embed(serenity::CreateEmbed::new().colour(colour).description(format!("```\n{chunk}```")))
+    })
 }
 
 /// What the player sees: the user, their guess and the password the bot picked.
@@ -216,7 +207,6 @@ fn denied(a: &Attempt, clock: &mut Clock) -> Vec<Vec<String>> {
     let [s1, s2, s3] = a.session;
     let mut frames = vec![];
 
-    clock.frame(0);
     let mut lines = frame(
         &[
             centre("░▒▓  HONEYPOT :: CYBER OPERATIONS TERMINAL  ▓▒░"),
@@ -231,7 +221,7 @@ fn denied(a: &Attempt, clock: &mut Clock) -> Vec<Vec<String>> {
     lines.push(clock.task("Establishing encrypted tunnel", "OK"));
     frames.push(lines);
 
-    clock.frame(1);
+    clock.pause();
     let mut lines = vec![
         clock.task("Resolving MAINFRAME://UNKNOWN", "OK"),
         clock.task("Analyzing network perimeter", "DONE"),
@@ -253,7 +243,7 @@ fn denied(a: &Attempt, clock: &mut Clock) -> Vec<Vec<String>> {
     );
     frames.push(lines);
 
-    clock.frame(2);
+    clock.pause();
     frames.push(vec![
         clock.log(&format!("{} has entered the session.", a.user)),
         clock.log("Authentication challenge detected."),
@@ -264,7 +254,7 @@ fn denied(a: &Attempt, clock: &mut Clock) -> Vec<Vec<String>> {
         clock.log("Cross-checking security clearance..."),
     ]);
 
-    clock.frame(3);
+    clock.pause();
     let mut lines: Vec<String> = [
         "",
         "    ACCESS TOKEN:  0x00000000",
@@ -290,7 +280,7 @@ fn denied(a: &Attempt, clock: &mut Clock) -> Vec<Vec<String>> {
     );
     frames.push(lines);
 
-    clock.frame(4);
+    clock.pause();
     let mut lines = frame(
         &[
             centre("ACCESS DENIED"),
@@ -326,7 +316,6 @@ fn granted(a: &Attempt, payout: &str, clock: &mut Clock) -> Vec<Vec<String>> {
     let [s1, s2, s3] = a.session;
     let mut frames = vec![];
 
-    clock.frame(0);
     let mut lines = frame(
         &[
             centre("░▒▓█  HONEYPOT :: CYBER OPERATIONS TERMINAL  █▓▒░"),
@@ -345,7 +334,7 @@ fn granted(a: &Attempt, payout: &str, clock: &mut Clock) -> Vec<Vec<String>> {
     lines.push(clock.task("Connecting to auth gateway", "OK"));
     frames.push(lines);
 
-    clock.frame(1);
+    clock.pause();
     frames.push(
         [
             "",
@@ -363,7 +352,7 @@ fn granted(a: &Attempt, payout: &str, clock: &mut Clock) -> Vec<Vec<String>> {
         .into(),
     );
 
-    clock.frame(2);
+    clock.pause();
     frames.push(vec![
         clock.log(&format!("{} has entered the session.", a.user)),
         clock.log("Authentication challenge received."),
@@ -374,7 +363,7 @@ fn granted(a: &Attempt, payout: &str, clock: &mut Clock) -> Vec<Vec<String>> {
         clock.task("Checking permissions", "OK"),
     ]);
 
-    clock.frame(3);
+    clock.pause();
     let (hash, id): (u32, u32) = (rand::rng().random(), rand::rng().random());
     let mut lines = vec![
         String::new(),
@@ -403,7 +392,7 @@ fn granted(a: &Attempt, payout: &str, clock: &mut Clock) -> Vec<Vec<String>> {
     );
     frames.push(lines);
 
-    clock.frame(4);
+    clock.pause();
     let mut rows = vec![String::new()];
     rows.extend(ACCESS_ART.iter().map(|line| centre(line)));
     rows.extend([
@@ -489,17 +478,23 @@ pub async fn hack(
         (denied(&attempt, &mut clock), RED)
     };
 
+    // Print a few lines at a time, pausing a little longer between stages
     let mut lines = vec![];
     let mut message = None;
     let last = frames.len() - 1;
     for (i, frame) in frames.into_iter().enumerate() {
-        lines.extend(frame.iter().flat_map(|line| wrap(line)));
-        let reply = terminal(&lines, if i == last { colour } else { TERMINAL });
-        match &message {
-            None => message = Some(ctx.send(reply).await?),
-            Some(message) => {
-                tokio::time::sleep(FRAME_DELAY).await;
-                message.edit(ctx, reply).await?;
+        let frame: Vec<String> = frame.iter().flat_map(|line| wrap(line)).collect();
+        let steps = frame.chunks(LINES_PER_STEP).count();
+        for (j, step) in frame.chunks(LINES_PER_STEP).enumerate() {
+            lines.extend_from_slice(step);
+            let done = i == last && j == steps - 1;
+            let reply = terminal(&lines, if done { colour } else { TERMINAL });
+            match &message {
+                None => message = Some(ctx.send(reply).await?),
+                Some(message) => {
+                    tokio::time::sleep(if j == 0 { FRAME_DELAY } else { STEP_DELAY }).await;
+                    message.edit(ctx, reply).await?;
+                }
             }
         }
     }
