@@ -116,7 +116,7 @@ Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handl
 
 ### Cog Management Commands
 
-Cogs: `automod`, `general`, `honeypot`, `serverstats`, `tickets`, `cogmanager`. All cogs are enabled by default. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `general`, `honeypot`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server

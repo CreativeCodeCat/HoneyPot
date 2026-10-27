@@ -8,7 +8,8 @@ use super::{normalize_cog_name, Context, Error, COGS, COG_MANAGER};
 const DB_FILE: &str = "database/cog_config.db";
 
 /// Per-guild cog enabled/disabled flags, cached in memory and persisted to SQLite.
-/// Cogs default to enabled when a guild has no entry.
+/// Cogs default to disabled when a guild has no entry, except the cog
+/// manager, which is always enabled.
 pub struct CogConfig {
     conn: Connection,
     config: HashMap<u64, HashMap<String, bool>>,
@@ -49,11 +50,13 @@ impl CogConfig {
     }
 
     pub fn is_enabled(&self, guild_id: u64, cog_name: &str) -> bool {
-        self.config
-            .get(&guild_id)
-            .and_then(|cogs| cogs.get(cog_name))
-            .copied()
-            .unwrap_or(true)
+        cog_name == COG_MANAGER
+            || self
+                .config
+                .get(&guild_id)
+                .and_then(|cogs| cogs.get(cog_name))
+                .copied()
+                .unwrap_or(false)
     }
 
     pub fn set_enabled(
