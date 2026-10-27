@@ -1,15 +1,9 @@
+# Secrets
 .env
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.db
-*.so
-*.egg
-*.egg-info/
-dist/
-build/
+
+# Rust build output
+/target
+
+# Runtime data (SQLite databases)
 database/
-honeypot_logs.json
-honeypot_activity_*.json
+*.db

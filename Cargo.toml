@@ -1,0 +1,15 @@
+[package]
+name = "honeypot-bot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+poise = "0.6.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+dotenvy = "0.15"
+regex = "1"
+unicode-normalization = "0.1"
+chrono = "0.4"
+serde_json = { version = "1", features = ["preserve_order"] }
+csv = "1"

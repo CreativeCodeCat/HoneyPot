@@ -1,6 +1,6 @@
 # Discord Honeypot Bot
 
-A Python Discord bot with cogs architecture featuring a comprehensive honeypot system for multi-server monitoring and security.
+A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenity) + [poise](https://github.com/serenity-rs/poise)) with a cog-style module system, featuring a comprehensive honeypot system for multi-server monitoring and security.
 
 ## Features
 
@@ -23,15 +23,13 @@ A Python Discord bot with cogs architecture featuring a comprehensive honeypot s
 ### Bot Management
 - **Per-server cog control**: Enable/disable cogs per server
 - **Slash commands**: Modern Discord slash command support with autocomplete
-- **Voice channel stats**: Auto-updating voice channel member counts
-- **SQLite database**: Persistent storage with automatic migration from JSON
+- **Voice channel stats**: Voice channels named like `MEMBERS`, `BOTS`, `ROLES`, `BOOSTS` or `CHANNELS` are renamed with live counts every minute
+- **AutoMod setup**: Create Discord AutoMod rules with one command
+- **SQLite database**: Persistent storage
 
 ## Setup
 
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. **Install Rust** (1.80 or newer) from https://rustup.rs
 
 2. **Configure environment variables**:
    - Copy `.env.example` to `.env`
@@ -43,7 +41,7 @@ A Python Discord bot with cogs architecture featuring a comprehensive honeypot s
 3. **Create a Discord bot**:
    - Go to https://discord.com/developers/applications
    - Create a new application
-   - Enable bot features under the "Bot" tab
+   - Under the "Bot" tab, enable the **Server Members** and **Message Content** privileged intents (the bot won't connect without them)
    - Copy the token and add it to your `.env` file
    - Under "OAuth2 > URL Generator", select:
      - `bot`
@@ -60,28 +58,32 @@ A Python Discord bot with cogs architecture featuring a comprehensive honeypot s
 
 4. **Run the bot**:
    ```bash
-   python bot.py
+   cargo run --release
    ```
+   Run it from the project root: the databases are created in `database/` relative to the working directory. For a standalone binary, `cargo build --release` and use `target/release/honeypot-bot`.
 
 ## Commands
 
-All commands can be used with `!` prefix or as slash commands (`/`). Most commands require administrator permissions.
+All commands can be used with `!` prefix or as slash commands (`/`). Most commands require administrator permissions, and all replies are only visible to you when used as slash commands.
 
 ### Honeypot Commands
 
 **Channel Management:**
 - `/sethoneypot [channel] [auto_ban] [message]` - Set a channel as a honeypot
 - `/removehoneypot [channel]` - Remove a honeypot channel
-- `/applytemplate [template] [channel]` - Apply a pre-configured template to a channel
+- `/applytemplate <template> [channel]` - Apply a pre-configured template to a channel
   - Templates: `strict`, `lenient`, `stealth`, `moderate`, `newbie`, `investigation`
 
 **Configuration:**
-- `/setpunishment [type] [duration] [channel]` - Set punishment type (ban/kick/timeout)
-- `/setaccountage [days] [channel]` - Set minimum account age requirement
-- `/setadminchannel [channel]` - Set channel for admin notifications
+- `/setpunishment [channel] [punishment] [duration]` - Set punishment type (ban/kick/timeout); duration is in minutes, for timeouts
+- `/setaccountage [channel] [days]` - Set minimum account age requirement
+- `/setadminchannel <channel>` - Set channel for admin notifications
 - `/toggleadminnotifications` - Toggle admin DM notifications
 - `/addadmin [user]` - Add user to admin notification list
 - `/removeadmin [user]` - Remove user from admin notification list
+
+- `/setmessage [channel] [message]` - Change a honeypot's warning message (use `\n` for new lines)
+- `/toggleautoban [channel]` - Turn punishment on or off for a honeypot channel
 
 **Whitelist:**
 - `/whitelistuser [user] [channel]` - Whitelist a user from honeypot detection
@@ -89,17 +91,26 @@ All commands can be used with `!` prefix or as slash commands (`/`). Most comman
 
 **Monitoring & Logs:**
 - `/honeypotstatus` - Check honeypot configuration for this server
-- `/honeypotlogs [limit]` - View recent honeypot activity logs
+- `/honeypotlogs [limit]` - View recent honeypot activity logs (up to 12)
 - `/clearhoneypotlogs` - Clear honeypot activity logs for this server
 - `/exportlogs` - Export honeypot logs to CSV
-- `/auditlog [limit]` - View configuration audit log
+- `/auditlog [limit]` - View configuration audit log (up to 25)
+- `/bancount` - Show the total number of honeypot bans
+- `/resetbancount` - Reset the ban counter
 - `/checkoffender [user]` - Check if user is in offender list
 - `/crossservercheck [user]` - Check user's activity across all servers
 
+### Other Commands
+
+- `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
+- `/ping` - Show latency and uptime (5-minute cooldown)
+
 ### Cog Management Commands
 
-- `/enablecog [cog_name]` - Enable a cog for this server
-- `/disablecog [cog_name]` - Disable a cog for this server
+Cogs: `automod`, `general`, `honeypot`, `serverstats`, `cogmanager`. All cogs are enabled by default. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+
+- `/enablecog <cog_name>` - Enable a cog for this server
+- `/disablecog <cog_name>` - Disable a cog for this server
 - `/cogstatus` - Check the status of all cogs for this server
 
 ## Templates
@@ -132,8 +143,6 @@ The bot uses SQLite for persistent storage:
 - `database/honeypot.db` - Honeypot configuration, activity logs, offenders, audit log
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 
-The bot automatically migrates from old JSON files to SQLite on first run. Backed up JSON files are stored in the `database/` directory.
-
 ## Use Cases
 
 - Detect and ban automated bots and spam accounts
@@ -147,37 +156,42 @@ The bot automatically migrates from old JSON files to SQLite on first run. Backe
 
 ```
 HoneyPot/
-├── bot.py              # Main bot file
-├── config.py           # Configuration management
-├── colors.py           # Centralized logging utilities
-├── requirements.txt    # Python dependencies
-├── .env.example        # Environment variables template
-├── .gitignore         # Git ignore rules
-├── database/           # SQLite database files
-│   ├── honeypot.db     # Honeypot data
-│   └── cog_config.db   # Cog configuration
-├── cogs/
-│   ├── __init__.py
-│   ├── honeypot.py     # Honeypot cog implementation
-│   ├── cog_manager.py  # Cog management system
-│   └── stats.py        # Voice channel stats
-└── README.md
+├── Cargo.toml              # Rust dependencies
+├── .env.example            # Environment variables template
+├── database/               # SQLite database files (created at runtime)
+│   ├── honeypot.db         # Honeypot data
+│   └── cog_config.db       # Cog configuration
+└── src/
+    ├── main.rs             # Startup, event dispatch, cog check, error handling
+    ├── log.rs              # Colored console logging
+    └── cogs/
+        ├── mod.rs          # Shared state, cog list, helpers
+        ├── cog_manager.rs  # Per-server enable/disable
+        ├── general.rs      # /ping
+        ├── automod.rs      # /automod
+        ├── stats.rs        # Voice channel stats
+        └── honeypot/
+            ├── mod.rs      # Message trap, punishments, weekly summary
+            ├── commands.rs # Honeypot commands
+            └── store.rs    # SQLite storage
 ```
 
 ## Adding More Cogs
 
-To add a new cog:
-
-1. Create a new file in the `cogs/` directory (e.g., `cogs/your_cog.py`)
-2. Import the logging utility: `from colors import log`
-3. Create a class that inherits from `commands.Cog`
-4. Implement the `setup` function at the bottom:
-   ```python
-   async def setup(bot):
-       await bot.add_cog(YourCogName(bot))
+1. Create `src/cogs/your_cog.rs` and add `pub mod your_cog;` to `src/cogs/mod.rs`
+2. Add its display name (e.g. `"YourCog"`) to `COGS` in `src/cogs/mod.rs`
+3. Write commands with `category = "YourCog"` so the per-server enable/disable check applies:
+   ```rust
+   /// Description shown in Discord
+   #[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "YourCog")]
+   pub async fn yourcommand(ctx: Context<'_>) -> Result<(), Error> {
+       ctx.say("Hello!").await?;
+       Ok(())
+   }
    ```
-5. The bot will automatically load it on startup
-6. Use `log.info()`, `log.error()`, `log.warning()`, or `log.debug()` for colored console output
+4. Register the command in `commands()` in `src/main.rs`
+5. For event handlers or background tasks, check `data.is_cog_enabled(guild_id, "yourcog")` yourself
+6. Use `log::info()`, `log::error()`, `log::warning()` or `log::debug()` for colored console output
 
 ## Security Notes
 
