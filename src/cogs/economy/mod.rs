@@ -12,6 +12,7 @@ use store::{Balance, DailyRate, EcoError, Pocket, DEFAULT_DAILY};
 const ICON: &str = "₪";
 const GREEN: u32 = 0x57f287;
 const PURPLE: u32 = 0x9b59b6;
+const RED: u32 = 0xed4245;
 
 /// Time between /eco work uses
 const WORK_COOLDOWN_SECS: i64 = 6 * 60 * 60;
@@ -47,8 +48,18 @@ fn guild_id(ctx: Context<'_>) -> u64 {
     ctx.guild_id().expect("economy commands are guild_only").get()
 }
 
+/// Sends text in an embed: red when it starts with ❌, green otherwise.
 async fn reply(ctx: Context<'_>, text: impl Into<String>, ephemeral: bool) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(ephemeral)).await?;
+    let text = text.into();
+    let colour = if text.starts_with('❌') { RED } else { GREEN };
+    let embed = serenity::CreateEmbed::new().colour(colour).description(text);
+    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(ephemeral)).await?;
+    Ok(())
+}
+
+/// Sends a public embed, the style every successful economy action replies in.
+async fn reply_embed(ctx: Context<'_>, embed: serenity::CreateEmbed) -> Result<(), Error> {
+    ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -104,7 +115,10 @@ pub async fn eco(_ctx: Context<'_>) -> Result<(), Error> {
 async fn join(ctx: Context<'_>) -> Result<(), Error> {
     let created = ctx.data().economy.lock().unwrap().join(guild_id(ctx), ctx.author().id.get())?;
     if created {
-        reply(ctx, format!("<@{}> has joined the economy with {} in the bank.", ctx.author().id, money(store::STARTING_BANK)), false).await
+        let embed = serenity::CreateEmbed::new()
+            .colour(GREEN)
+            .description(format!("<@{}> has joined the economy with {} in the bank.", ctx.author().id, money(store::STARTING_BANK)));
+        reply_embed(ctx, embed).await
     } else {
         reply(ctx, "❌ You've already joined the economy.", true).await
     }
@@ -293,18 +307,12 @@ async fn move_money(ctx: Context<'_>, amount: i64, from: Pocket) -> Result<(), E
     match result {
         Ok(balance) => {
             let action = if from == Pocket::Wallet { "deposited" } else { "withdrew" };
-            reply(
-                ctx,
-                format!(
-                    "<@{}> {action} {}. Wallet: {} · Bank: {}",
-                    ctx.author().id,
-                    money(amount),
-                    money(balance.wallet),
-                    money(balance.bank)
-                ),
-                false,
-            )
-            .await
+            let embed = serenity::CreateEmbed::new()
+                .colour(GREEN)
+                .description(format!("<@{}> {action} {}.", ctx.author().id, money(amount)))
+                .field("Wallet", format!("`{}`", money(balance.wallet)), true)
+                .field("Bank", format!("`{}`", money(balance.bank)), true);
+            reply_embed(ctx, embed).await
         }
         Err(e) => reply_error(ctx, e, None).await,
     }
@@ -353,7 +361,12 @@ async fn pay(
 
     let result = ctx.data().economy.lock().unwrap().pay(guild_id(ctx), ctx.author().id.get(), user.id.get(), amount)?;
     match result {
-        Ok(_) => reply(ctx, format!("<@{}> has paid <@{}> {}.", ctx.author().id, user.id, money(amount)), false).await,
+        Ok(_) => {
+            let embed = serenity::CreateEmbed::new()
+                .colour(GREEN)
+                .description(format!("<@{}> has paid <@{}> {}.", ctx.author().id, user.id, money(amount)));
+            reply_embed(ctx, embed).await
+        }
         Err(e) => reply_error(ctx, e, Some(user.id)).await,
     }
 }
@@ -371,17 +384,12 @@ async fn adjust(ctx: Context<'_>, user: Option<serenity::User>, amount: i64, poc
         Ok(balance) => {
             let (verb, preposition) = if add { ("added", "to") } else { ("removed", "from") };
             let pocket_name = if pocket == Pocket::Wallet { "wallet" } else { "bank" };
-            reply(
-                ctx,
-                format!(
-                    "<@{}> {verb} {} {preposition} <@{user_id}>'s {pocket_name}. It now holds {}.",
-                    ctx.author().id,
-                    money(amount),
-                    money(if pocket == Pocket::Wallet { balance.wallet } else { balance.bank })
-                ),
-                false,
-            )
-            .await
+            let embed = serenity::CreateEmbed::new()
+                .colour(PURPLE)
+                .description(format!("<@{}> {verb} {} {preposition} <@{user_id}>'s {pocket_name}.", ctx.author().id, money(amount)))
+                .field("Wallet", format!("`{}`", money(balance.wallet)), true)
+                .field("Bank", format!("`{}`", money(balance.bank)), true);
+            reply_embed(ctx, embed).await
         }
         Err(e) => reply_error(ctx, e, Some(user_id)).await,
     }
