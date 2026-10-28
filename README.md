@@ -185,6 +185,25 @@ Bets on heists and fights are held until the game ends, and refunded if the bot 
 
 All `/suggestion` commands need **Administrator**.
 
+### Server Logs
+
+The Logs cog (`/enablecog logs`) posts what happens in the server to a log channel per type, set with `/server-setup logs <type> <channel>`. Types without a channel aren't logged.
+
+| Type | Logs |
+|---|---|
+| Channel | Channels and categories created, deleted or changed (name, topic, NSFW, slowmode, category, permissions) |
+| Events | Scheduled events created, updated or cancelled |
+| Emoji | Emojis added, removed or renamed |
+| Sticker | Stickers added, removed or renamed |
+| Guild | Server name, icon, banner, owner, verification level and other settings changed |
+| Join & Leave | Members joining (with account age) and leaving |
+| Member | Nicknames, roles, timeouts and server avatars changed; bans and unbans |
+| User | Usernames, display names and avatars changed |
+| Message | Messages deleted (with their text, if the bot saw them) or edited (before and after), and bulk deletes |
+| Role | Roles created, deleted or changed (name, colour, permissions...) |
+| Thread | Threads created, deleted, renamed, archived or locked |
+| Voice | Members joining, leaving or moving voice channels, and server mutes and deafens |
+
 ### Sticky Commands
 
 A sticky message stays near the bottom of its channel: once enough messages are posted below it, the old copy is deleted and it's posted again at the bottom. All need **Manage Messages**.
@@ -213,7 +232,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `pets`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `logs`, `pets`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -302,6 +321,7 @@ HoneyPot/
         │   ├── mod.rs      # XP on messages and level commands
         │   └── store.rs    # SQLite storage and the level curve
         ├── lockdown.rs     # /lock and /unlock
+        ├── logs.rs         # Server logs for /server-setup logs channels
         ├── pets/
         │   ├── mod.rs      # /pet commands, battles and hunger DMs
         │   ├── card.rs     # /pet status picture card

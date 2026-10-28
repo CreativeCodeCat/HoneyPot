@@ -10,7 +10,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
+    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, logs, pets, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -220,6 +220,7 @@ async fn event_handler(
     framework: poise::FrameworkContext<'_, Data, Error>,
     data: &Data,
 ) -> Result<(), Error> {
+    logs::on_event(ctx, data, event).await;
     match event {
         serenity::FullEvent::GuildCreate { guild, is_new } => {
             // Guilds the bot was already in are synced on startup by `startup_report`
@@ -345,7 +346,11 @@ async fn main() {
         | serenity::GatewayIntents::MESSAGE_CONTENT
         | serenity::GatewayIntents::GUILD_MEMBERS;
 
+    // Recent messages are cached so the Logs cog can show what deleted and edited messages said
+    let mut cache_settings = serenity::cache::Settings::default();
+    cache_settings.max_messages = 200;
     let mut client = serenity::ClientBuilder::new(token, intents)
+        .cache_settings(cache_settings)
         .framework(framework)
         .await
         .expect("failed to create client");
