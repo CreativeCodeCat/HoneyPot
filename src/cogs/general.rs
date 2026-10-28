@@ -8,8 +8,7 @@ use super::{Context, Error};
     slash_command,
     prefix_command,
     ephemeral,
-    category = "General",
-    user_cooldown = 300
+    category = "General"
 )]
 pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;

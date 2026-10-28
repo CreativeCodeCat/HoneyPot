@@ -4,6 +4,7 @@
 
 pub mod automod;
 pub mod cog_manager;
+pub mod cooldowns;
 pub mod economy;
 pub mod games;
 pub mod general;
@@ -46,8 +47,8 @@ pub const COG_MANAGER: &str = "cogmanager";
 pub struct State {
     pub start_time: Instant,
     pub cog_config: Mutex<cog_manager::CogConfig>,
+    pub cooldowns: Mutex<cooldowns::Cooldowns>,
     pub economy: Mutex<economy::store::Store>,
-    pub games: Mutex<games::Store>,
     pub honeypot: Mutex<honeypot::store::Store>,
     pub levels: Mutex<levels::store::Store>,
     pub lockdown: Mutex<lockdown::Store>,

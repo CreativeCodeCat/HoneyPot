@@ -10,7 +10,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, stats, tickets, Context, Data,
+    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, stats, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -24,6 +24,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         cog_manager::enablecog(),
         cog_manager::disablecog(),
         cog_manager::cogstatus(),
+        cooldowns::cooldown(),
         stats::updatestats(),
         lockdown::lock(),
         lockdown::unlock(),
@@ -42,14 +43,16 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
     commands
 }
 
-/// Blocks commands whose cog is disabled in the current guild.
-async fn cog_enabled_check(ctx: Context<'_>) -> Result<bool, Error> {
-    let (Some(guild_id), Some(category)) = (ctx.guild_id(), ctx.command().category.as_deref())
-    else {
-        return Ok(true);
-    };
-    let cog_name = normalize_cog_name(category);
-    Ok(cog_name == COG_MANAGER || ctx.data().is_cog_enabled(guild_id.get(), &cog_name))
+/// Blocks commands whose cog is disabled in the current guild, then applies the command's cooldown.
+async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
+    if let (Some(guild_id), Some(category)) = (ctx.guild_id(), ctx.command().category.as_deref()) {
+        let cog_name = normalize_cog_name(category);
+        if cog_name != COG_MANAGER && !ctx.data().is_cog_enabled(guild_id.get(), &cog_name) {
+            return Ok(false);
+        }
+    }
+    cooldowns::check(ctx)?;
+    Ok(true)
 }
 
 async fn reply_ephemeral(ctx: Context<'_>, text: impl Into<String>) {
@@ -86,6 +89,11 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
             let cog = ctx.command().category.clone().unwrap_or_default();
             reply_ephemeral(ctx, format!("❌ The {cog} cog is disabled on this server.")).await;
         }
+        poise::FrameworkError::CommandCheckFailed {
+            error: Some(error), ctx, ..
+        } => {
+            reply_ephemeral(ctx, error.to_string()).await;
+        }
         poise::FrameworkError::Command { error, ctx, .. } => {
             log::error(format!(
                 "Error in command '{}': {error}",
@@ -112,6 +120,7 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
         .collect();
 
     data.cog_config.lock().unwrap().cleanup_stale(&guild_ids);
+    data.cooldowns.lock().unwrap().cleanup_stale(&guild_ids);
     if let Err(e) = data.honeypot.lock().unwrap().cleanup_stale(&current) {
         log::error(format!("Error cleaning up stale data: {e}"));
     }
@@ -183,11 +192,11 @@ async fn main() {
         cog_config: Mutex::new(
             cog_manager::CogConfig::open().expect("failed to open cog config database"),
         ),
+        cooldowns: Mutex::new(cooldowns::Cooldowns::open().expect("failed to open cooldowns database")),
         honeypot: Mutex::new(
             honeypot::store::Store::open().expect("failed to open honeypot database"),
         ),
         economy: Mutex::new(economy::store::Store::open().expect("failed to open economy database")),
-        games: Mutex::new(games::Store::open().expect("failed to open games database")),
         levels: Mutex::new(levels::store::Store::open().expect("failed to open levels database")),
         pets: Mutex::new(pets::store::Store::open().expect("failed to open pets database")),
         rules: Mutex::new(rules::Store::open().expect("failed to open rules database")),
@@ -204,7 +213,7 @@ async fn main() {
                 prefix: Some("!".into()),
                 ..Default::default()
             },
-            command_check: Some(|ctx| Box::pin(cog_enabled_check(ctx))),
+            command_check: Some(|ctx| Box::pin(command_check(ctx))),
             on_error: |error| Box::pin(on_error(error)),
             event_handler: |ctx, event, framework, data| {
                 Box::pin(event_handler(ctx, event, framework, data))
