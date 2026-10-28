@@ -10,7 +10,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, server_setup, stats, suggestions, tickets, Context, Data,
+    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -50,6 +50,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
     commands.push(tickets::commands::ticket());
     commands.push(suggestions::suggest());
     commands.push(suggestions::suggestion());
+    commands.push(sticky::sticky());
     commands
 }
 
@@ -140,6 +141,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     }
     if let Err(e) = data.suggestions.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale suggestions: {e}"));
+    }
+    if let Err(e) = data.sticky.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale sticky messages: {e}"));
     }
 }
 
@@ -255,6 +259,7 @@ async fn event_handler(
             honeypot::on_message(ctx, data, new_message).await;
             tickets::on_message(data, new_message);
             levels::on_message(ctx, data, new_message).await;
+            sticky::on_message(ctx, data, new_message).await;
         }
         serenity::FullEvent::GuildMemberRemoval { guild_id, user, .. } => {
             tickets::on_member_leave(ctx, data, *guild_id, user).await;
@@ -287,6 +292,7 @@ async fn main() {
         pets: Mutex::new(pets::store::Store::open().expect("failed to open pets database")),
         rules: Mutex::new(rules::Store::open().expect("failed to open rules database")),
         server_setup: Mutex::new(server_setup::Store::open().expect("failed to open server setup database")),
+        sticky: Mutex::new(sticky::Store::open().expect("failed to open sticky database")),
         suggestions: Mutex::new(suggestions::Store::open().expect("failed to open suggestions database")),
         lockdown: Mutex::new(lockdown::Store::open().expect("failed to open lockdown database")),
         tickets: Mutex::new(

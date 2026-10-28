@@ -177,6 +177,14 @@ Bets on heists and fights are held until the game ends, and refunded if the bot 
 
 All `/suggestion` commands need **Administrator**.
 
+### Sticky Commands
+
+A sticky message stays near the bottom of its channel: once enough messages are posted below it, the old copy is deleted and it's posted again at the bottom. All need **Manage Messages**.
+
+- `/sticky stick <message> [count]` - Stick a message in this channel; it moves down after `count` messages (default 3). Use `\n` for new lines
+- `/sticky unstick` - Remove this channel's sticky message
+- `/sticky list` - List the server's sticky messages
+
 ### Rules Commands
 
 Each server writes its own rules as sections (a title, text and colour), which are posted as embeds. Posting again deletes the previous rules messages first, so the channel only ever has one copy. All need **Manage Server**.
@@ -197,7 +205,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `pets`, `rules`, `serverstats`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `pets`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -236,6 +244,7 @@ The bot uses SQLite for persistent storage:
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
 - `database/suggestions.db` - Suggestion channels and open suggestions
+- `database/sticky.db` - Sticky messages
 - `database/lockdown.db` - Active lockdowns and the permissions to restore
 - `database/economy.db` - Economy accounts
 - `database/levels.db` - XP, reputation and level settings
@@ -287,6 +296,7 @@ HoneyPot/
         │   └── store.rs    # SQLite storage and pet needs
         ├── rules.rs        # /rules
         ├── stats.rs        # Voice channel stats
+        ├── sticky.rs       # /sticky and moving sticky messages down
         ├── suggestions.rs  # /suggest and /suggestion
         ├── tickets/
         │   ├── mod.rs      # Panel, buttons, closing, auto-close
