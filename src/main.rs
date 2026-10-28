@@ -10,7 +10,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, stats, tickets, Context, Data,
+    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, server_setup, stats, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -25,6 +25,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         cog_manager::disablecog(),
         cog_manager::cogstatus(),
         cooldowns::cooldown(),
+        server_setup::server_setup(),
         stats::updatestats(),
         lockdown::lock(),
         lockdown::unlock(),
@@ -51,6 +52,7 @@ async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
             return Ok(false);
         }
     }
+    server_setup::commands_channel_check(ctx).await?;
     cooldowns::check(ctx)?;
     Ok(true)
 }
@@ -200,6 +202,7 @@ async fn main() {
         levels: Mutex::new(levels::store::Store::open().expect("failed to open levels database")),
         pets: Mutex::new(pets::store::Store::open().expect("failed to open pets database")),
         rules: Mutex::new(rules::Store::open().expect("failed to open rules database")),
+        server_setup: Mutex::new(server_setup::Store::open().expect("failed to open server setup database")),
         lockdown: Mutex::new(lockdown::Store::open().expect("failed to open lockdown database")),
         tickets: Mutex::new(
             tickets::store::Store::open().expect("failed to open tickets database"),

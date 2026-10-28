@@ -13,6 +13,7 @@ pub mod levels;
 pub mod lockdown;
 pub mod pets;
 pub mod rules;
+pub mod server_setup;
 pub mod stats;
 pub mod tickets;
 
@@ -54,6 +55,7 @@ pub struct State {
     pub lockdown: Mutex<lockdown::Store>,
     pub pets: Mutex<pets::store::Store>,
     pub rules: Mutex<rules::Store>,
+    pub server_setup: Mutex<server_setup::Store>,
     pub tickets: Mutex<tickets::store::Store>,
 }
 
