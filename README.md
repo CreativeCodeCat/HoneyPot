@@ -170,7 +170,7 @@ A tamagotchi for Discord. Pets are bought and fed with money from the economy wa
 - `/counting stats` - See the current count and the server's high score
 - `/counting stop` - Stop counting in this server, keeping the high score for when it's set up again (admin)
 
-- `/guessing setup <channel>` - Set the guessing channel (admin). The bot thinks of a number from 1 to 100 and members post numbers to guess it; wrong guesses get a 🔼/🔽 hint and whoever gets it wins ₪ 500, then it starts again with a new number
+- `/guessing setup <channel>` - Set the guessing channel (admin). The bot thinks of a number from 1 to 100 and members post numbers to guess it; wrong guesses get a 🔼/🔽 hint and whoever gets it wins ₪ 500, then it starts again with a new number. Each member can guess once every 15 seconds; guesses that come too soon get ⏳ and don't count
 - `/guessing stats` - See guesses so far, numbers found and the fewest guesses it's taken
 - `/guessing stop` - Stop guessing in this server, keeping the stats (admin)
 
@@ -218,6 +218,8 @@ Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
 - `/enablegame <game>` / `/disablegame <game>` - Turn single games (`counting`, `fight`, `guessing`, `hack`, `heist`) on or off (only available while the Games cog is enabled). Every game is off by default, so after `/enablecog games` turn on the ones you want.
+- `/cooldown set <command> <seconds> [scope]` - Set a command's cooldown (0 removes it). Scope `User` (default) makes each member wait on their own; `Global` makes one use put the command on cooldown for the whole server. `guessing` can be set too, for guesses in the guessing channel
+- `/cooldown list` - List the commands with a cooldown and their scope
 - `/gamestatus` - Check which games are enabled for this server (only available while the Games cog is enabled)
 - `/cogstatus` - Check the status of all cogs for this server
 

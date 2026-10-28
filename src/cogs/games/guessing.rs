@@ -14,6 +14,8 @@ use crate::log;
 
 const DB_FILE: &str = "database/guessing.db";
 pub const MAX_NUMBER: u32 = 100;
+/// Seconds each member waits between guesses
+pub const GUESS_COOLDOWN_SECS: i64 = 15;
 /// Money paid into the winner's wallet
 const REWARD: i64 = 500;
 
@@ -142,6 +144,21 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
     if !enabled {
         return;
     }
+    let in_channel = data.guessing.lock().unwrap().get(guild_id.get()).map(|g| g.is_some_and(|g| g.channel_id == message.channel_id.get()));
+    if !matches!(in_channel, Ok(true)) {
+        return;
+    }
+    let now = chrono::Utc::now().timestamp();
+    let cooldown = data.cooldowns.lock().unwrap().start(guild_id.get(), message.author.id.get(), "guessing", now);
+    match cooldown {
+        Ok(Ok(())) => {}
+        // Too soon: the guess doesn't count
+        Ok(Err(_)) => {
+            let _ = message.react(ctx, '⏳').await;
+            return;
+        }
+        Err(e) => return log::error(format!("Error checking guessing cooldown in guild {guild_id}: {e}")),
+    }
     let outcome = data.guessing.lock().unwrap().guess(guild_id.get(), message.channel_id.get(), number);
     let guesses = match outcome {
         Ok(Some(Outcome::Found(guesses))) => guesses,
@@ -204,7 +221,8 @@ async fn setup(
     ctx.data().guessing.lock().unwrap().set_channel(ctx.guild_id().unwrap().get(), channel.id.get())?;
     let embed = serenity::CreateEmbed::new().colour(BLUE).title("🎲 Guess the Number").description(format!(
         "I'm thinking of a number from **1** to **{MAX_NUMBER}**. Post a number to guess it!\n\n\
-         🔼 means it's higher, 🔽 means it's lower. Whoever gets it wins {}.",
+         🔼 means it's higher, 🔽 means it's lower. Whoever gets it wins {}.\n\
+         You can guess once every {GUESS_COOLDOWN_SECS} seconds; ⏳ means you guessed too soon.",
         money(REWARD)
     ));
     channel.id.send_message(ctx, serenity::CreateMessage::new().embed(embed)).await?;
