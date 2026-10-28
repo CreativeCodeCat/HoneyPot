@@ -172,6 +172,9 @@ async fn event_handler(
             }
         }
         serenity::FullEvent::Message { new_message } => {
+            if server_setup::on_message(ctx, data, new_message).await {
+                return Ok(());
+            }
             honeypot::on_message(ctx, data, new_message).await;
             tickets::on_message(data, new_message);
             levels::on_message(ctx, data, new_message).await;

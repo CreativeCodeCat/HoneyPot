@@ -7,7 +7,7 @@ use poise::serenity_prelude as serenity;
 use poise::ChoiceParameter;
 use rusqlite::{params, Connection, OptionalExtension};
 
-use super::{Context, Error};
+use super::{Context, Data, Error};
 
 const DB_FILE: &str = "database/server_setup.db";
 const PURPLE: u32 = 0x9b59b6;
@@ -123,6 +123,44 @@ async fn is_staff(ctx: Context<'_>) -> bool {
         let perms = guild.member_permissions(&member);
         perms.administrator() || perms.manage_guild()
     })
+}
+
+/// Keeps the commands channel for commands only: deletes messages from anyone but admins and bots.
+/// Messages starting with the `!` prefix are left alone so prefix commands still work.
+/// Returns true if the message was deleted.
+pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Message) -> bool {
+    let Some(guild_id) = msg.guild_id else { return false };
+    if msg.author.bot || msg.content.starts_with('!') {
+        return false;
+    }
+    let commands_channel = match data.server_setup.lock().unwrap().get(guild_id.get(), "channel.commands") {
+        Ok(channel) => channel,
+        Err(e) => {
+            crate::log::error(format!("Error reading the commands channel: {e}"));
+            return false;
+        }
+    };
+    if commands_channel != Some(msg.channel_id.get()) {
+        return false;
+    }
+
+    let cached = ctx.cache.guild(guild_id).and_then(|guild| guild.members.get(&msg.author.id).map(|m| guild.member_permissions(m)));
+    let perms = match cached {
+        Some(perms) => Some(perms),
+        None => match guild_id.member(ctx, msg.author.id).await {
+            Ok(member) => ctx.cache.guild(guild_id).map(|guild| guild.member_permissions(&member)),
+            Err(_) => None,
+        },
+    };
+    if perms.is_none_or(|perms| perms.administrator()) {
+        return false;
+    }
+
+    if let Err(e) = msg.delete(ctx).await {
+        crate::log::error(format!("Couldn't delete a message in the commands channel (needs Manage Messages): {e}"));
+        return false;
+    }
+    true
 }
 
 /// Framework-wide check: once a commands channel is set, members can only use commands there.
