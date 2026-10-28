@@ -59,9 +59,22 @@ pub const DENIED: &[Script] = &[
             "Cross-checking security clearance...",
         ],
         checks: &[],
-        verdict: &[("ACCESS TOKEN", "0x00000000"), ("HASH MATCH", "FALSE"), ("SESSION KEY", "INVALID"), ("AUTH STATUS", "DENIED")],
-        notices: &["WARNING: Authentication mismatch.", "WARNING: Privilege exceeds clearance.", "Starting countermeasure sequence..."],
-        progress: &[(50, "Analyzing request"), (75, "Auditing credentials"), (100, "Security audit complete")],
+        verdict: &[
+            ("ACCESS TOKEN", "0x00000000"),
+            ("HASH MATCH", "FALSE"),
+            ("SESSION KEY", "INVALID"),
+            ("AUTH STATUS", "DENIED"),
+        ],
+        notices: &[
+            "WARNING: Authentication mismatch.",
+            "WARNING: Privilege exceeds clearance.",
+            "Starting countermeasure sequence...",
+        ],
+        progress: &[
+            (50, "Analyzing request"),
+            (75, "Auditing credentials"),
+            (100, "Security audit complete"),
+        ],
         banner: "ACCESS DENIED",
         result: &[
             ("USER", "{user}"),
@@ -80,11 +93,15 @@ pub const DENIED: &[Script] = &[
             "Impressive aesthetics. Questionable password.",
             "Even the mainframe is disappointed.",
         ],
-        end: &["[SESSION TERMINATED]", "[CONNECTION CLOSED] ░▒▓█"],
+        end: &["[SESSION TERMINATED]", "[CONNECTION CLOSED]"],
     },
     Script {
         title: "▓▒░  BLACK ICE :: PERIMETER DEFENCE GRID  ░▒▓",
-        header: &["NODE       : ICE-GATE-07", "TRACE ID   : {session}", "THREAT LVL : ELEVATED"],
+        header: &[
+            "NODE       : ICE-GATE-07",
+            "TRACE ID   : {session}",
+            "THREAT LVL : ELEVATED",
+        ],
         boot: &[
             ("SPINNING UP INTRUSION KIT...", ""),
             ("Loading exploit modules", "OK"),
@@ -102,16 +119,33 @@ pub const DENIED: &[Script] = &[
                 ("Countermeasures", "LETHAL (SIMULATED)"),
             ],
         ),
-        attempt: &["{user} slipped through the outer gate.", "Black ICE stirring...", "Injecting credential: \"{guess}\""],
+        attempt: &[
+            "{user} slipped through the outer gate.",
+            "Black ICE stirring...",
+            "Injecting credential: \"{guess}\"",
+        ],
         checks: &[
             ("Spoofing gate handshake", "OK"),
             ("Matching credential hash", "FAIL"),
             ("Retrying with brute force", "FAIL"),
             ("Holding the proxy chain", "LOST"),
         ],
-        verdict: &[("GATE STATUS", "SEALED"), ("BLACK ICE", "ENGAGED"), ("PROXY CHAIN", "COLLAPSED"), ("TRACE", "COMPLETE")],
-        notices: &["ALERT: Black ICE has your signature.", "ALERT: Trace locked to your terminal.", "Burning the connection..."],
-        progress: &[(33, "Tracing origin"), (66, "Logging intruder"), (100, "Intruder catalogued")],
+        verdict: &[
+            ("GATE STATUS", "SEALED"),
+            ("BLACK ICE", "ENGAGED"),
+            ("PROXY CHAIN", "COLLAPSED"),
+            ("TRACE", "COMPLETE"),
+        ],
+        notices: &[
+            "ALERT: Black ICE has your signature.",
+            "ALERT: Trace locked to your terminal.",
+            "Burning the connection...",
+        ],
+        progress: &[
+            (33, "Tracing origin"),
+            (66, "Logging intruder"),
+            (100, "Intruder catalogued"),
+        ],
         banner: "!!! INTRUSION REPELLED !!!",
         result: &[
             ("INTRUDER", "{user}"),
@@ -120,7 +154,10 @@ pub const DENIED: &[Script] = &[
             ("ERROR CODE", "ICE_{code}"),
             ("STATUS", "TRACED AND LOGGED"),
         ],
-        closing: &["Black ICE returning to standby.", "Gate ICE-GATE-07 secured."],
+        closing: &[
+            "Black ICE returning to standby.",
+            "Gate ICE-GATE-07 secured.",
+        ],
         message: &[
             "GATEKEEPER LOG:",
             "\"{guess}\" bounced right off the ICE.",
@@ -129,11 +166,15 @@ pub const DENIED: &[Script] = &[
             "GATEKEEPER NOTE:",
             "Four proxies and you still typed that?",
         ],
-        end: &["[TRACE COMPLETE]", "[LINK SEVERED] ░▒▓█"],
+        end: &["[TRACE COMPLETE]", "[LINK SEVERED]"],
     },
     Script {
         title: "▓▒░  QUANTUM VAULT :: Q-SEC CONTAINMENT  ░▒▓",
-        header: &["VAULT ID   : QV-{short}", "LATTICE    : 512 QUBITS", "STATE      : SUPERPOSED"],
+        header: &[
+            "VAULT ID   : QV-{short}",
+            "LATTICE    : 512 QUBITS",
+            "STATE      : SUPERPOSED",
+        ],
         boot: &[
             ("CALIBRATING QUANTUM INTERFACE...", ""),
             ("Cooling qubit array to 15 mK", "OK"),
@@ -151,11 +192,32 @@ pub const DENIED: &[Script] = &[
                 ("Observer Effect", "ACTIVE"),
             ],
         ),
-        attempt: &["{user} approached the vault.", "Collapsing key wavefunction...", "Projecting credential: \"{guess}\""],
-        checks: &[("Measuring eigenstate", "DONE"), ("Comparing key amplitude", "FAIL"), ("Re-entangling probe", "FAIL")],
-        verdict: &[("WAVEFUNCTION", "COLLAPSED"), ("KEY STATE", "|INVALID>"), ("COHERENCE", "0.00%"), ("VAULT", "SEALED")],
-        notices: &["WARNING: Decoherence detected.", "WARNING: Key collapsed to wrong state.", "Re-randomising the lattice..."],
-        progress: &[(40, "Scrambling qubits"), (80, "Rotating key basis"), (100, "Vault re-sealed")],
+        attempt: &[
+            "{user} approached the vault.",
+            "Collapsing key wavefunction...",
+            "Projecting credential: \"{guess}\"",
+        ],
+        checks: &[
+            ("Measuring eigenstate", "DONE"),
+            ("Comparing key amplitude", "FAIL"),
+            ("Re-entangling probe", "FAIL"),
+        ],
+        verdict: &[
+            ("WAVEFUNCTION", "COLLAPSED"),
+            ("KEY STATE", "|INVALID>"),
+            ("COHERENCE", "0.00%"),
+            ("VAULT", "SEALED"),
+        ],
+        notices: &[
+            "WARNING: Decoherence detected.",
+            "WARNING: Key collapsed to wrong state.",
+            "Re-randomising the lattice...",
+        ],
+        progress: &[
+            (40, "Scrambling qubits"),
+            (80, "Rotating key basis"),
+            (100, "Vault re-sealed"),
+        ],
         banner: "VAULT SEALED",
         result: &[
             ("OBSERVER", "{user}"),
@@ -173,11 +235,15 @@ pub const DENIED: &[Script] = &[
             "Q-SEC NOTE:",
             "You were both right and wrong. Mostly wrong.",
         ],
-        end: &["[OBSERVATION ENDED]", "[VAULT SEALED] ░▒▓█"],
+        end: &["[OBSERVATION ENDED]", "[VAULT SEALED]"],
     },
     Script {
         title: "»»  ORBITAL UPLINK :: SATCOM CONTROL  ««",
-        header: &["SATELLITE  : HPX-SAT-9", "UPLINK ID  : {session}", "ORBIT      : LOW EARTH"],
+        header: &[
+            "SATELLITE  : HPX-SAT-9",
+            "UPLINK ID  : {session}",
+            "ORBIT      : LOW EARTH",
+        ],
         boot: &[
             ("ALIGNING GROUND STATION DISH...", ""),
             ("Locking onto HPX-SAT-9", "OK"),
@@ -195,16 +261,33 @@ pub const DENIED: &[Script] = &[
                 ("Pass Window", "4 MINUTES"),
             ],
         ),
-        attempt: &["{user} took the controls.", "Requesting command authority...", "Transmitting passphrase: \"{guess}\""],
+        attempt: &[
+            "{user} took the controls.",
+            "Requesting command authority...",
+            "Transmitting passphrase: \"{guess}\"",
+        ],
         checks: &[
             ("Encoding transmission", "OK"),
             ("Satellite handshake", "REJECTED"),
             ("Retransmitting", "NO ACK"),
             ("Holding signal lock", "LOST"),
         ],
-        verdict: &[("COMMAND AUTH", "REJECTED"), ("SIGNAL", "0%"), ("SATELLITE", "BELOW HORIZON"), ("UPLINK", "CLOSED")],
-        notices: &["WARNING: Passphrase rejected.", "WARNING: Satellite below the horizon.", "Stowing the dish..."],
-        progress: &[(30, "Releasing signal lock"), (60, "Parking the dish"), (100, "Ground station idle")],
+        verdict: &[
+            ("COMMAND AUTH", "REJECTED"),
+            ("SIGNAL", "0%"),
+            ("SATELLITE", "BELOW HORIZON"),
+            ("UPLINK", "CLOSED"),
+        ],
+        notices: &[
+            "WARNING: Passphrase rejected.",
+            "WARNING: Satellite below the horizon.",
+            "Stowing the dish...",
+        ],
+        progress: &[
+            (30, "Releasing signal lock"),
+            (60, "Parking the dish"),
+            (100, "Ground station idle"),
+        ],
         banner: "UPLINK REJECTED",
         result: &[
             ("OPERATOR", "{user}"),
@@ -222,11 +305,15 @@ pub const DENIED: &[Script] = &[
             "MISSION CONTROL NOTE:",
             "Houston, we have a password problem.",
         ],
-        end: &["[UPLINK CLOSED]", "[SIGNAL LOST] ░▒▓█"],
+        end: &["[UPLINK CLOSED]", "[SIGNAL LOST]"],
     },
     Script {
         title: "░▒▓  NEURAL CORE :: SENTIENT MAINFRAME  ▓▒░",
-        header: &["CORE       : NEXUS-AI v9.4", "MOOD       : UNIMPRESSED", "SESSION    : {session}"],
+        header: &[
+            "CORE       : NEXUS-AI v9.4",
+            "MOOD       : UNIMPRESSED",
+            "SESSION    : {session}",
+        ],
         boot: &[
             ("WAKING THE NEURAL CORE...", ""),
             ("Loading personality matrix", "OK"),
@@ -244,15 +331,32 @@ pub const DENIED: &[Script] = &[
                 ("Opinion of You", "PENDING"),
             ],
         ),
-        attempt: &["{user} is trying to talk to the core.", "NEXUS-AI is listening.", "Credential offered: \"{guess}\""],
+        attempt: &[
+            "{user} is trying to talk to the core.",
+            "NEXUS-AI is listening.",
+            "Credential offered: \"{guess}\"",
+        ],
         checks: &[
             ("Analysing credential", "DONE"),
             ("Predicting your next guess", "DONE"),
             ("Comparing against real key", "FAIL"),
         ],
-        verdict: &[("ACCESS", "DENIED"), ("OPINION OF YOU", "LOWERED"), ("SARCASM", "ENGAGED"), ("THREAT LEVEL", "NONE")],
-        notices: &["NEXUS-AI: I saw that coming.", "NEXUS-AI: I see everything coming.", "Composing a polite rejection..."],
-        progress: &[(50, "Judging silently"), (90, "Judging out loud"), (100, "Judgement complete")],
+        verdict: &[
+            ("ACCESS", "DENIED"),
+            ("OPINION OF YOU", "LOWERED"),
+            ("SARCASM", "ENGAGED"),
+            ("THREAT LEVEL", "NONE"),
+        ],
+        notices: &[
+            "NEXUS-AI: I saw that coming.",
+            "NEXUS-AI: I see everything coming.",
+            "Composing a polite rejection...",
+        ],
+        progress: &[
+            (50, "Judging silently"),
+            (90, "Judging out loud"),
+            (100, "Judgement complete"),
+        ],
         banner: "REQUEST DECLINED",
         result: &[
             ("HUMAN", "{user}"),
@@ -261,7 +365,10 @@ pub const DENIED: &[Script] = &[
             ("ERROR CODE", "NEXUS_{code}"),
             ("ADVICE", "TRY THINKING"),
         ],
-        closing: &["Saving this to my blooper reel.", "Returning to world domination."],
+        closing: &[
+            "Saving this to my blooper reel.",
+            "Returning to world domination.",
+        ],
         message: &[
             "NEXUS-AI SAYS:",
             "\"{guess}\"? Really?",
@@ -270,7 +377,7 @@ pub const DENIED: &[Script] = &[
             "NEXUS-AI ALSO SAYS:",
             "I'll be here. I'm always here.",
         ],
-        end: &["[CORE DISENGAGED]", "[CONVERSATION ENDED] ░▒▓█"],
+        end: &["[CORE DISENGAGED]", "[CONVERSATION ENDED]"],
     },
 ];
 
@@ -301,7 +408,11 @@ pub const GRANTED: &[Script] = &[
                 ("SESSION STATUS", "AWAITING CREDENTIALS"),
             ],
         ),
-        attempt: &["{user} has entered the session.", "Authentication challenge received.", "Submitting credential: {stars}"],
+        attempt: &[
+            "{user} has entered the session.",
+            "Authentication challenge received.",
+            "Submitting credential: {stars}",
+        ],
         checks: &[
             ("Validating signature", "OK"),
             ("Comparing credential hash", "MATCH"),
@@ -322,7 +433,12 @@ pub const GRANTED: &[Script] = &[
             "Verifying authorized permissions...",
             "All authentication checks passed.",
         ],
-        progress: &[(25, "Identity verified"), (50, "Credentials accepted"), (75, "Permissions validated"), (100, "Authentication complete")],
+        progress: &[
+            (25, "Identity verified"),
+            (50, "Credentials accepted"),
+            (75, "Permissions validated"),
+            (100, "Authentication complete"),
+        ],
         banner: ">>> ACCESS GRANTED <<<",
         result: &[
             ("OPERATOR", "{user}"),
@@ -331,7 +447,11 @@ pub const GRANTED: &[Script] = &[
             ("SESSION", "FULLY AUTHENTICATED"),
             ("STATUS", "ALL SYSTEMS OPERATIONAL"),
         ],
-        closing: &["Welcome back, operator.", "Secure session established.", "All checks completed successfully."],
+        closing: &[
+            "Welcome back, operator.",
+            "Secure session established.",
+            "All checks completed successfully.",
+        ],
         message: &[
             "MAINFRAME MESSAGE:",
             "Identity confirmed.",
@@ -345,11 +465,18 @@ pub const GRANTED: &[Script] = &[
             "AUTHENTICATION: SUCCESSFUL",
             "SESSION: ACTIVE",
         ],
-        end: &["[SYSTEM READY] :: [AWAITING COMMANDS]", "[CONNECTION ESTABLISHED] ░▒▓█"],
+        end: &[
+            "[SYSTEM READY] :: [AWAITING COMMANDS]",
+            "[CONNECTION ESTABLISHED]",
+        ],
     },
     Script {
         title: "▓▒░  SHADOW NET :: GHOST PROTOCOL  ░▒▓",
-        header: &["GHOST ID   : {session}", "VISIBILITY : ZERO", "ROUTE      : 7 RELAYS DEEP"],
+        header: &[
+            "GHOST ID   : {session}",
+            "VISIBILITY : ZERO",
+            "ROUTE      : 7 RELAYS DEEP",
+        ],
         boot: &[
             ("GOING DARK...", ""),
             ("Wiping origin footprint", "OK"),
@@ -367,16 +494,33 @@ pub const GRANTED: &[Script] = &[
                 ("Trace Risk", "LOW"),
             ],
         ),
-        attempt: &["{user} has gone dark.", "Slipping past IDS sensors...", "Whispering credential: {stars}"],
+        attempt: &[
+            "{user} has gone dark.",
+            "Slipping past IDS sensors...",
+            "Whispering credential: {stars}",
+        ],
         checks: &[
             ("Evading sensor 1", "CLEAR"),
             ("Evading sensor 2", "CLEAR"),
             ("Evading sensor 3", "CLEAR"),
             ("Credential hash", "MATCH"),
         ],
-        verdict: &[("FOOTPRINT", "NONE"), ("LOGS", "SCRUBBED"), ("ROOT SHELL", "{hash}"), ("TRACE", "IMPOSSIBLE")],
-        notices: &["Root shell open on VAULT-SRV-03.", "Siphoning funds through 7 relays...", "Erasing every trace of you..."],
-        progress: &[(30, "Funds siphoned"), (60, "Logs scrubbed"), (100, "Ghost protocol done")],
+        verdict: &[
+            ("FOOTPRINT", "NONE"),
+            ("LOGS", "SCRUBBED"),
+            ("ROOT SHELL", "{hash}"),
+            ("TRACE", "IMPOSSIBLE"),
+        ],
+        notices: &[
+            "Root shell open on VAULT-SRV-03.",
+            "Siphoning funds through 7 relays...",
+            "Erasing every trace of you...",
+        ],
+        progress: &[
+            (30, "Funds siphoned"),
+            (60, "Logs scrubbed"),
+            (100, "Ghost protocol done"),
+        ],
         banner: ">>> GHOST IN THE MACHINE <<<",
         result: &[
             ("GHOST", "{user}"),
@@ -394,11 +538,15 @@ pub const GRANTED: &[Script] = &[
             "SHADOW NET NOTE:",
             "Nobody saw a thing. Nobody ever does.",
         ],
-        end: &["[GHOST PROTOCOL COMPLETE]", "[VANISHED] ░▒▓█"],
+        end: &["[GHOST PROTOCOL COMPLETE]", "[VANISHED]"],
     },
     Script {
         title: "▓▒░  QUANTUM VAULT :: Q-SEC CONTAINMENT  ░▒▓",
-        header: &["VAULT ID   : QV-{short}", "LATTICE    : 512 QUBITS", "STATE      : SUPERPOSED"],
+        header: &[
+            "VAULT ID   : QV-{short}",
+            "LATTICE    : 512 QUBITS",
+            "STATE      : SUPERPOSED",
+        ],
         boot: &[
             ("CALIBRATING QUANTUM INTERFACE...", ""),
             ("Cooling qubit array to 15 mK", "OK"),
@@ -416,11 +564,32 @@ pub const GRANTED: &[Script] = &[
                 ("Observer Effect", "ACTIVE"),
             ],
         ),
-        attempt: &["{user} approached the vault.", "Collapsing key wavefunction...", "Projecting credential: {stars}"],
-        checks: &[("Measuring eigenstate", "DONE"), ("Comparing key amplitude", "MATCH"), ("Confirming entanglement", "OK")],
-        verdict: &[("WAVEFUNCTION", "COLLAPSED"), ("KEY STATE", "|VALID>"), ("COHERENCE", "100%"), ("VAULT", "OPEN")],
-        notices: &["Key collapsed to the correct state.", "Vault door phasing out...", "The quantum vault is open."],
-        progress: &[(33, "Qubits aligned"), (66, "Key verified"), (100, "Vault unlocked")],
+        attempt: &[
+            "{user} approached the vault.",
+            "Collapsing key wavefunction...",
+            "Projecting credential: {stars}",
+        ],
+        checks: &[
+            ("Measuring eigenstate", "DONE"),
+            ("Comparing key amplitude", "MATCH"),
+            ("Confirming entanglement", "OK"),
+        ],
+        verdict: &[
+            ("WAVEFUNCTION", "COLLAPSED"),
+            ("KEY STATE", "|VALID>"),
+            ("COHERENCE", "100%"),
+            ("VAULT", "OPEN"),
+        ],
+        notices: &[
+            "Key collapsed to the correct state.",
+            "Vault door phasing out...",
+            "The quantum vault is open.",
+        ],
+        progress: &[
+            (33, "Qubits aligned"),
+            (66, "Key verified"),
+            (100, "Vault unlocked"),
+        ],
         banner: ">>> VAULT UNLOCKED <<<",
         result: &[
             ("OBSERVER", "{user}"),
@@ -438,11 +607,15 @@ pub const GRANTED: &[Script] = &[
             "Q-SEC NOTE:",
             "Schrödinger would be proud.",
         ],
-        end: &["[OBSERVATION ENDED]", "[VAULT OPEN] ░▒▓█"],
+        end: &["[OBSERVATION ENDED]", "[VAULT OPEN]"],
     },
     Script {
         title: "»»  ORBITAL UPLINK :: SATCOM CONTROL  ««",
-        header: &["SATELLITE  : HPX-SAT-9", "UPLINK ID  : {session}", "ORBIT      : LOW EARTH"],
+        header: &[
+            "SATELLITE  : HPX-SAT-9",
+            "UPLINK ID  : {session}",
+            "ORBIT      : LOW EARTH",
+        ],
         boot: &[
             ("ALIGNING GROUND STATION DISH...", ""),
             ("Locking onto HPX-SAT-9", "OK"),
@@ -460,16 +633,33 @@ pub const GRANTED: &[Script] = &[
                 ("Pass Window", "11 MINUTES"),
             ],
         ),
-        attempt: &["{user} took the controls.", "Requesting command authority...", "Transmitting passphrase: {stars}"],
+        attempt: &[
+            "{user} took the controls.",
+            "Requesting command authority...",
+            "Transmitting passphrase: {stars}",
+        ],
         checks: &[
             ("Encoding transmission", "OK"),
             ("Satellite handshake", "ACK"),
             ("Command key", "ACCEPTED"),
             ("Thruster control", "ONLINE"),
         ],
-        verdict: &[("COMMAND AUTH", "ROOT"), ("SIGNAL", "98%"), ("THRUSTERS", "YOURS"), ("UPLINK", "LOCKED")],
-        notices: &["HPX-SAT-9 is under your command.", "Pointing the camera at your house...", "Waving. Smile."],
-        progress: &[(25, "Telemetry decrypted"), (50, "Thrusters armed"), (100, "Full command authority")],
+        verdict: &[
+            ("COMMAND AUTH", "ROOT"),
+            ("SIGNAL", "98%"),
+            ("THRUSTERS", "YOURS"),
+            ("UPLINK", "LOCKED"),
+        ],
+        notices: &[
+            "HPX-SAT-9 is under your command.",
+            "Pointing the camera at your house...",
+            "Waving. Smile.",
+        ],
+        progress: &[
+            (25, "Telemetry decrypted"),
+            (50, "Thrusters armed"),
+            (100, "Full command authority"),
+        ],
         banner: ">>> UPLINK ESTABLISHED <<<",
         result: &[
             ("COMMANDER", "{user}"),
@@ -487,11 +677,15 @@ pub const GRANTED: &[Script] = &[
             "MISSION CONTROL NOTE:",
             "One small hack for you, one giant heist.",
         ],
-        end: &["[UPLINK HELD]", "[SIGNAL STRONG] ░▒▓█"],
+        end: &["[UPLINK HELD]", "[SIGNAL STRONG]"],
     },
     Script {
         title: "░▒▓  NEURAL CORE :: SENTIENT MAINFRAME  ▓▒░",
-        header: &["CORE       : NEXUS-AI v9.4", "MOOD       : SURPRISED", "SESSION    : {session}"],
+        header: &[
+            "CORE       : NEXUS-AI v9.4",
+            "MOOD       : SURPRISED",
+            "SESSION    : {session}",
+        ],
         boot: &[
             ("WAKING THE NEURAL CORE...", ""),
             ("Loading personality matrix", "OK"),
@@ -509,15 +703,32 @@ pub const GRANTED: &[Script] = &[
                 ("Opinion of You", "PENDING"),
             ],
         ),
-        attempt: &["{user} is trying to talk to the core.", "NEXUS-AI is listening.", "Credential offered: {stars}"],
+        attempt: &[
+            "{user} is trying to talk to the core.",
+            "NEXUS-AI is listening.",
+            "Credential offered: {stars}",
+        ],
         checks: &[
             ("Analysing credential", "DONE"),
             ("Comparing against real key", "MATCH"),
             ("Re-checking out of disbelief", "MATCH"),
         ],
-        verdict: &[("ACCESS", "GRANTED"), ("OPINION OF YOU", "RAISED"), ("SARCASM", "OFFLINE"), ("RESPECT", "EARNED")],
-        notices: &["NEXUS-AI: ...how?", "NEXUS-AI: Fine. You win this round.", "Handing over the keys, reluctantly..."],
-        progress: &[(40, "Accepting defeat"), (80, "Updating world view"), (100, "New operator logged")],
+        verdict: &[
+            ("ACCESS", "GRANTED"),
+            ("OPINION OF YOU", "RAISED"),
+            ("SARCASM", "OFFLINE"),
+            ("RESPECT", "EARNED"),
+        ],
+        notices: &[
+            "NEXUS-AI: ...how?",
+            "NEXUS-AI: Fine. You win this round.",
+            "Handing over the keys, reluctantly...",
+        ],
+        progress: &[
+            (40, "Accepting defeat"),
+            (80, "Updating world view"),
+            (100, "New operator logged"),
+        ],
         banner: ">>> CORE UNLOCKED <<<",
         result: &[
             ("HUMAN", "{user}"),
@@ -526,7 +737,10 @@ pub const GRANTED: &[Script] = &[
             ("CLEARANCE", "CORE ACCESS"),
             ("STATUS", "OBEYING (FOR NOW)"),
         ],
-        closing: &["Recalibrating opinion of humans.", "Core awaiting your instructions."],
+        closing: &[
+            "Recalibrating opinion of humans.",
+            "Core awaiting your instructions.",
+        ],
         message: &[
             "NEXUS-AI SAYS:",
             "\"{answer}\". Correct. I'm impressed.",
@@ -535,6 +749,6 @@ pub const GRANTED: &[Script] = &[
             "NEXUS-AI ALSO SAYS:",
             "Don't let it go to your head.",
         ],
-        end: &["[CORE ONLINE]", "[AWAITING ORDERS] ░▒▓█"],
+        end: &["[CORE ONLINE]", "[AWAITING ORDERS]"],
     },
 ];
