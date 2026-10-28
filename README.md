@@ -170,6 +170,10 @@ A tamagotchi for Discord. Pets are bought and fed with money from the economy wa
 - `/counting stats` - See the current count and the server's high score
 - `/counting stop` - Stop counting in this server, keeping the high score for when it's set up again (admin)
 
+- `/guessing setup <channel>` - Set the guessing channel (admin). The bot thinks of a number from 1 to 100 and members post numbers to guess it; wrong guesses get a 🔼/🔽 hint and whoever gets it wins ₪ 500, then it starts again with a new number
+- `/guessing stats` - See guesses so far, numbers found and the fewest guesses it's taken
+- `/guessing stop` - Stop guessing in this server, keeping the stats (admin)
+
 Bets on heists and fights are held until the game ends, and refunded if the bot restarts mid-game. Each game is off until an admin turns it on with `/enablegame`.
 
 ### Suggestion Commands
@@ -213,7 +217,7 @@ Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
-- `/enablegame <game>` / `/disablegame <game>` - Turn single games (`counting`, `fight`, `hack`, `heist`) on or off (only available while the Games cog is enabled). Every game is off by default, so after `/enablecog games` turn on the ones you want.
+- `/enablegame <game>` / `/disablegame <game>` - Turn single games (`counting`, `fight`, `guessing`, `hack`, `heist`) on or off (only available while the Games cog is enabled). Every game is off by default, so after `/enablecog games` turn on the ones you want.
 - `/gamestatus` - Check which games are enabled for this server (only available while the Games cog is enabled)
 - `/cogstatus` - Check the status of all cogs for this server
 
@@ -250,6 +254,7 @@ The bot uses SQLite for persistent storage:
 - `database/suggestions.db` - Suggestion channels and open suggestions
 - `database/sticky.db` - Sticky messages
 - `database/counting.db` - Counting channels, counts and high scores
+- `database/guessing.db` - Guessing channels, current numbers and stats
 - `database/lockdown.db` - Active lockdowns and the permissions to restore
 - `database/economy.db` - Economy accounts
 - `database/levels.db` - XP, reputation and level settings

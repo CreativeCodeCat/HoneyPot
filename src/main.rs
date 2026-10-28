@@ -38,6 +38,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         games::heist(),
         games::fight(),
         games::counting(),
+        games::guessing(),
         games::enablegame(),
         games::disablegame(),
         games::gamestatus(),
@@ -145,6 +146,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     }
     if let Err(e) = data.counting.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale counting games: {e}"));
+    }
+    if let Err(e) = data.guessing.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale guessing games: {e}"));
     }
     if let Err(e) = data.sticky.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale sticky messages: {e}"));
@@ -265,6 +269,7 @@ async fn event_handler(
             levels::on_message(ctx, data, new_message).await;
             sticky::on_message(ctx, data, new_message).await;
             games::counting::on_message(ctx, data, new_message).await;
+            games::guessing::on_message(ctx, data, new_message).await;
         }
         serenity::FullEvent::GuildMemberRemoval { guild_id, user, .. } => {
             tickets::on_member_leave(ctx, data, *guild_id, user).await;
@@ -290,6 +295,7 @@ async fn main() {
         ),
         cooldowns: Mutex::new(cooldowns::Cooldowns::open().expect("failed to open cooldowns database")),
         counting: Mutex::new(games::counting::Store::open().expect("failed to open counting database")),
+        guessing: Mutex::new(games::guessing::Store::open().expect("failed to open guessing database")),
         honeypot: Mutex::new(
             honeypot::store::Store::open().expect("failed to open honeypot database"),
         ),

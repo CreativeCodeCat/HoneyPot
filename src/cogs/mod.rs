@@ -55,6 +55,7 @@ pub struct State {
     pub cooldowns: Mutex<cooldowns::Cooldowns>,
     pub counting: Mutex<games::counting::Store>,
     pub economy: Mutex<economy::store::Store>,
+    pub guessing: Mutex<games::guessing::Store>,
     pub honeypot: Mutex<honeypot::store::Store>,
     pub levels: Mutex<levels::store::Store>,
     pub lockdown: Mutex<lockdown::Store>,
