@@ -116,13 +116,25 @@ impl Store {
                 PRIMARY KEY (guild_id, role_id)
             );
             -- Bets taken from wallets for games still being played, refunded if the bot stops
-            CREATE TABLE IF NOT EXISTS held (
+            CREATE TABLE IF NOT EXISTS held_bets (
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
+                -- e.g. \"heist\"
+                game TEXT NOT NULL,
                 amount INTEGER NOT NULL,
-                PRIMARY KEY (guild_id, user_id)
+                PRIMARY KEY (guild_id, user_id, game)
             );",
         )?;
+
+        // Bets held before they were kept per game were all heist bets
+        let has_old_held: bool =
+            conn.query_row("SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'held'", [], |row| row.get(0))?;
+        if has_old_held {
+            conn.execute_batch(
+                "INSERT OR IGNORE INTO held_bets (guild_id, user_id, game, amount) SELECT guild_id, user_id, 'heist', amount FROM held;
+                 DROP TABLE held;",
+            )?;
+        }
 
         // Databases created before /eco daily existed
         let has_daily: bool = conn.query_row(
@@ -257,8 +269,8 @@ impl Store {
         Ok(Ok(sender))
     }
 
-    /// Takes a bet from the wallet and holds it until `settle` or `refund_held`.
-    pub fn hold(&mut self, guild_id: u64, user_id: u64, amount: i64) -> EcoResult<Balance> {
+    /// Takes a bet on `game` from the wallet and holds it until `settle` or `refund_held`.
+    pub fn hold(&mut self, guild_id: u64, user_id: u64, game: &str, amount: i64) -> EcoResult<Balance> {
         let tx = self.conn.transaction()?;
         let Some(mut balance) = balance_in(&tx, guild_id, user_id)? else { return Ok(Err(EcoError::NoAccount)) };
         if balance.wallet < amount {
@@ -267,20 +279,20 @@ impl Store {
         balance.wallet -= amount;
         set_balance(&tx, guild_id, user_id, balance)?;
         tx.execute(
-            "INSERT INTO held (guild_id, user_id, amount) VALUES (?, ?, ?)
-             ON CONFLICT (guild_id, user_id) DO UPDATE SET amount = amount + excluded.amount",
-            params![guild_id, user_id, amount],
+            "INSERT INTO held_bets (guild_id, user_id, game, amount) VALUES (?, ?, ?, ?)
+             ON CONFLICT (guild_id, user_id, game) DO UPDATE SET amount = amount + excluded.amount",
+            params![guild_id, user_id, game, amount],
         )?;
         tx.commit()?;
         Ok(Ok(balance))
     }
 
-    /// Releases the member's held bet and pays `payout` (which may be 0) into their wallet,
+    /// Releases the member's held bet on `game` and pays `payout` (which may be 0) into their wallet,
     /// in one go so a crash can't both refund and pay them. A payout that would overflow
     /// the wallet is dropped with `TooLarge`.
-    pub fn settle(&mut self, guild_id: u64, user_id: u64, payout: i64) -> EcoResult<()> {
+    pub fn settle(&mut self, guild_id: u64, user_id: u64, game: &str, payout: i64) -> EcoResult<()> {
         let tx = self.conn.transaction()?;
-        tx.execute("DELETE FROM held WHERE guild_id = ? AND user_id = ?", [guild_id, user_id])?;
+        tx.execute("DELETE FROM held_bets WHERE guild_id = ? AND user_id = ? AND game = ?", params![guild_id, user_id, game])?;
         let result = match balance_in(&tx, guild_id, user_id)? {
             None => Err(EcoError::NoAccount),
             Some(balance) if balance.wallet + payout > MAX_BALANCE => Err(EcoError::TooLarge),
@@ -294,18 +306,25 @@ impl Store {
         Ok(result)
     }
 
-    /// Returns held bets to their wallets, in one guild or (on startup) everywhere.
-    /// Returns how many were refunded.
-    pub fn refund_held(&mut self, guild_id: Option<u64>) -> rusqlite::Result<usize> {
+    /// Returns held bets to their wallets: those on one game in one guild, or (on startup)
+    /// every one. Returns how many wallets were refunded.
+    pub fn refund_held(&mut self, only: Option<(u64, &str)>) -> rusqlite::Result<usize> {
+        let (guild_id, game) = only.unzip();
         let tx = self.conn.transaction()?;
         let refunds = tx.execute(
             "UPDATE accounts SET wallet = MIN(wallet + (
-                 SELECT amount FROM held WHERE held.guild_id = accounts.guild_id AND held.user_id = accounts.user_id
+                 SELECT SUM(amount) FROM held_bets h
+                 WHERE h.guild_id = accounts.guild_id AND h.user_id = accounts.user_id AND (?2 IS NULL OR (h.guild_id = ?2 AND h.game = ?3))
              ), ?1)
-             WHERE (accounts.guild_id, accounts.user_id) IN (SELECT guild_id, user_id FROM held WHERE ?2 IS NULL OR guild_id = ?2)",
-            params![MAX_BALANCE, guild_id],
+             WHERE (guild_id, user_id) IN (
+                 SELECT guild_id, user_id FROM held_bets WHERE ?2 IS NULL OR (guild_id = ?2 AND game = ?3)
+             )",
+            params![MAX_BALANCE, guild_id, game],
         )?;
-        tx.execute("DELETE FROM held WHERE ?1 IS NULL OR guild_id = ?1", params![guild_id])?;
+        tx.execute(
+            "DELETE FROM held_bets WHERE ?1 IS NULL OR (guild_id = ?1 AND game = ?2)",
+            params![guild_id, game],
+        )?;
         tx.commit()?;
         Ok(refunds)
     }
@@ -445,12 +464,17 @@ mod tests {
             s.join(1, user).unwrap();
             s.adjust(1, user, Pocket::Wallet, 100).unwrap().unwrap();
         }
-        assert_eq!(s.hold(1, 10, 500).unwrap(), Err(EcoError::NotEnough(100)));
-        assert_eq!(s.hold(1, 10, 40).unwrap().unwrap().wallet, 60);
-        assert_eq!(s.hold(1, 11, 40).unwrap().unwrap().wallet, 60);
+        assert_eq!(s.hold(1, 10, "heist", 500).unwrap(), Err(EcoError::NotEnough(100)));
+        assert_eq!(s.hold(1, 10, "heist", 40).unwrap().unwrap().wallet, 60);
+        assert_eq!(s.hold(1, 11, "heist", 40).unwrap().unwrap().wallet, 60);
+
+        // Bets on other games are kept apart
+        assert_eq!(s.hold(1, 10, "fight", 10).unwrap().unwrap().wallet, 50);
+        assert_eq!(s.refund_held(Some((1, "fight"))).unwrap(), 1);
+        assert_eq!(s.balance(1, 10).unwrap().unwrap().wallet, 60);
 
         // Settled bets aren't refunded again
-        s.settle(1, 10, 52).unwrap().unwrap();
+        s.settle(1, 10, "heist", 52).unwrap().unwrap();
         assert_eq!(s.refund_held(None).unwrap(), 1);
         assert_eq!(s.balance(1, 10).unwrap().unwrap().wallet, 112);
         assert_eq!(s.balance(1, 11).unwrap().unwrap().wallet, 100);

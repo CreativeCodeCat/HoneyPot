@@ -149,7 +149,7 @@ Members earn XP for chatting, at most once per XP cooldown (5 minutes by default
 
 ### Pet Commands
 
-A Discord version of the PhantomBot tamagotchi. Pets are bought and fed with money from the economy wallet (`/eco join` first). One treat lasts 24 hours; a pet that runs out of food dies. Owners get a DM when their pet has about a day of food left, and when it dies. Fun drains over time too, and happy pets (from playing) can hug and battle. Pets' needs pause while the cog is disabled.
+A tamagotchi for Discord. Pets are bought and fed with money from the economy wallet (`/eco join` first). One treat lasts 24 hours; a pet that runs out of food dies. Owners get a DM when their pet has about a day of food left, and when it dies. Fun drains over time too, and happy pets (from playing) can hug and battle. Pets' needs pause while the cog is disabled.
 
 - `/pet buy <kind> <name> [gender]` - Buy a pet for ₪ 1,000 (20 kinds, from cats to dragons); gender is random if not chosen
 - `/pet status [user]` - A picture card with the pet, its age, level, experience, fun, mood, treats and how long the food will last
@@ -186,7 +186,7 @@ Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
-- `/enablegame <game>` / `/disablegame <game>` - Turn single games (`hack`, `heist`) on or off (only available while the Games cog is enabled). Every game is off by default, so after `/enablecog games` turn on the ones you want.
+- `/enablegame <game>` / `/disablegame <game>` - Turn single games (`fight`, `hack`, `heist`) on or off (only available while the Games cog is enabled). Every game is off by default, so after `/enablecog games` turn on the ones you want.
 - `/gamestatus` - Check which games are enabled for this server (only available while the Games cog is enabled)
 - `/cogstatus` - Check the status of all cogs for this server
 

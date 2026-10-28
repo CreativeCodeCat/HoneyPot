@@ -1,13 +1,13 @@
-//! `/heist`, based on the PhantomBot heist system. The first member to bet starts a
-//! heist and everyone else has `JOIN_TIME` to bet in too. Then a random story plays
-//! out, the story's difficulty decides who gets caught, and the survivors get their
-//! bet back plus `GAIN_PERCENT`. Once it ends the whole server waits out the cooldown.
+//! `/heist`: the first member to bet starts a heist and everyone else has `JOIN_TIME`
+//! to bet in too. Then a random story plays out, the story's difficulty decides who
+//! gets caught, and the survivors get their bet back plus `GAIN_PERCENT`. Once it
+//! ends the whole server waits out the cooldown.
 //!
 //! Bets are held in the economy database until the heist pays out, and refunded if
 //! the bot stops before then.
 //!
 //! A happy pet joins its owner with a free entry of half their bet, and anything it
-//! wins goes to its owner, like the tamagotchi in the original.
+//! wins goes to its owner.
 
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
@@ -31,7 +31,7 @@ const GAIN_PERCENT: i64 = 30;
 const MIN_BET: i64 = 10;
 const MAX_BET: i64 = 1000;
 
-// Pet stat changes for joining, from the original
+// Pet stat changes for joining
 const PET_FUN: f64 = 1.0;
 const PET_EXP: f64 = 0.5;
 const PET_FOOD: f64 = 0.25;
@@ -191,7 +191,7 @@ pub async fn heist(
             if let Err(e) = run(&data, &http, channel_id, guild_id, crew).await {
                 log::error(format!("Error running heist in guild {guild_id}: {e}"));
                 // Give back any bets that weren't settled
-                if let Err(e) = data.economy.lock().unwrap().refund_held(Some(guild_id)) {
+                if let Err(e) = data.economy.lock().unwrap().refund_held(Some((guild_id, "heist"))) {
                     log::error(format!("Error refunding heist bets in guild {guild_id}: {e}"));
                 }
             }
@@ -219,7 +219,7 @@ fn join(data: &Data, guild_id: u64, user_id: u64, amount: i64) -> Result<Result<
             return Ok(Err(format!("❌ The heat is still on from the last heist. Try again <t:{ready}:R>.")));
         }
     }
-    let payment = data.economy.lock().unwrap().hold(guild_id, user_id, amount)?;
+    let payment = data.economy.lock().unwrap().hold(guild_id, user_id, "heist", amount)?;
     if let Err(e) = payment {
         return Ok(Err(match e {
             EcoError::NoAccount => "❌ You need an economy account to join. Use `/eco join` first.".to_string(),
@@ -291,7 +291,7 @@ async fn run(
     let mut full = vec![];
     for member in crew.iter().filter(|c| c.pet.is_none()) {
         let payout = winnings.iter().find(|(id, _)| *id == member.owner_id).map_or(0, |(_, total)| *total);
-        match data.economy.lock().unwrap().settle(guild_id, member.owner_id, payout)? {
+        match data.economy.lock().unwrap().settle(guild_id, member.owner_id, "heist", payout)? {
             Ok(()) if payout > 0 => paid.push((member.owner_id, payout)),
             Ok(()) => {}
             Err(_) => full.push(member.owner_id),

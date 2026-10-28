@@ -17,12 +17,13 @@ const DEFAULTS: &[(&str, u64)] = &[
     ("ping", 300),
     ("hack", games::HACK_COOLDOWN_SECS as u64),
     ("heist", games::heist::HEIST_COOLDOWN_SECS as u64),
+    ("fight", games::fight::FIGHT_COOLDOWN_SECS as u64),
 ];
 
 /// Commands that start their own cooldown (after checking their input), so the
 /// framework-wide check leaves them alone. `heist` cools down for the whole server
-/// once a heist ends.
-const SELF_MANAGED: &[&str] = &["hack", "heist"];
+/// once a heist ends, and `fight` for both fighters once a fight ends.
+const SELF_MANAGED: &[&str] = &["hack", "heist", "fight"];
 
 /// Configured cooldowns, cached in memory, and when each member last used each command,
 /// both persisted to SQLite so running cooldowns survive restarts.

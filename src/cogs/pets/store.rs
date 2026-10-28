@@ -1,7 +1,7 @@
 //! Pets and their needs, persisted to SQLite.
 //!
-//! Stats follow the original PhantomBot tamagotchi: one treat of food lasts 24 hours,
-//! fun drains twice as fast, and a pet whose food reaches zero dies.
+//! One treat of food lasts 24 hours, fun drains twice as fast, and a pet whose food
+//! reaches zero dies.
 
 use rusqlite::{params, Connection, OptionalExtension, Row};
 

@@ -1,5 +1,5 @@
-//! Pets cog: a Discord version of the PhantomBot tamagotchi. Members buy a pet with
-//! economy money, keep it fed and happy, and play, hug, go on playdates and battle.
+//! Pets cog: a tamagotchi for Discord. Members buy a pet with economy money, keep it
+//! fed and happy, and play, hug, go on playdates and battle.
 
 mod card;
 pub mod store;
@@ -22,7 +22,7 @@ pub const COG_NAME: &str = "pets";
 
 const PET_PRICE: i64 = 1000;
 const TREAT_PRICE: i64 = 5;
-/// Longest pet name, as in the original
+/// Longest pet name
 const MAX_NAME_LEN: usize = 13;
 
 const GREEN: u32 = 0x57f287;
@@ -74,7 +74,7 @@ const PLAYDATE_SPOTS: &[&str] = &[
     "{host} is coming over to {guest} to play!",
 ];
 
-// Stat changes, from the original scripts
+// Stat changes
 const PLAY: Effect = Effect { fun: 0.1, exp: 1.5, food: 1.0 };
 const HUG: Effect = Effect { fun: 0.1, exp: 0.25, food: 0.1 };
 const PLAYDATE: Effect = Effect { fun: 3.0, exp: 0.25, food: 0.5 };
@@ -537,7 +537,7 @@ async fn battle(ctx: Context<'_>, #[description = "Who to challenge"] user: sere
         return Ok(());
     };
 
-    // Each level ahead gives a 2 in 25 edge, up to ±10, as the original's experience gap did
+    // Each level ahead gives a 2 in 25 edge, up to ±10
     let edge = (2 * (challenger.level() - opponent.level())).clamp(-10, 10) as f64;
     let challenger_wins = (rand::rng().random_range(0..=24) as f64) <= 10.0 + edge;
     let (winner, loser) = if challenger_wins { (&mut challenger, &mut opponent) } else { (&mut opponent, &mut challenger) };
