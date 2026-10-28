@@ -8,20 +8,20 @@ use std::time::Duration;
 
 use chrono::Utc;
 use poise::serenity_prelude as serenity;
-use rand::Rng;
 
 use super::{Context, Data, Error};
 use crate::log;
-use store::{level_for, xp_for, Settings};
+use store::{level_for, xp_for, Settings, COOLDOWN_SECS_RANGE, RATE_RANGE, WINDOW_MINS_RANGE, XP_RANGE};
 
 pub const COG_NAME: &str = "levels";
 
-/// A member earns XP at most once per this many seconds
-const XP_COOLDOWN_SECS: i64 = 5 * 60;
 /// Reputation given per /reputation
 const REP_AMOUNT: i64 = 3;
 /// Time between /reputation uses for each member
 const REP_COOLDOWN_SECS: i64 = 2 * 60 * 60;
+
+/// 2015-01-01 in Unix milliseconds
+const DISCORD_EPOCH_MS: i64 = 1_420_070_400_000;
 
 const GREEN: u32 = 0x57f287;
 const PURPLE: u32 = 0x9b59b6;
@@ -49,19 +49,28 @@ fn progress_bar(current: i64, total: i64) -> String {
     "▰".repeat(filled as usize) + &"▱".repeat((WIDTH - filled) as usize)
 }
 
+/// Only people earn XP or count as the latest speaker: bots (the bot itself included),
+/// webhooks and system messages are ignored entirely.
+fn is_human(msg: &serenity::Message) -> bool {
+    !msg.author.bot && !msg.author.system && msg.webhook_id.is_none()
+}
+
 /// Awards XP for a message and announces level-ups.
 pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Message) {
     let Some(guild_id) = msg.guild_id else { return };
-    if msg.author.bot || !data.is_cog_enabled(guild_id.get(), COG_NAME) {
+    if !is_human(msg) || !data.is_cog_enabled(guild_id.get(), COG_NAME) {
         return;
     }
 
+    // One lock covers reading the channel's latest message, awarding and updating it,
+    // so messages handled at the same time can't both claim the same reply bonus
     let result = {
         let mut levels = data.levels.lock().unwrap();
         levels.settings(guild_id.get()).and_then(|settings| {
-            let xp = rand::rng().random_range(settings.min_xp..=settings.max_xp);
-            let awarded = levels.award_xp(guild_id.get(), msg.author.id.get(), xp, Utc::now().timestamp(), XP_COOLDOWN_SECS)?;
-            Ok(awarded.map(|(old, new)| (level_for(old, settings.rate), level_for(new, settings.rate), settings.levelup_channel_id)))
+            // Discord IDs encode the send time in milliseconds since the Discord epoch
+            let sent_ms = (msg.id.get() >> 22) as i64 + DISCORD_EPOCH_MS;
+            let award = levels.award_message_xp(guild_id.get(), msg.channel_id.get(), msg.author.id.get(), sent_ms, &settings)?;
+            Ok(award.map(|a| (level_for(a.old_xp, settings.rate), level_for(a.new_xp, settings.rate), settings.levelup_channel_id)))
         })
     };
 
@@ -111,14 +120,22 @@ pub async fn rank_setup(
     #[min = 250]
     #[max = 7500]
     rate: Option<i64>,
-    #[description = "Minimum XP per message (default 25)"]
-    #[min = 25]
+    #[description = "XP per message (default 25)"]
+    #[min = 1]
     #[max = 500]
-    min: Option<i64>,
-    #[description = "Maximum XP per message (default 300)"]
-    #[min = 25]
+    base: Option<i64>,
+    #[description = "XP for replying to someone else within the engagement window (default 300)"]
+    #[min = 1]
     #[max = 500]
     max: Option<i64>,
+    #[description = "Minutes after another member's message that a reply earns max XP (default 5)"]
+    #[min = 1]
+    #[max = 60]
+    window: Option<i64>,
+    #[description = "Seconds between XP awards for each member (default 300)"]
+    #[min = 0]
+    #[max = 3600]
+    cooldown: Option<i64>,
     #[description = "Channel to announce level-ups in"]
     #[channel_types("Text")]
     channel: Option<serenity::GuildChannel>,
@@ -126,28 +143,27 @@ pub async fn rank_setup(
     let gid = guild_id(ctx);
     let current = ctx.data().levels.lock().unwrap().settings(gid)?;
     let settings = Settings {
-        rate: rate.unwrap_or(current.rate).clamp(250, 7500),
-        min_xp: min.unwrap_or(current.min_xp).clamp(25, 500),
-        max_xp: max.unwrap_or(current.max_xp).clamp(25, 500),
+        rate: rate.unwrap_or(current.rate).clamp(RATE_RANGE.0, RATE_RANGE.1),
+        base_xp: base.unwrap_or(current.base_xp).clamp(XP_RANGE.0, XP_RANGE.1),
+        max_xp: max.unwrap_or(current.max_xp).clamp(XP_RANGE.0, XP_RANGE.1),
+        engagement_window_mins: window.unwrap_or(current.engagement_window_mins).clamp(WINDOW_MINS_RANGE.0, WINDOW_MINS_RANGE.1),
+        xp_cooldown_secs: cooldown.unwrap_or(current.xp_cooldown_secs).clamp(COOLDOWN_SECS_RANGE.0, COOLDOWN_SECS_RANGE.1),
         levelup_channel_id: channel.map(|c| c.id.get()).or(current.levelup_channel_id),
     };
 
-    if settings.min_xp > settings.max_xp {
-        ctx.say(format!(
-            "❌ The minimum XP ({}) can't be more than the maximum ({}).",
-            settings.min_xp, settings.max_xp
-        ))
-        .await?;
+    if let Err(problem) = settings.validate() {
+        ctx.say(format!("❌ {problem}")).await?;
         return Ok(());
     }
 
     ctx.data().levels.lock().unwrap().save_settings(gid, settings)?;
     let embed = serenity::CreateEmbed::new().colour(PURPLE).description(format!(
-        "✅ | Levels are set up.\n**Rate:** {} XP per level\n**XP per message:** {}–{} (once every {} minutes)\n**Level-up channel:** {}",
+        "✅ | Levels are set up.\n**Rate:** {} XP per level\n**XP per message:** {}, or {} for replying to someone else within {} min\n**XP cooldown:** {} seconds\n**Level-up channel:** {}",
         number(settings.rate),
-        settings.min_xp,
+        settings.base_xp,
         settings.max_xp,
-        XP_COOLDOWN_SECS / 60,
+        settings.engagement_window_mins,
+        settings.xp_cooldown_secs,
         settings
             .levelup_channel_id
             .map(|id| format!("<#{id}>"))
@@ -352,5 +368,26 @@ mod tests {
         assert_eq!(progress_bar(0, 100), "▱".repeat(12));
         assert_eq!(progress_bar(50, 100), "▰".repeat(6) + &"▱".repeat(6));
         assert_eq!(progress_bar(100, 100), "▰".repeat(12));
+    }
+
+    fn message(bot: bool, webhook: bool) -> serenity::Message {
+        let mut msg = serenity::Message::default();
+        msg.author.bot = bot;
+        msg.webhook_id = webhook.then(|| serenity::WebhookId::new(1));
+        msg
+    }
+
+    #[test]
+    fn bots_and_webhooks_are_ignored() {
+        assert!(is_human(&message(false, false)));
+        assert!(!is_human(&message(true, false)));
+        assert!(!is_human(&message(false, true)));
+    }
+
+    #[test]
+    fn send_time_comes_from_the_message_id() {
+        let id = serenity::MessageId::new(1_300_000_000_000_000_000);
+        let from_id = (id.get() >> 22) as i64 + DISCORD_EPOCH_MS;
+        assert_eq!(from_id / 1000, id.created_at().unix_timestamp());
     }
 }

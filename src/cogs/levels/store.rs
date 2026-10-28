@@ -3,25 +3,79 @@
 //! Levels follow the original bot's curve: reaching level `L` takes
 //! `(L² - L) × rate / 2` total XP, so each level needs `rate` more XP than the last.
 //! Everyone starts at level 1. Levels are always computed from XP, never stored.
+//!
+//! A message earns `base_xp`, or `max_xp` instead when it's sent within the engagement
+//! window after the latest message from a different member in the same channel, so
+//! conversation is rewarded rather than message volume.
+
+use std::collections::HashMap;
 
 use rusqlite::{params, Connection, OptionalExtension};
 
 const DB_FILE: &str = "database/levels.db";
 
+/// Limits for each setting, shared by `/rank-setup` and `Settings::validate`
+pub const RATE_RANGE: (i64, i64) = (250, 7500);
+pub const XP_RANGE: (i64, i64) = (1, 500);
+pub const WINDOW_MINS_RANGE: (i64, i64) = (1, 60);
+pub const COOLDOWN_SECS_RANGE: (i64, i64) = (0, 3600);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Settings {
     /// XP difference between consecutive levels
     pub rate: i64,
-    pub min_xp: i64,
+    /// XP for an ordinary message
+    pub base_xp: i64,
+    /// XP for a message that replies to someone else within the engagement window
     pub max_xp: i64,
+    pub engagement_window_mins: i64,
+    /// A member earns XP at most once per this many seconds
+    pub xp_cooldown_secs: i64,
     /// Where level-ups are announced; `None` uses the system channel
     pub levelup_channel_id: Option<u64>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { rate: 2500, min_xp: 25, max_xp: 300, levelup_channel_id: None }
+        Self { rate: 2500, base_xp: 25, max_xp: 300, engagement_window_mins: 5, xp_cooldown_secs: 5 * 60, levelup_channel_id: None }
     }
+}
+
+impl Settings {
+    /// Explains the first invalid setting, if any.
+    pub fn validate(&self) -> Result<(), String> {
+        let check = |name: &str, value: i64, (min, max): (i64, i64)| {
+            if (min..=max).contains(&value) { Ok(()) } else { Err(format!("{name} must be between {min} and {max} (got {value}).")) }
+        };
+        check("The rate", self.rate, RATE_RANGE)?;
+        check("Base XP", self.base_xp, XP_RANGE)?;
+        check("Max XP", self.max_xp, XP_RANGE)?;
+        check("The engagement window", self.engagement_window_mins, WINDOW_MINS_RANGE)?;
+        check("The XP cooldown", self.xp_cooldown_secs, COOLDOWN_SECS_RANGE)?;
+        if self.max_xp < self.base_xp {
+            return Err(format!("Max XP ({}) can't be less than base XP ({}).", self.max_xp, self.base_xp));
+        }
+        Ok(())
+    }
+
+    /// XP a message earns: `max_xp` if it follows another member's message (`last`, as author
+    /// and Unix milliseconds) within the engagement window, otherwise `base_xp`.
+    pub fn message_xp(&self, last: Option<(u64, i64)>, author: u64, now_ms: i64) -> i64 {
+        let window_ms = self.engagement_window_mins * 60_000;
+        match last {
+            Some((other, at)) if other != author && (0..=window_ms).contains(&(now_ms - at)) => self.max_xp,
+            _ => self.base_xp,
+        }
+    }
+}
+
+/// What awarding XP for a message did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Award {
+    pub old_xp: i64,
+    pub new_xp: i64,
+    /// Whether the engagement bonus (max XP) applied
+    pub engaged: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -52,6 +106,9 @@ pub fn level_for(xp: i64, rate: i64) -> i64 {
 
 pub struct Store {
     conn: Connection,
+    /// Latest human message per (guild, channel): author and Unix milliseconds.
+    /// Kept in memory; after a restart the first message in a channel earns base XP.
+    latest: HashMap<(u64, u64), (u64, i64)>,
 }
 
 impl Store {
@@ -90,21 +147,39 @@ impl Store {
         if !has_channel_column {
             conn.execute_batch("ALTER TABLE settings ADD COLUMN levelup_channel_id INTEGER")?;
         }
-        Ok(Self { conn })
+        // ...and before the engagement window and configurable cooldown
+        let has_window_column: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('settings') WHERE name = 'engagement_window_mins'",
+            [],
+            |row| row.get(0),
+        )?;
+        if !has_window_column {
+            let defaults = Settings::default();
+            conn.execute_batch(&format!(
+                "ALTER TABLE settings ADD COLUMN engagement_window_mins INTEGER NOT NULL DEFAULT {};
+                 ALTER TABLE settings ADD COLUMN xp_cooldown_secs INTEGER NOT NULL DEFAULT {};",
+                defaults.engagement_window_mins, defaults.xp_cooldown_secs
+            ))?;
+        }
+        Ok(Self { conn, latest: HashMap::new() })
     }
 
     pub fn settings(&self, guild_id: u64) -> rusqlite::Result<Settings> {
         Ok(self
             .conn
             .query_row(
-                "SELECT rate, min_xp, max_xp, levelup_channel_id FROM settings WHERE guild_id = ?",
+                // min_xp is the column base XP has always been stored in
+                "SELECT rate, min_xp, max_xp, engagement_window_mins, xp_cooldown_secs, levelup_channel_id
+                 FROM settings WHERE guild_id = ?",
                 [guild_id],
                 |row| {
                     Ok(Settings {
                         rate: row.get(0)?,
-                        min_xp: row.get(1)?,
+                        base_xp: row.get(1)?,
                         max_xp: row.get(2)?,
-                        levelup_channel_id: row.get(3)?,
+                        engagement_window_mins: row.get(3)?,
+                        xp_cooldown_secs: row.get(4)?,
+                        levelup_channel_id: row.get(5)?,
                     })
                 },
             )
@@ -114,10 +189,35 @@ impl Store {
 
     pub fn save_settings(&self, guild_id: u64, settings: Settings) -> rusqlite::Result<()> {
         self.conn.execute(
-            "INSERT OR REPLACE INTO settings (guild_id, rate, min_xp, max_xp, levelup_channel_id) VALUES (?, ?, ?, ?, ?)",
-            params![guild_id, settings.rate, settings.min_xp, settings.max_xp, settings.levelup_channel_id],
+            "INSERT OR REPLACE INTO settings (guild_id, rate, min_xp, max_xp, engagement_window_mins, xp_cooldown_secs, levelup_channel_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            params![
+                guild_id,
+                settings.rate,
+                settings.base_xp,
+                settings.max_xp,
+                settings.engagement_window_mins,
+                settings.xp_cooldown_secs,
+                settings.levelup_channel_id
+            ],
         )?;
         Ok(())
+    }
+
+    /// Awards XP for a human message in a channel and records it as the channel's latest message,
+    /// even when the member is on cooldown. Returns the award, or `None` if on cooldown.
+    pub fn award_message_xp(
+        &mut self,
+        guild_id: u64,
+        channel_id: u64,
+        user_id: u64,
+        now_ms: i64,
+        settings: &Settings,
+    ) -> rusqlite::Result<Option<Award>> {
+        let last = self.latest.insert((guild_id, channel_id), (user_id, now_ms));
+        let xp = settings.message_xp(last, user_id, now_ms);
+        let awarded = self.award_xp(guild_id, user_id, xp, now_ms.div_euclid(1000), settings.xp_cooldown_secs)?;
+        Ok(awarded.map(|(old_xp, new_xp)| Award { old_xp, new_xp, engaged: xp == settings.max_xp && xp != settings.base_xp }))
     }
 
     /// Gives `xp` to a member unless they were given XP less than `cooldown` seconds ago.
@@ -236,7 +336,7 @@ mod tests {
 
         let s = Store::open_path(path).unwrap();
         assert_eq!(s.settings(1).unwrap(), Settings::default());
-        let settings = Settings { rate: 500, min_xp: 30, max_xp: 60, levelup_channel_id: Some(42) };
+        let settings = Settings { rate: 500, base_xp: 30, max_xp: 60, engagement_window_mins: 2, xp_cooldown_secs: 0, levelup_channel_id: Some(42) };
         s.save_settings(1, settings).unwrap();
         assert_eq!(s.settings(1).unwrap(), settings);
         std::fs::remove_file(path).ok();
@@ -249,6 +349,83 @@ mod tests {
         assert_eq!(s.award_xp(1, 10, 100, 1299, 300).unwrap(), None);
         assert_eq!(s.award_xp(1, 10, 50, 1300, 300).unwrap(), Some((100, 150)));
         assert_eq!(s.member(1, 10).unwrap(), Some(Member { xp: 150, rep: 0, position: 1 }));
+    }
+
+    const ALICE: u64 = 10;
+    const BOB: u64 = 20;
+    const MIN: i64 = 60_000;
+
+    /// Base 25, max 300, 5 minute window, no cooldown unless a test sets one
+    fn engagement_settings() -> Settings {
+        Settings { xp_cooldown_secs: 0, ..Settings::default() }
+    }
+
+    /// XP a message earned (0 on cooldown).
+    fn earned(s: &mut Store, channel: u64, user: u64, at_ms: i64, settings: &Settings) -> i64 {
+        s.award_message_xp(1, channel, user, at_ms, settings).unwrap().map_or(0, |a| a.new_xp - a.old_xp)
+    }
+
+    #[test]
+    fn conversation_example_from_the_spec() {
+        let (mut s, cfg) = (Store::open_path(":memory:").unwrap(), engagement_settings());
+        let t = 100 * MIN;
+        assert_eq!(earned(&mut s, 1, ALICE, t, &cfg), 25, "quiet channel: base");
+        assert_eq!(earned(&mut s, 1, BOB, t + 2 * MIN, &cfg), 300, "replying to Alice: max");
+        assert_eq!(earned(&mut s, 1, BOB, t + 2 * MIN + 10_000, &cfg), 25, "own message doesn't count");
+        assert_eq!(earned(&mut s, 1, ALICE, t + 3 * MIN + 10_000, &cfg), 300, "replying to Bob: max");
+    }
+
+    #[test]
+    fn engagement_window_boundaries() {
+        let cfg = engagement_settings();
+        let window = 5 * MIN;
+        assert_eq!(cfg.message_xp(Some((BOB, 0)), ALICE, window), 300, "exactly at the window edge");
+        assert_eq!(cfg.message_xp(Some((BOB, 0)), ALICE, window + 1), 25, "just past the window");
+        assert_eq!(cfg.message_xp(Some((BOB, 0)), ALICE, 0), 300, "same instant");
+        assert_eq!(cfg.message_xp(Some((BOB, 10)), ALICE, 0), 25, "out-of-order timestamp");
+        assert_eq!(cfg.message_xp(None, ALICE, 0), 25, "nobody has spoken");
+        assert_eq!(cfg.message_xp(Some((ALICE, 0)), ALICE, 1), 25, "only yourself");
+    }
+
+    #[test]
+    fn engagement_is_per_channel_and_guild() {
+        let (mut s, cfg) = (Store::open_path(":memory:").unwrap(), engagement_settings());
+        earned(&mut s, 1, ALICE, 0, &cfg);
+        assert_eq!(earned(&mut s, 2, BOB, MIN, &cfg), 25, "Alice spoke in another channel");
+        assert_eq!(s.award_message_xp(2, 1, BOB, MIN, &cfg).unwrap().unwrap().engaged, false, "another guild");
+        assert_eq!(earned(&mut s, 1, BOB, MIN, &cfg), 300, "same channel and guild");
+    }
+
+    #[test]
+    fn cooldown_blocks_xp_but_still_updates_the_latest_message() {
+        let mut s = Store::open_path(":memory:").unwrap();
+        let cfg = Settings { xp_cooldown_secs: 60, ..engagement_settings() };
+        assert_eq!(earned(&mut s, 1, ALICE, 0, &cfg), 25);
+        assert_eq!(earned(&mut s, 1, BOB, 10_000, &cfg), 300);
+        // Alice is on cooldown and earns nothing, but she's now the latest speaker
+        assert_eq!(earned(&mut s, 1, ALICE, 20_000, &cfg), 0);
+        assert_eq!(earned(&mut s, 1, BOB, 80_000, &cfg), 300, "Bob replies to Alice");
+        assert_eq!(earned(&mut s, 1, ALICE, 90_000, &cfg), 300, "cooldown over");
+        assert_eq!(s.member(1, ALICE).unwrap().unwrap().xp, 325);
+    }
+
+    #[test]
+    fn only_one_award_per_message() {
+        let (mut s, cfg) = (Store::open_path(":memory:").unwrap(), engagement_settings());
+        earned(&mut s, 1, ALICE, 0, &cfg);
+        let award = s.award_message_xp(1, 1, BOB, MIN, &cfg).unwrap().unwrap();
+        assert_eq!(award, Award { old_xp: 0, new_xp: 300, engaged: true }, "max XP replaces base, not added to it");
+    }
+
+    #[test]
+    fn settings_are_validated() {
+        assert_eq!(Settings::default().validate(), Ok(()));
+        assert!(Settings { base_xp: 100, max_xp: 50, ..Settings::default() }.validate().is_err());
+        assert_eq!(Settings { base_xp: 50, max_xp: 50, ..Settings::default() }.validate(), Ok(()));
+        assert!(Settings { base_xp: 0, ..Settings::default() }.validate().is_err());
+        assert!(Settings { engagement_window_mins: 0, ..Settings::default() }.validate().is_err());
+        assert!(Settings { xp_cooldown_secs: -1, ..Settings::default() }.validate().is_err());
+        assert!(Settings { rate: 100, ..Settings::default() }.validate().is_err());
     }
 
     #[test]

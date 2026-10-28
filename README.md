@@ -131,12 +131,21 @@ Each server has its own economy. Members start with ₪ 100 in the bank after jo
 
 ### Levels Commands
 
-Members earn 25–300 XP for chatting, at most once every 5 minutes. Each level needs 2,500 more XP than the last. Level-ups are announced in the level-up channel set with `/rank-setup`, otherwise the server's system channel, otherwise the channel the member was chatting in.
+Members earn XP for chatting, at most once per XP cooldown (5 minutes by default). A message earns the base XP (25), or the max XP (300) instead when it's sent within the engagement window (5 minutes) after the latest message from a *different* member in the same channel, so conversation is rewarded rather than message volume. Your own earlier messages never count, bots and webhooks are ignored, and a message on cooldown earns nothing but still counts as the channel's latest message. Each level needs 2,500 more XP than the last. Level-ups are announced in the level-up channel set with `/rank-setup`, otherwise the server's system channel, otherwise the channel the member was chatting in.
 
 - `/rank [user]` - Show a rank card image with level, rank, reputation, highest role and progress to the next level
 - `/leaderboard` - Show the top 10 members by XP
 - `/reputation <user>` - Give a member +3 reputation (once every 2 hours)
-- `/rank-setup [rate] [min] [max] [channel]` - Change the XP per level (250–7,500), XP per message (25–500) and the level-up channel (**Administrator**)
+- `/rank-setup [rate] [base] [max] [window] [cooldown] [channel]` - Change the levels settings for the server (**Administrator**):
+
+  | Option | Meaning | Default | Range |
+  |---|---|---|---|
+  | `rate` | Extra XP each level needs over the last | 2,500 | 250–7,500 |
+  | `base` | XP per message | 25 | 1–500 |
+  | `max` | XP for replying to someone else within the window (must be at least `base`) | 300 | 1–500 |
+  | `window` | Engagement window, in minutes | 5 | 1–60 |
+  | `cooldown` | Seconds between XP awards for each member | 300 | 0–3,600 |
+  | `channel` | Where level-ups are announced | System channel | Any text channel |
 
 ### Pet Commands
 
