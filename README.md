@@ -163,6 +163,19 @@ A tamagotchi for Discord. Pets are bought and fed with money from the economy wa
 ### Games Commands
 
 - `/hack <password>` - Try to hack the bot: it picks one of 25 common passwords at random, and if your guess matches you win ₪ 2,500 for your `/eco` wallet. Once every 5 minutes
+- `/heist <amount>` - Start or join a heist with a bet from your wallet. After 60 seconds a story plays out; survivors get their bet back plus 30%. A happy pet joins its owner with a free half bet. The server waits 15 minutes between heists
+- `/fight <user> [wager]` - Challenge someone to a fight; they accept with a button and the winner takes both wagers. Challenging the bot skips the accept. Fighters recover for 10 minutes
+
+Bets on heists and fights are held until the game ends, and refunded if the bot restarts mid-game. Each game is off until an admin turns it on with `/enablegame`.
+
+### Suggestion Commands
+
+- `/suggest <type> <suggestion> <dm>` - Post a suggestion in the suggestions channel, with ✅/❌ reactions for voting. With `dm` on, you're messaged when it's decided. Once every 5 minutes
+- `/suggestion setup <channel> <accepted> <declined>` - Choose where suggestions go and where accepted and declined ones are announced
+- `/suggestion accept|decline|pending <message-id> [reason]` - Update a suggestion's status, announce it and DM the member if they asked
+- `/suggestion completed <message-id>` - Mark a suggestion as done and clear its votes
+
+All `/suggestion` commands need **Administrator**.
 
 ### Rules Commands
 
@@ -182,7 +195,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `pets`, `rules`, `serverstats`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `pets`, `rules`, `serverstats`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -220,6 +233,7 @@ The bot uses SQLite for persistent storage:
 - `database/honeypot.db` - Honeypot configuration, activity logs, offenders, audit log
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
+- `database/suggestions.db` - Suggestion channels and open suggestions
 - `database/lockdown.db` - Active lockdowns and the permissions to restore
 - `database/economy.db` - Economy accounts
 - `database/levels.db` - XP, reputation and level settings
@@ -271,6 +285,7 @@ HoneyPot/
         │   └── store.rs    # SQLite storage and pet needs
         ├── rules.rs        # /rules
         ├── stats.rs        # Voice channel stats
+        ├── suggestions.rs  # /suggest and /suggestion
         ├── tickets/
         │   ├── mod.rs      # Panel, buttons, closing, auto-close
         │   ├── commands.rs # /ticket-setup and /ticket

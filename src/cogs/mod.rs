@@ -15,6 +15,7 @@ pub mod pets;
 pub mod rules;
 pub mod server_setup;
 pub mod stats;
+pub mod suggestions;
 pub mod tickets;
 
 use std::sync::{Arc, Mutex};
@@ -39,6 +40,7 @@ pub const COGS: &[&str] = &[
     "Pets",
     "Rules",
     "ServerStats",
+    "Suggestions",
     "Tickets",
 ];
 
@@ -56,6 +58,7 @@ pub struct State {
     pub pets: Mutex<pets::store::Store>,
     pub rules: Mutex<rules::Store>,
     pub server_setup: Mutex<server_setup::Store>,
+    pub suggestions: Mutex<suggestions::Store>,
     pub tickets: Mutex<tickets::store::Store>,
 }
 

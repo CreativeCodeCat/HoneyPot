@@ -10,7 +10,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, server_setup, stats, tickets, Context, Data,
+    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, pets, rules, normalize_cog_name, server_setup, stats, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -46,6 +46,8 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
     commands.extend(honeypot::commands::all());
     commands.push(tickets::commands::ticket_setup());
     commands.push(tickets::commands::ticket());
+    commands.push(suggestions::suggest());
+    commands.push(suggestions::suggestion());
     commands
 }
 
@@ -133,6 +135,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     data.cooldowns.lock().unwrap().cleanup_stale(&guild_ids);
     if let Err(e) = data.honeypot.lock().unwrap().cleanup_stale(&current) {
         log::error(format!("Error cleaning up stale data: {e}"));
+    }
+    if let Err(e) = data.suggestions.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale suggestions: {e}"));
     }
 }
 
@@ -280,6 +285,7 @@ async fn main() {
         pets: Mutex::new(pets::store::Store::open().expect("failed to open pets database")),
         rules: Mutex::new(rules::Store::open().expect("failed to open rules database")),
         server_setup: Mutex::new(server_setup::Store::open().expect("failed to open server setup database")),
+        suggestions: Mutex::new(suggestions::Store::open().expect("failed to open suggestions database")),
         lockdown: Mutex::new(lockdown::Store::open().expect("failed to open lockdown database")),
         tickets: Mutex::new(
             tickets::store::Store::open().expect("failed to open tickets database"),

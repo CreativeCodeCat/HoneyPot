@@ -15,6 +15,7 @@ const MAX_COOLDOWN_SECS: u64 = 7 * 24 * 60 * 60;
 /// Cooldowns for commands that had one before they could be configured
 const DEFAULTS: &[(&str, u64)] = &[
     ("ping", 300),
+    ("suggest", 300),
     ("hack", games::HACK_COOLDOWN_SECS as u64),
     ("heist", games::heist::HEIST_COOLDOWN_SECS as u64),
     ("fight", games::fight::FIGHT_COOLDOWN_SECS as u64),
