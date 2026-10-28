@@ -117,6 +117,8 @@ pub async fn cleanup(
     Ok(())
 }
 
+/// How long the "channel was reset" note stays up
+const RESET_NOTE_TIME: std::time::Duration = std::time::Duration::from_secs(5);
 /// How long the confirm buttons on `/resetchannel` wait
 const RESET_CONFIRM_TIME: std::time::Duration = std::time::Duration::from_secs(30);
 
@@ -234,7 +236,10 @@ pub async fn resetchannel(
     }
     if matches!(new.kind, Text | News) {
         let note = serenity::CreateEmbed::new().colour(0x3498db).description(format!("🧹 This channel was reset by <@{author}>."));
-        new.id.send_message(ctx, serenity::CreateMessage::new().embed(note)).await?;
+        let note = new.id.send_message(ctx, serenity::CreateMessage::new().embed(note)).await?;
+        tokio::time::sleep(RESET_NOTE_TIME).await;
+        // Someone may have deleted it already
+        let _ = note.delete(ctx).await;
     }
     Ok(())
 }
