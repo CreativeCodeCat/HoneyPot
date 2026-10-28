@@ -26,9 +26,106 @@ const TERMINAL: u32 = 0x2b2d31;
 
 /// The bot picks one of these each time; guesses aren't case sensitive.
 const PASSWORDS: &[&str] = &[
-    "password", "123456", "qwerty", "letmein", "admin", "monkey", "dragon", "iloveyou", "sunshine", "football",
-    "baseball", "welcome", "shadow", "master", "hunter2", "trustno1", "abc123", "passw0rd", "princess", "superman",
-    "starwars", "whatever", "freedom", "000000", "changeme",
+    "password",
+    "qwerty",
+    "letmein",
+    "admin",
+    "monkey",
+    "dragon",
+    "iloveyou",
+    "sunshine",
+    "football",
+    "baseball",
+    "welcome",
+    "shadow",
+    "master",
+    "hunter",
+    "trustno1",
+    "abc",
+    "passwrd",
+    "princess",
+    "superman",
+    "starwars",
+    "whatever",
+    "freedom",
+    "changeme",
+    "michael",
+    "jordan",
+    "harley",
+    "ranger",
+    "buster",
+    "thomas",
+    "robert",
+    "soccer",
+    "charlie",
+    "andrew",
+    "tigger",
+    "batman",
+    "pepper",
+    "ginger",
+    "summer",
+    "corvette",
+    "mercedes",
+    "ninja",
+    "mustang",
+    "access",
+    "hello",
+    "secret",
+    "computer",
+    "internet",
+    "pokemon",
+    "cheese",
+    "cookie",
+    "maverick",
+    "dallas",
+    "austin",
+    "flower",
+    "hockey",
+    "daniel",
+    "jessica",
+    "ashley",
+    "nicole",
+    "jennifer",
+    "amanda",
+    "joshua",
+    "matthew",
+    "jasmine",
+    "pepperoni",
+    "qazwsx",
+    "asdfgh",
+    "zxcvbn",
+    "qwertyuiop",
+    "asdfghjkl",
+    "zaqwsx",
+    "qweasd",
+    "dragonfly",
+    "silver",
+    "killer",
+    "thunder",
+    "matrix",
+    "hacker",
+    "cyber",
+    "phoenix",
+    "raven",
+    "wizard",
+    "scooter",
+    "turtle",
+    "banana",
+    "orange",
+    "chocolate",
+    "diamond",
+    "butterfly",
+    "starfish",
+    "rainbow",
+    "sunflower",
+    "blessed",
+    "lovely",
+    "passion",
+    "angel",
+    "pickles",
+    "marshmallow",
+    "spaghetti",
+    "waffles",
 ];
 
 /// Widest line of the terminal, so it doesn't wrap on phones
@@ -103,7 +200,10 @@ fn wrap(line: &str) -> Vec<String> {
 }
 
 fn centre(text: &str) -> String {
-    format!("{}{text}", " ".repeat(BOX_WIDTH.saturating_sub(text.chars().count()) / 2))
+    format!(
+        "{}{text}",
+        " ".repeat(BOX_WIDTH.saturating_sub(text.chars().count()) / 2)
+    )
 }
 
 /// A double-lined box around `rows`, with a divider after the first `header` rows.
@@ -125,16 +225,23 @@ fn terminal(lines: &[String], colour: u32) -> poise::CreateReply {
     let mut chunks = vec![String::new()];
     for line in lines {
         let chunk = chunks.last_mut().unwrap();
-        if !chunk.is_empty() && chunk.chars().count() + line.chars().count() + 1 > EMBED_TEXT_LIMIT {
+        if !chunk.is_empty() && chunk.chars().count() + line.chars().count() + 1 > EMBED_TEXT_LIMIT
+        {
             chunks.push(String::new());
         }
         let chunk = chunks.last_mut().unwrap();
         chunk.push_str(line);
         chunk.push('\n');
     }
-    chunks.into_iter().fold(poise::CreateReply::default(), |reply, chunk| {
-        reply.embed(serenity::CreateEmbed::new().colour(colour).description(format!("```\n{chunk}```")))
-    })
+    chunks
+        .into_iter()
+        .fold(poise::CreateReply::default(), |reply, chunk| {
+            reply.embed(
+                serenity::CreateEmbed::new()
+                    .colour(colour)
+                    .description(format!("```\n{chunk}```")),
+            )
+        })
 }
 
 /// The values filled into a script's placeholders.
@@ -142,20 +249,34 @@ struct Vars(Vec<(&'static str, String)>);
 
 impl Vars {
     fn fill(&self, text: &str) -> String {
-        self.0.iter().fold(text.to_string(), |text, (key, value)| text.replace(key, value))
+        self.0.iter().fold(text.to_string(), |text, (key, value)| {
+            text.replace(key, value)
+        })
     }
 
     /// `key : value` rows with the keys lined up.
     fn pairs(&self, prefix: &str, pairs: &[(&str, &str)]) -> Vec<String> {
-        let width = pairs.iter().map(|(key, _)| key.chars().count()).max().unwrap_or(0);
-        pairs.iter().map(|(key, value)| format!("{prefix}{key:<width$} : {}", self.fill(value))).collect()
+        let width = pairs
+            .iter()
+            .map(|(key, _)| key.chars().count())
+            .max()
+            .unwrap_or(0);
+        pairs
+            .iter()
+            .map(|(key, value)| format!("{prefix}{key:<width$} : {}", self.fill(value)))
+            .collect()
     }
 }
 
 /// The lines added in each stage of `script`. Granted scripts end with the big ACCESS banner.
 fn play(script: &Script, granted: bool, vars: &Vars, clock: &mut Clock) -> Vec<Vec<String>> {
     let mut frames = vec![];
-    let logs = |clock: &mut Clock, lines: &[&str]| lines.iter().map(|line| clock.log(&vars.fill(line))).collect::<Vec<_>>();
+    let logs = |clock: &mut Clock, lines: &[&str]| {
+        lines
+            .iter()
+            .map(|line| clock.log(&vars.fill(line)))
+            .collect::<Vec<_>>()
+    };
     let tasks = |clock: &mut Clock, tasks: &[(&str, &str)]| {
         tasks
             .iter()
@@ -178,7 +299,11 @@ fn play(script: &Script, granted: bool, vars: &Vars, clock: &mut Clock) -> Vec<V
     let mut lines = vec![String::new(), format!("┌─[ {heading} ]"), "│".into()];
     let rows = vars.pairs("", intel);
     let last = rows.len().saturating_sub(1);
-    lines.extend(rows.into_iter().enumerate().map(|(i, row)| format!("{}─ {row}", if i == last { "└" } else { "├" })));
+    lines.extend(
+        rows.into_iter()
+            .enumerate()
+            .map(|(i, row)| format!("{}─ {row}", if i == last { "└" } else { "├" })),
+    );
     lines.push(String::new());
     frames.push(lines);
 
@@ -195,7 +320,12 @@ fn play(script: &Script, granted: bool, vars: &Vars, clock: &mut Clock) -> Vec<V
     lines.push(String::new());
     lines.extend(script.progress.iter().map(|(percent, label)| {
         let filled = *percent as usize / 5;
-        format!("  [{}{}] {:<4} {label}", "#".repeat(filled), "-".repeat(20 - filled), format!("{percent}%"))
+        format!(
+            "  [{}{}] {:<4} {label}",
+            "#".repeat(filled),
+            "-".repeat(20 - filled),
+            format!("{percent}%")
+        )
     }));
     lines.push(String::new());
     frames.push(lines);
@@ -238,7 +368,10 @@ fn vars(user: &str, guess: &str, answer: &str, payout: &str) -> Vars {
         ("{stars}", "*".repeat(answer.len())),
         ("{session}", format!("0x{s1:04X}-{s2:04X}-{s3:04X}")),
         ("{short}", format!("{s1:04X}")),
-        ("{hash}", format!("0x{:04X}••••••{:04X}", hash >> 16, hash & 0xffff)),
+        (
+            "{hash}",
+            format!("0x{:04X}••••••{:04X}", hash >> 16, hash & 0xffff),
+        ),
         ("{id}", format!("0x{:08X}", rng.random::<u32>())),
         ("{code}", format!("0x{:04X}", rng.random_range(1..0x100u32))),
         ("{payout}", payout.to_string()),
@@ -258,16 +391,23 @@ pub async fn hack(
     let guess = password.trim().to_string();
     if guess.is_empty() || guess.chars().count() > MAX_GUESS_LEN {
         let reply = format!("❌ Usage: `/hack <password>` (up to {MAX_GUESS_LEN} characters).");
-        ctx.send(poise::CreateReply::default().content(reply).ephemeral(true)).await?;
+        ctx.send(poise::CreateReply::default().content(reply).ephemeral(true))
+            .await?;
         return Ok(());
     }
 
     let guild_id = ctx.guild_id().unwrap().get();
     let user_id = ctx.author().id;
-    let cooldown = ctx.data().cooldowns.lock().unwrap().start(guild_id, user_id.get(), "hack", Utc::now().timestamp())?;
+    let cooldown = ctx.data().cooldowns.lock().unwrap().start(
+        guild_id,
+        user_id.get(),
+        "hack",
+        Utc::now().timestamp(),
+    )?;
     if let Err(ready) = cooldown {
         let reply = format!("❌ The mainframe is on alert. You can hack again <t:{ready}:R>.");
-        ctx.send(poise::CreateReply::default().content(reply).ephemeral(true)).await?;
+        ctx.send(poise::CreateReply::default().content(reply).ephemeral(true))
+            .await?;
         return Ok(());
     }
 
@@ -278,10 +418,21 @@ pub async fn hack(
     let user = format!("@{}", ctx.author().name.replace('`', "'"));
 
     let (scripts, payout, colour) = if cracked {
-        let paid = ctx.data().economy.lock().unwrap().adjust(guild_id, user_id.get(), Pocket::Wallet, HACK_REWARD)?;
+        let paid = ctx.data().economy.lock().unwrap().adjust(
+            guild_id,
+            user_id.get(),
+            Pocket::Wallet,
+            HACK_REWARD,
+        )?;
         let payout = match paid {
-            Ok(_) => format!("{} has been transferred to your wallet.", money(HACK_REWARD)),
-            Err(EcoError::NoAccount) => format!("Join with /eco join to earn {} next time.", money(HACK_REWARD)),
+            Ok(_) => format!(
+                "{} has been transferred to your wallet.",
+                money(HACK_REWARD)
+            ),
+            Err(EcoError::NoAccount) => format!(
+                "Join with /eco join to earn {} next time.",
+                money(HACK_REWARD)
+            ),
             Err(_) => "Your wallet is full, so the loot stays put.".to_string(),
         };
         (GRANTED, payout, GREEN)
@@ -289,7 +440,12 @@ pub async fn hack(
         (DENIED, String::new(), RED)
     };
     let script = &scripts[rand::rng().random_range(0..scripts.len())];
-    let frames = play(script, cracked, &vars(&user, &guess_shown, answer, &payout), &mut Clock::new());
+    let frames = play(
+        script,
+        cracked,
+        &vars(&user, &guess_shown, answer, &payout),
+        &mut Clock::new(),
+    );
 
     // Print a few lines at a time, pausing a little longer between stages
     let mut lines = vec![];
@@ -320,19 +476,39 @@ mod tests {
 
     #[test]
     fn boxes_line_up() {
-        let lines = frame(&[centre("ACCESS DENIED"), "USER       : @someone".into(), "x".repeat(200)], 1);
+        let lines = frame(
+            &[
+                centre("ACCESS DENIED"),
+                "USER       : @someone".into(),
+                "x".repeat(200),
+            ],
+            1,
+        );
         assert!(lines.iter().all(|l| l.chars().count() == BOX_WIDTH + 4));
     }
 
     #[test]
     fn every_script_fits_and_reveals_the_answer() {
-        let vars = vars(&format!("@{}", "u".repeat(32)), &"x".repeat(MAX_GUESS_LEN), "changeme", "paid");
+        let vars = vars(
+            &format!("@{}", "u".repeat(32)),
+            &"x".repeat(MAX_GUESS_LEN),
+            "changeme",
+            "paid",
+        );
         for (scripts, granted) in [(DENIED, false), (GRANTED, true)] {
             for script in scripts {
                 let frames = play(script, granted, &vars, &mut Clock::new());
                 let lines: Vec<String> = frames.concat().iter().flat_map(|l| wrap(l)).collect();
-                assert!(lines.iter().map(|l| l.chars().count() + 1).sum::<usize>() + 20 < 6000, "{}", script.title);
-                assert!(lines.iter().all(|l| l.chars().count() <= MAX_LINE), "{}", script.title);
+                assert!(
+                    lines.iter().map(|l| l.chars().count() + 1).sum::<usize>() + 20 < 6000,
+                    "{}",
+                    script.title
+                );
+                assert!(
+                    lines.iter().all(|l| l.chars().count() <= MAX_LINE),
+                    "{}",
+                    script.title
+                );
                 let text = lines.join("\n");
                 assert!(text.contains("changeme"), "{}", script.title);
                 assert!(!text.contains('{'), "{}", script.title);
@@ -347,6 +523,8 @@ mod tests {
         sorted.sort_unstable();
         sorted.dedup();
         assert_eq!(sorted.len(), PASSWORDS.len());
-        assert!(PASSWORDS.iter().all(|p| p.to_lowercase() == *p && p.len() <= MAX_GUESS_LEN));
+        assert!(PASSWORDS
+            .iter()
+            .all(|p| p.to_lowercase() == *p && p.len() <= MAX_GUESS_LEN));
     }
 }
