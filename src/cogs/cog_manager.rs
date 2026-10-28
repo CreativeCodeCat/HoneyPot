@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use poise::serenity_prelude as serenity;
 use rusqlite::{params, Connection};
 
-use super::{normalize_cog_name, Context, Error, COGS, COG_MANAGER};
+use super::{normalize_cog_name, Context, Data, Error, COGS, COG_MANAGER};
 
 const DB_FILE: &str = "database/cog_config.db";
 
@@ -101,6 +101,53 @@ impl CogConfig {
     }
 }
 
+/// Slash and context menu registrations for the commands whose cog passes `keep`.
+/// Commands without a cog count as CogManager, so they're always available.
+pub fn application_commands(commands: &[poise::Command<Data, Error>], keep: impl Fn(&str) -> bool) -> Vec<serenity::CreateCommand> {
+    commands
+        .iter()
+        .filter(|command| keep(&command.category.as_deref().map_or(COG_MANAGER.to_string(), normalize_cog_name)))
+        .flat_map(|command| [command.create_as_slash_command(), command.create_as_context_menu_command()])
+        .flatten()
+        .collect()
+}
+
+/// Registers the CogManager commands globally; every other cog's commands are per guild.
+pub async fn sync_global_commands(http: &serenity::Http, commands: &[poise::Command<Data, Error>]) -> serenity::Result<usize> {
+    let global = application_commands(commands, |cog| cog == COG_MANAGER);
+    let count = global.len();
+    serenity::Command::set_global_commands(http, global).await?;
+    Ok(count)
+}
+
+/// Gives a guild the commands of the cogs it has enabled, removing the rest.
+pub async fn sync_guild_commands(
+    http: &serenity::Http,
+    commands: &[poise::Command<Data, Error>],
+    data: &Data,
+    guild_id: serenity::GuildId,
+) -> serenity::Result<usize> {
+    let enabled = {
+        let config = data.cog_config.lock().unwrap();
+        application_commands(commands, |cog| cog != COG_MANAGER && config.is_enabled(guild_id.get(), cog))
+    };
+    let count = enabled.len();
+    guild_id.set_commands(http, enabled).await?;
+    Ok(count)
+}
+
+/// Re-syncs the current guild's commands after a cog is enabled or disabled.
+async fn resync(ctx: Context<'_>) -> String {
+    let guild_id = ctx.guild_id().unwrap();
+    match sync_guild_commands(ctx.http(), &ctx.framework().options().commands, ctx.data(), guild_id).await {
+        Ok(_) => String::new(),
+        Err(e) => {
+            crate::log::error(format!("Error syncing commands for guild {guild_id}: {e}"));
+            "\n⚠️ Couldn't update the server's slash commands; they'll update on the next restart.".to_string()
+        }
+    }
+}
+
 async fn autocomplete_cog_name(
     _ctx: Context<'_>,
     partial: &str,
@@ -150,8 +197,9 @@ pub async fn enablecog(
         .lock()
         .unwrap()
         .set_enabled(guild_id, &cog_name, true)?;
+    let warning = resync(ctx).await;
     ctx.say(format!(
-        "✅ Cog '{cog_name}' has been enabled for this server."
+        "✅ Cog '{cog_name}' has been enabled for this server.{warning}"
     ))
     .await?;
     Ok(())
@@ -190,8 +238,9 @@ pub async fn disablecog(
         .lock()
         .unwrap()
         .set_enabled(guild_id, &cog_name, false)?;
+    let warning = resync(ctx).await;
     ctx.say(format!(
-        "✅ Cog '{cog_name}' has been disabled for this server."
+        "✅ Cog '{cog_name}' has been disabled for this server.{warning}"
     ))
     .await?;
     Ok(())
@@ -231,4 +280,19 @@ pub async fn cogstatus(ctx: Context<'_>) -> Result<(), Error> {
         .colour(0x3498db);
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_cog_manager_commands_are_global() {
+        let commands = crate::commands();
+        let uncategorised: Vec<_> = commands.iter().filter(|c| c.category.is_none()).map(|c| c.name.clone()).collect();
+        assert!(uncategorised.is_empty(), "no cog: {uncategorised:?}");
+        let global = application_commands(&commands, |cog| cog == COG_MANAGER);
+        let cog_manager = commands.iter().filter(|c| c.category.as_deref() == Some("CogManager")).count();
+        assert_eq!(global.len(), cog_manager);
+    }
 }

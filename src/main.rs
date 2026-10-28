@@ -131,11 +131,15 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
 async fn event_handler(
     ctx: &serenity::Context,
     event: &serenity::FullEvent,
-    _framework: poise::FrameworkContext<'_, Data, Error>,
+    framework: poise::FrameworkContext<'_, Data, Error>,
     data: &Data,
 ) -> Result<(), Error> {
     match event {
         serenity::FullEvent::GuildCreate { guild, is_new } => {
+            // Fires for every guild on startup too, so each one gets its enabled cogs' commands
+            if let Err(e) = cog_manager::sync_guild_commands(&ctx.http, &framework.options().commands, data, guild.id).await {
+                log::error(format!("Error syncing commands for guild {}: {e}", guild.id));
+            }
             // Request the full member list so member counts and permission checks work
             ctx.shard.chunk_guild(
                 guild.id,
@@ -228,20 +232,9 @@ async fn main() {
                 log::info(format!("{} has connected to Discord!", ready.user.name));
                 log::blue(format!("Connected to {} guilds", ready.guilds.len()));
 
-                // Clear leftover per-guild commands; everything is registered globally
-                for guild in &ready.guilds {
-                    match guild.id.set_commands(ctx, vec![]).await {
-                        Ok(_) => log::warning(format!("Cleared commands for guild: {}", guild.id)),
-                        Err(e) => log::error(format!(
-                            "Error clearing commands for guild {}: {e}",
-                            guild.id
-                        )),
-                    }
-                }
-
-                let commands = &framework.options().commands;
-                match poise::builtins::register_globally(ctx, commands).await {
-                    Ok(()) => log::info(format!("Synced {} global command(s)", commands.len())),
+                // Guild commands are synced per cog on GuildCreate
+                match cog_manager::sync_global_commands(&ctx.http, &framework.options().commands).await {
+                    Ok(count) => log::info(format!("Synced {count} global command(s)")),
                     Err(e) => log::error(format!("Error syncing global commands: {e}")),
                 }
                 Ok(data)
