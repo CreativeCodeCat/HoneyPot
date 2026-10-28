@@ -128,6 +128,65 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     }
 }
 
+/// Posts an embed in every server's ready log channel (`/server-setup logs Ready`).
+async fn post_ready_log(ctx: &serenity::Context, data: &Data, description: String, author: Option<&str>) {
+    let channels = match data.server_setup.lock().unwrap().everywhere("logs.ready") {
+        Ok(channels) => channels,
+        Err(e) => return log::error(format!("Error reading ready log channels: {e}")),
+    };
+    let bot = ctx.cache.current_user().clone();
+    let year = chrono::Utc::now().format("%Y");
+    let mut embed = serenity::CreateEmbed::new()
+        .colour(0x2b2d31)
+        .description(description)
+        .footer(serenity::CreateEmbedFooter::new(format!("© {} {year}", bot.name)).icon_url(bot.face()))
+        .timestamp(serenity::Timestamp::now());
+    if let Some(author) = author {
+        embed = embed.author(serenity::CreateEmbedAuthor::new(author).icon_url(bot.face()));
+    }
+    for (guild_id, channel_id) in channels {
+        let message = serenity::CreateMessage::new().embed(embed.clone());
+        if let Err(e) = serenity::ChannelId::new(channel_id).send_message(&ctx.http, message).await {
+            log::warning(format!("Could not post the ready log in guild {guild_id}: {e}"));
+        }
+    }
+}
+
+/// On startup: announces the bot in ready log channels, then syncs the global commands and
+/// every server's enabled-cog commands, reporting how many were registered.
+async fn startup_report(ctx: &serenity::Context, data: &Data, commands: &[poise::Command<Data, Error>]) {
+    let guild_ids = ctx.cache.guilds();
+    let (members, channels) = guild_ids
+        .iter()
+        .filter_map(|id| ctx.cache.guild(*id).map(|g| (g.member_count, g.channels.len() as u64)))
+        .fold((0, 0), |(m, c), (gm, gc)| (m + gm, c + gc));
+    let stats = format!(
+        "> Shard Count `{}`\n> Total Members `{members}`\n> Total Servers `{}`\n> Total Channels `{channels}`",
+        ctx.cache.shard_count(),
+        guild_ids.len()
+    );
+    let name = ctx.cache.current_user().name.clone();
+    post_ready_log(ctx, data, stats, Some(&format!("{name} Has Started"))).await;
+    post_ready_log(ctx, data, "Started refreshing application (/) commands.".to_string(), None).await;
+
+    let global = match cog_manager::sync_global_commands(&ctx.http, commands).await {
+        Ok(count) => count,
+        Err(e) => {
+            log::error(format!("Error syncing global commands: {e}"));
+            0
+        }
+    };
+    let mut guild = 0;
+    for guild_id in &guild_ids {
+        match cog_manager::sync_guild_commands(&ctx.http, commands, data, *guild_id).await {
+            Ok(count) => guild += count,
+            Err(e) => log::error(format!("Error syncing commands for guild {guild_id}: {e}")),
+        }
+    }
+    log::info(format!("Synced {global} global and {guild} guild command(s)"));
+    post_ready_log(ctx, data, format!("Successfully reloaded {global} application and {guild} guild (/) commands."), None).await;
+}
+
 async fn event_handler(
     ctx: &serenity::Context,
     event: &serenity::FullEvent,
@@ -136,9 +195,11 @@ async fn event_handler(
 ) -> Result<(), Error> {
     match event {
         serenity::FullEvent::GuildCreate { guild, is_new } => {
-            // Fires for every guild on startup too, so each one gets its enabled cogs' commands
-            if let Err(e) = cog_manager::sync_guild_commands(&ctx.http, &framework.options().commands, data, guild.id).await {
-                log::error(format!("Error syncing commands for guild {}: {e}", guild.id));
+            // Guilds the bot was already in are synced on startup by `startup_report`
+            if *is_new == Some(true) {
+                if let Err(e) = cog_manager::sync_guild_commands(&ctx.http, &framework.options().commands, data, guild.id).await {
+                    log::error(format!("Error syncing commands for guild {}: {e}", guild.id));
+                }
             }
             // Request the full member list so member counts and permission checks work
             ctx.shard.chunk_guild(
@@ -164,6 +225,7 @@ async fn event_handler(
         serenity::FullEvent::CacheReady { .. } => {
             cleanup_stale_data(ctx, data);
             if !TASKS_STARTED.swap(true, Ordering::SeqCst) {
+                startup_report(ctx, data, &framework.options().commands).await;
                 tokio::spawn(stats::update_stats_loop(ctx.clone(), data.clone()));
                 tokio::spawn(honeypot::weekly_summary_loop(ctx.clone(), data.clone()));
                 tokio::spawn(tickets::auto_close_loop(ctx.clone(), data.clone()));
@@ -230,16 +292,10 @@ async fn main() {
             },
             ..Default::default()
         })
-        .setup(|ctx, ready, framework| {
+        .setup(|_ctx, ready, _framework| {
             Box::pin(async move {
                 log::info(format!("{} has connected to Discord!", ready.user.name));
                 log::blue(format!("Connected to {} guilds", ready.guilds.len()));
-
-                // Guild commands are synced per cog on GuildCreate
-                match cog_manager::sync_global_commands(&ctx.http, &framework.options().commands).await {
-                    Ok(count) => log::info(format!("Synced {count} global command(s)")),
-                    Err(e) => log::error(format!("Error syncing global commands: {e}")),
-                }
                 Ok(data)
             })
         })

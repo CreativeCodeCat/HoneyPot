@@ -60,6 +60,13 @@ impl Store {
         rows.collect()
     }
 
+    /// Every guild that has `key` set: (guild_id, value).
+    pub fn everywhere(&self, key: &str) -> rusqlite::Result<Vec<(u64, u64)>> {
+        let mut stmt = self.conn.prepare("SELECT guild_id, value FROM settings WHERE key = ?")?;
+        let rows = stmt.query_map([key], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect()
+    }
+
     /// Removes every setting for a guild, returning how many there were.
     pub fn reset(&self, guild_id: u64) -> rusqlite::Result<usize> {
         self.conn.execute("DELETE FROM settings WHERE guild_id = ?", [guild_id])
@@ -81,6 +88,8 @@ pub enum LogType {
     Thread,
     User,
     Voice,
+    /// The bot starting up
+    Ready,
 }
 
 #[derive(poise::ChoiceParameter, Clone, Copy)]
