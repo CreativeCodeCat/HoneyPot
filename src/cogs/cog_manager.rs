@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use poise::serenity_prelude as serenity;
 use rusqlite::{params, Connection};
 
-use super::{normalize_cog_name, Context, Data, Error, COGS, COG_MANAGER};
+use super::{games, normalize_cog_name, Context, Data, Error, COGS, COG_MANAGER};
 
 const DB_FILE: &str = "database/cog_config.db";
 
 /// Per-guild cog enabled/disabled flags, cached in memory and persisted to SQLite.
 /// Cogs default to disabled when a guild has no entry, except the cog
-/// manager, which is always enabled.
+/// manager, which is always enabled. Single games are stored as "game:<name>"
+/// and are disabled by default too, so each one is turned on with `/enablegame`.
 pub struct CogConfig {
     conn: Connection,
     config: HashMap<u64, HashMap<String, bool>>,
@@ -59,6 +60,13 @@ impl CogConfig {
                 .unwrap_or(false)
     }
 
+    /// Whether a game command is on; the Games cog must be enabled as well.
+    /// Commands in the Games cog that aren't games (like `/gamestatus`) count as enabled.
+    pub fn is_game_enabled(&self, guild_id: u64, game: &str) -> bool {
+        !games::GAMES.contains(&game)
+            || self.config.get(&guild_id).and_then(|cogs| cogs.get(&game_key(game))).copied().unwrap_or(false)
+    }
+
     pub fn set_enabled(
         &mut self,
         guild_id: u64,
@@ -101,12 +109,16 @@ impl CogConfig {
     }
 }
 
-/// Slash and context menu registrations for the commands whose cog passes `keep`.
-/// Commands without a cog count as CogManager, so they're always available.
-pub fn application_commands(commands: &[poise::Command<Data, Error>], keep: impl Fn(&str) -> bool) -> Vec<serenity::CreateCommand> {
+fn game_key(game: &str) -> String {
+    format!("game:{game}")
+}
+
+/// Slash and context menu registrations for the commands that pass `keep`, given
+/// their cog and name. Commands without a cog count as CogManager, so they're always available.
+pub fn application_commands(commands: &[poise::Command<Data, Error>], keep: impl Fn(&str, &str) -> bool) -> Vec<serenity::CreateCommand> {
     commands
         .iter()
-        .filter(|command| keep(&command.category.as_deref().map_or(COG_MANAGER.to_string(), normalize_cog_name)))
+        .filter(|command| keep(&command.category.as_deref().map_or(COG_MANAGER.to_string(), normalize_cog_name), &command.name))
         .flat_map(|command| [command.create_as_slash_command(), command.create_as_context_menu_command()])
         .flatten()
         .collect()
@@ -114,13 +126,13 @@ pub fn application_commands(commands: &[poise::Command<Data, Error>], keep: impl
 
 /// Registers the CogManager commands globally; every other cog's commands are per guild.
 pub async fn sync_global_commands(http: &serenity::Http, commands: &[poise::Command<Data, Error>]) -> serenity::Result<usize> {
-    let global = application_commands(commands, |cog| cog == COG_MANAGER);
+    let global = application_commands(commands, |cog, _| cog == COG_MANAGER);
     let count = global.len();
     serenity::Command::set_global_commands(http, global).await?;
     Ok(count)
 }
 
-/// Gives a guild the commands of the cogs it has enabled, removing the rest.
+/// Gives a guild the commands of the cogs (and games) it has enabled, removing the rest.
 pub async fn sync_guild_commands(
     http: &serenity::Http,
     commands: &[poise::Command<Data, Error>],
@@ -129,7 +141,11 @@ pub async fn sync_guild_commands(
 ) -> serenity::Result<usize> {
     let enabled = {
         let config = data.cog_config.lock().unwrap();
-        application_commands(commands, |cog| cog != COG_MANAGER && config.is_enabled(guild_id.get(), cog))
+        application_commands(commands, |cog, name| {
+            cog != COG_MANAGER
+                && config.is_enabled(guild_id.get(), cog)
+                && (cog != "games" || config.is_game_enabled(guild_id.get(), name))
+        })
     };
     let count = enabled.len();
     guild_id.set_commands(http, enabled).await?;
@@ -198,8 +214,9 @@ pub async fn enablecog(
         .unwrap()
         .set_enabled(guild_id, &cog_name, true)?;
     let warning = resync(ctx).await;
+    let note = if cog_name == "games" { "\nℹ️ Every game starts off; turn on the ones you want with `/enablegame`." } else { "" };
     ctx.say(format!(
-        "✅ Cog '{cog_name}' has been enabled for this server.{warning}"
+        "✅ Cog '{cog_name}' has been enabled for this server.{note}{warning}"
     ))
     .await?;
     Ok(())
@@ -243,6 +260,102 @@ pub async fn disablecog(
         "✅ Cog '{cog_name}' has been disabled for this server.{warning}"
     ))
     .await?;
+    Ok(())
+}
+
+async fn autocomplete_game(_ctx: Context<'_>, partial: &str) -> Vec<String> {
+    let partial = partial.to_lowercase();
+    games::GAMES.iter().filter(|game| game.contains(&partial)).map(|game| game.to_string()).collect()
+}
+
+/// Turns one game on or off and replies with the result.
+async fn set_game(ctx: Context<'_>, game: String, enabled: bool) -> Result<(), Error> {
+    ctx.defer_ephemeral().await?;
+    let guild_id = ctx.guild_id().unwrap().get();
+    let game = game.trim().trim_start_matches('/').to_lowercase();
+    if !games::GAMES.contains(&game.as_str()) {
+        ctx.say(format!("❌ Unknown game '{game}'. Games: {}.", games::GAMES.join(", "))).await?;
+        return Ok(());
+    }
+
+    let games_on = {
+        let mut config = ctx.data().cog_config.lock().unwrap();
+        config.set_enabled(guild_id, &game_key(&game), enabled)?;
+        config.is_enabled(guild_id, "games")
+    };
+    let warning = resync(ctx).await;
+    let state = if enabled { "enabled" } else { "disabled" };
+    let note = if enabled && !games_on { "\nℹ️ The Games cog is off, so turn it on with `/enablecog games` too." } else { "" };
+    ctx.say(format!("✅ Game '{game}' has been {state} for this server.{note}{warning}")).await?;
+    Ok(())
+}
+
+/// Enable a game for this server (the Games cog must be enabled too)
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "CogManager",
+    required_permissions = "ADMINISTRATOR"
+)]
+pub async fn enablegame(
+    ctx: Context<'_>,
+    #[description = "Game to enable"]
+    #[autocomplete = "autocomplete_game"]
+    game: String,
+) -> Result<(), Error> {
+    set_game(ctx, game, true).await
+}
+
+/// Disable a game for this server, leaving the other games on
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "CogManager",
+    required_permissions = "ADMINISTRATOR"
+)]
+pub async fn disablegame(
+    ctx: Context<'_>,
+    #[description = "Game to disable"]
+    #[autocomplete = "autocomplete_game"]
+    game: String,
+) -> Result<(), Error> {
+    set_game(ctx, game, false).await
+}
+
+/// Check which games are enabled for this server
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    ephemeral,
+    category = "Games",
+    required_permissions = "ADMINISTRATOR"
+)]
+pub async fn gamestatus(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer_ephemeral().await?;
+    let guild_id = ctx.guild_id().unwrap().get();
+
+    let status_msg = {
+        let config = ctx.data().cog_config.lock().unwrap();
+        games::GAMES
+            .iter()
+            .map(|game| {
+                let status = if config.is_game_enabled(guild_id, game) { "✅ Enabled" } else { "❌ Disabled" };
+                format!("{status}: {game}")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    let embed = serenity::CreateEmbed::new()
+        .title("Game Status")
+        .description(status_msg)
+        .colour(0x3498db);
+    ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -291,8 +404,15 @@ mod tests {
         let commands = crate::commands();
         let uncategorised: Vec<_> = commands.iter().filter(|c| c.category.is_none()).map(|c| c.name.clone()).collect();
         assert!(uncategorised.is_empty(), "no cog: {uncategorised:?}");
-        let global = application_commands(&commands, |cog| cog == COG_MANAGER);
+        let global = application_commands(&commands, |cog, _| cog == COG_MANAGER);
         let cog_manager = commands.iter().filter(|c| c.category.as_deref() == Some("CogManager")).count();
         assert_eq!(global.len(), cog_manager);
+    }
+
+    #[test]
+    fn every_game_can_be_toggled() {
+        let mut games: Vec<_> = crate::commands().into_iter().filter(|c| c.category.as_deref() == Some("Games") && c.name != "gamestatus").map(|c| c.name).collect();
+        games.sort();
+        assert_eq!(games, games::GAMES);
     }
 }

@@ -24,6 +24,9 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         cog_manager::enablecog(),
         cog_manager::disablecog(),
         cog_manager::cogstatus(),
+        cog_manager::enablegame(),
+        cog_manager::disablegame(),
+        cog_manager::gamestatus(),
         cooldowns::cooldown(),
         server_setup::server_setup(),
         stats::updatestats(),
@@ -33,6 +36,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         rules::rules(),
         pets::pet(),
         games::hack(),
+        games::heist(),
         levels::rank_setup(),
         levels::rank(),
         levels::leaderboard(),
@@ -49,6 +53,9 @@ async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
     if let (Some(guild_id), Some(category)) = (ctx.guild_id(), ctx.command().category.as_deref()) {
         let cog_name = normalize_cog_name(category);
         if cog_name != COG_MANAGER && !ctx.data().is_cog_enabled(guild_id.get(), &cog_name) {
+            return Ok(false);
+        }
+        if cog_name == "games" && !ctx.data().cog_config.lock().unwrap().is_game_enabled(guild_id.get(), &ctx.command().name) {
             return Ok(false);
         }
     }
@@ -277,6 +284,12 @@ async fn main() {
             tickets::store::Store::open().expect("failed to open tickets database"),
         ),
     });
+
+    match data.economy.lock().unwrap().refund_held(None) {
+        Ok(0) => {}
+        Ok(refunds) => log::info(format!("Refunded {refunds} bet(s) from games interrupted by a restart")),
+        Err(e) => log::error(format!("Error refunding bets from interrupted games: {e}")),
+    }
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {

@@ -98,7 +98,7 @@ impl Effect {
     }
 }
 
-fn animal(kind: &str) -> (&'static str, &'static str) {
+pub(crate) fn animal(kind: &str) -> (&'static str, &'static str) {
     ANIMALS.iter().find(|(k, _, _)| *k == kind).map(|(_, name, emoji)| (*name, *emoji)).unwrap_or(("Pet", "🐾"))
 }
 

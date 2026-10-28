@@ -13,11 +13,16 @@ const DB_FILE: &str = "database/cooldowns.db";
 const MAX_COOLDOWN_SECS: u64 = 7 * 24 * 60 * 60;
 
 /// Cooldowns for commands that had one before they could be configured
-const DEFAULTS: &[(&str, u64)] = &[("ping", 300), ("hack", games::HACK_COOLDOWN_SECS as u64)];
+const DEFAULTS: &[(&str, u64)] = &[
+    ("ping", 300),
+    ("hack", games::HACK_COOLDOWN_SECS as u64),
+    ("heist", games::heist::HEIST_COOLDOWN_SECS as u64),
+];
 
 /// Commands that start their own cooldown (after checking their input), so the
-/// framework-wide check leaves them alone.
-const SELF_MANAGED: &[&str] = &["hack"];
+/// framework-wide check leaves them alone. `heist` cools down for the whole server
+/// once a heist ends.
+const SELF_MANAGED: &[&str] = &["hack", "heist"];
 
 /// Configured cooldowns, cached in memory, and when each member last used each command,
 /// both persisted to SQLite so running cooldowns survive restarts.
@@ -71,11 +76,11 @@ impl Cooldowns {
         Ok(())
     }
 
-    /// Records a use at Unix time `now`, or returns the Unix time the member can use the command again.
-    pub fn start(&self, guild_id: u64, user_id: u64, command: &str, now: i64) -> rusqlite::Result<Result<(), i64>> {
+    /// The Unix time the member can use the command again, if its cooldown is still running at `now`.
+    pub fn ready_at(&self, guild_id: u64, user_id: u64, command: &str, now: i64) -> rusqlite::Result<Option<i64>> {
         let cooldown = self.seconds(guild_id, command) as i64;
         if cooldown == 0 {
-            return Ok(Ok(()));
+            return Ok(None);
         }
         let last: Option<i64> = self
             .conn
@@ -85,7 +90,15 @@ impl Cooldowns {
                 |row| row.get(0),
             )
             .optional()?;
-        if let Some(ready) = last.map(|last| last + cooldown).filter(|ready| now < *ready) {
+        Ok(last.map(|last| last + cooldown).filter(|ready| now < *ready))
+    }
+
+    /// Records a use at Unix time `now`, or returns the Unix time the member can use the command again.
+    pub fn start(&self, guild_id: u64, user_id: u64, command: &str, now: i64) -> rusqlite::Result<Result<(), i64>> {
+        if self.seconds(guild_id, command) == 0 {
+            return Ok(Ok(()));
+        }
+        if let Some(ready) = self.ready_at(guild_id, user_id, command, now)? {
             return Ok(Err(ready));
         }
         self.conn.execute(

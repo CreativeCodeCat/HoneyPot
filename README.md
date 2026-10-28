@@ -186,6 +186,8 @@ Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
+- `/enablegame <game>` / `/disablegame <game>` - Turn single games (`hack`, `heist`) on or off. Every game is off by default, so after `/enablecog games` turn on the ones you want.
+- `/gamestatus` - Check which games are enabled for this server (only available while the Games cog is enabled)
 - `/cogstatus` - Check the status of all cogs for this server
 
 ## Templates
