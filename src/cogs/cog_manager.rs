@@ -109,7 +109,7 @@ impl CogConfig {
     }
 }
 
-fn game_key(game: &str) -> String {
+pub(crate) fn game_key(game: &str) -> String {
     format!("game:{game}")
 }
 
@@ -152,8 +152,8 @@ pub async fn sync_guild_commands(
     Ok(count)
 }
 
-/// Re-syncs the current guild's commands after a cog is enabled or disabled.
-async fn resync(ctx: Context<'_>) -> String {
+/// Re-syncs the current guild's commands after a cog (or game) is enabled or disabled.
+pub(crate) async fn resync(ctx: Context<'_>) -> String {
     let guild_id = ctx.guild_id().unwrap();
     match sync_guild_commands(ctx.http(), &ctx.framework().options().commands, ctx.data(), guild_id).await {
         Ok(_) => String::new(),
@@ -263,102 +263,6 @@ pub async fn disablecog(
     Ok(())
 }
 
-async fn autocomplete_game(_ctx: Context<'_>, partial: &str) -> Vec<String> {
-    let partial = partial.to_lowercase();
-    games::GAMES.iter().filter(|game| game.contains(&partial)).map(|game| game.to_string()).collect()
-}
-
-/// Turns one game on or off and replies with the result.
-async fn set_game(ctx: Context<'_>, game: String, enabled: bool) -> Result<(), Error> {
-    ctx.defer_ephemeral().await?;
-    let guild_id = ctx.guild_id().unwrap().get();
-    let game = game.trim().trim_start_matches('/').to_lowercase();
-    if !games::GAMES.contains(&game.as_str()) {
-        ctx.say(format!("❌ Unknown game '{game}'. Games: {}.", games::GAMES.join(", "))).await?;
-        return Ok(());
-    }
-
-    let games_on = {
-        let mut config = ctx.data().cog_config.lock().unwrap();
-        config.set_enabled(guild_id, &game_key(&game), enabled)?;
-        config.is_enabled(guild_id, "games")
-    };
-    let warning = resync(ctx).await;
-    let state = if enabled { "enabled" } else { "disabled" };
-    let note = if enabled && !games_on { "\nℹ️ The Games cog is off, so turn it on with `/enablecog games` too." } else { "" };
-    ctx.say(format!("✅ Game '{game}' has been {state} for this server.{note}{warning}")).await?;
-    Ok(())
-}
-
-/// Enable a game for this server (the Games cog must be enabled too)
-#[poise::command(
-    slash_command,
-    prefix_command,
-    guild_only,
-    ephemeral,
-    category = "CogManager",
-    required_permissions = "ADMINISTRATOR"
-)]
-pub async fn enablegame(
-    ctx: Context<'_>,
-    #[description = "Game to enable"]
-    #[autocomplete = "autocomplete_game"]
-    game: String,
-) -> Result<(), Error> {
-    set_game(ctx, game, true).await
-}
-
-/// Disable a game for this server, leaving the other games on
-#[poise::command(
-    slash_command,
-    prefix_command,
-    guild_only,
-    ephemeral,
-    category = "CogManager",
-    required_permissions = "ADMINISTRATOR"
-)]
-pub async fn disablegame(
-    ctx: Context<'_>,
-    #[description = "Game to disable"]
-    #[autocomplete = "autocomplete_game"]
-    game: String,
-) -> Result<(), Error> {
-    set_game(ctx, game, false).await
-}
-
-/// Check which games are enabled for this server
-#[poise::command(
-    slash_command,
-    prefix_command,
-    guild_only,
-    ephemeral,
-    category = "Games",
-    required_permissions = "ADMINISTRATOR"
-)]
-pub async fn gamestatus(ctx: Context<'_>) -> Result<(), Error> {
-    ctx.defer_ephemeral().await?;
-    let guild_id = ctx.guild_id().unwrap().get();
-
-    let status_msg = {
-        let config = ctx.data().cog_config.lock().unwrap();
-        games::GAMES
-            .iter()
-            .map(|game| {
-                let status = if config.is_game_enabled(guild_id, game) { "✅ Enabled" } else { "❌ Disabled" };
-                format!("{status}: {game}")
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-
-    let embed = serenity::CreateEmbed::new()
-        .title("Game Status")
-        .description(status_msg)
-        .colour(0x3498db);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
-    Ok(())
-}
-
 /// Check the status of all cogs for this server
 #[poise::command(
     slash_command,
@@ -411,7 +315,7 @@ mod tests {
 
     #[test]
     fn every_game_can_be_toggled() {
-        let mut games: Vec<_> = crate::commands().into_iter().filter(|c| c.category.as_deref() == Some("Games") && c.name != "gamestatus").map(|c| c.name).collect();
+        let mut games: Vec<_> = crate::commands().into_iter().filter(|c| c.category.as_deref() == Some("Games") && !["enablegame", "disablegame", "gamestatus"].contains(&c.name.as_str())).map(|c| c.name).collect();
         games.sort();
         assert_eq!(games, games::GAMES);
     }

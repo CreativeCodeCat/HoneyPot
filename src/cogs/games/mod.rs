@@ -15,6 +15,7 @@ use scripts::{Script, DENIED, GRANTED};
 
 pub mod heist;
 mod scripts;
+mod settings;
 
 /// Money paid into the wallet for a cracked password
 const HACK_REWARD: i64 = 2500;
@@ -23,6 +24,7 @@ pub const HACK_COOLDOWN_SECS: i64 = 5 * 60;
 const MAX_GUESS_LEN: usize = 32;
 
 pub use heist::heist;
+pub use settings::{disablegame, enablegame, gamestatus};
 
 /// Every game command; each is off until turned on with `/enablegame`.
 pub const GAMES: &[&str] = &["hack", "heist"];
