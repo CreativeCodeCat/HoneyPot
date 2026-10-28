@@ -166,11 +166,11 @@ A tamagotchi for Discord. Pets are bought and fed with money from the economy wa
 - `/heist <amount>` - Start or join a heist with a bet from your wallet. After 60 seconds a story plays out; survivors get their bet back plus 30%. A happy pet joins its owner with a free half bet. The server waits 15 minutes between heists
 - `/fight <user> [wager]` - Challenge someone to a fight; they accept with a button and the winner takes both wagers. Challenging the bot skips the accept. Fighters recover for 10 minutes
 
-- `/counting setup <channel>` - Set the counting channel (admin). Members count up one at a time, taking turns; a wrong number or counting twice in a row gets a cheeky message from the bot and starts the count again from 1
+- `/counting setup <channel>` - Set the counting channel (admin). Members count up one at a time, taking turns; a wrong number or counting twice in a row gets a cheeky message from the bot and starts the count again from 1. Messages that don't start with a number are deleted
 - `/counting stats` - See the current count and the server's high score
 - `/counting stop` - Stop counting in this server, keeping the high score for when it's set up again (admin)
 
-- `/guessing setup <channel>` - Set the guessing channel (admin). The bot thinks of a number from 1 to 100 and members post numbers to guess it; wrong guesses get a 🔼/🔽 hint and whoever gets it wins ₪ 500, then it starts again with a new number. Each member can guess once every 15 seconds; guesses that come too soon get ⏳ and don't count
+- `/guessing setup <channel>` - Set the guessing channel (admin). The bot thinks of a number from 1 to 100 and members post numbers to guess it; wrong guesses get a 🔼/🔽 hint and whoever gets it wins ₪ 500, then it starts again with a new number. Each member can guess once every 15 seconds; guesses that come too soon get ⏳ and don't count. Anything that isn't a number from 1 to 100 is deleted
 - `/guessing stats` - See guesses so far, numbers found and the fewest guesses it's taken
 - `/guessing stop` - Stop guessing in this server, keeping the stats (admin)
 

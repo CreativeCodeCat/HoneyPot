@@ -1,7 +1,7 @@
 //! Guessing: the bot thinks of a number from 1 to `MAX_NUMBER`, and members guess it
 //! by posting numbers in the server's guessing channel. Wrong guesses get a 🔼 or
 //! 🔽 reaction as a hint; whoever gets it wins money for their wallet, and the bot
-//! thinks of a new number.
+//! thinks of a new number. Anything else posted in the channel is deleted.
 
 use poise::serenity_prelude as serenity;
 use rand::Rng;
@@ -136,7 +136,6 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
     if message.author.bot {
         return;
     }
-    let Some(number) = parse(&message.content) else { return };
     let enabled = {
         let config = data.cog_config.lock().unwrap();
         config.is_enabled(guild_id.get(), "games") && config.is_game_enabled(guild_id.get(), "guessing")
@@ -148,6 +147,11 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
     if !matches!(in_channel, Ok(true)) {
         return;
     }
+    let Some(number) = parse(&message.content) else {
+        // Only guesses belong in the guessing channel
+        let _ = message.delete(ctx).await;
+        return;
+    };
     let now = chrono::Utc::now().timestamp();
     let cooldown = data.cooldowns.lock().unwrap().start(guild_id.get(), message.author.id.get(), "guessing", now);
     match cooldown {

@@ -1,6 +1,7 @@
 //! Counting: members count up one number at a time in the server's counting
 //! channel, taking turns. A wrong number, or counting twice in a row, ruins the
-//! count, the bot pokes fun at whoever did it, and it starts again from 1.
+//! count, the bot pokes fun at whoever did it, and it starts again from 1. Messages
+//! that don't start with a number are deleted to keep the channel tidy.
 
 use poise::serenity_prelude as serenity;
 use rand::Rng;
@@ -159,7 +160,6 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
     if message.author.bot {
         return;
     }
-    let Some(number) = parse(&message.content) else { return };
     let enabled = {
         let config = data.cog_config.lock().unwrap();
         config.is_enabled(guild_id.get(), "games") && config.is_game_enabled(guild_id.get(), "counting")
@@ -167,6 +167,15 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
     if !enabled {
         return;
     }
+    let in_channel = data.counting.lock().unwrap().get(guild_id.get()).map(|g| g.is_some_and(|g| g.channel_id == message.channel_id.get()));
+    if !matches!(in_channel, Ok(true)) {
+        return;
+    }
+    let Some(number) = parse(&message.content) else {
+        // Only numbers belong in the counting channel
+        let _ = message.delete(ctx).await;
+        return;
+    };
     let outcome = data.counting.lock().unwrap().count(guild_id.get(), message.channel_id.get(), message.author.id.get(), number);
     let outcome = match outcome {
         Ok(Some(outcome)) => outcome,

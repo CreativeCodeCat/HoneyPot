@@ -134,12 +134,19 @@ async fn is_staff(ctx: Context<'_>) -> bool {
     })
 }
 
-/// Keeps the commands channel for commands only: deletes messages from anyone but admins and bots.
-/// Messages starting with the `!` prefix are left alone so prefix commands still work.
+/// Whether a message calls one of the bot's prefix commands, like `!ping`.
+fn is_prefix_command(content: &str, commands: &[poise::Command<Data, Error>]) -> bool {
+    let Some(name) = content.strip_prefix('!').and_then(|rest| rest.split_whitespace().next()) else { return false };
+    let name = name.to_lowercase();
+    commands.iter().any(|c| c.prefix_action.is_some() && (c.name == name || c.aliases.contains(&name)))
+}
+
+/// Keeps the commands channel for commands only: deletes every message that isn't a
+/// prefix command, from admins too. Bots' messages (like command replies) stay.
 /// Returns true if the message was deleted.
-pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Message) -> bool {
+pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Message, commands: &[poise::Command<Data, Error>]) -> bool {
     let Some(guild_id) = msg.guild_id else { return false };
-    if msg.author.bot || msg.content.starts_with('!') {
+    if msg.author.bot || is_prefix_command(&msg.content, commands) {
         return false;
     }
     let commands_channel = match data.server_setup.lock().unwrap().get(guild_id.get(), "channel.commands") {
@@ -150,18 +157,6 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Me
         }
     };
     if commands_channel != Some(msg.channel_id.get()) {
-        return false;
-    }
-
-    let cached = ctx.cache.guild(guild_id).and_then(|guild| guild.members.get(&msg.author.id).map(|m| guild.member_permissions(m)));
-    let perms = match cached {
-        Some(perms) => Some(perms),
-        None => match guild_id.member(ctx, msg.author.id).await {
-            Ok(member) => ctx.cache.guild(guild_id).map(|guild| guild.member_permissions(&member)),
-            Err(_) => None,
-        },
-    };
-    if perms.is_none_or(|perms| perms.administrator()) {
         return false;
     }
 
@@ -395,5 +390,15 @@ mod tests {
         assert_eq!(s.reset(1).unwrap(), 1);
         assert_eq!(s.get(1, "logs.message").unwrap(), None);
         assert_eq!(s.get(2, "roles.bots").unwrap(), Some(20));
+    }
+
+    #[test]
+    fn only_real_prefix_commands_are_kept() {
+        let commands = crate::commands();
+        assert!(is_prefix_command("!ping", &commands));
+        assert!(is_prefix_command("!PING now", &commands));
+        assert!(!is_prefix_command("!notacommand", &commands));
+        assert!(!is_prefix_command("hello", &commands));
+
     }
 }
