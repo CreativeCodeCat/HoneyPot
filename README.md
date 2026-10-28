@@ -190,6 +190,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 ### Other Commands
 
 - `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
+- `/cleanup <amount> [user]` - Delete up to 1,000 recent messages in the channel, optionally only one member's. Messages older than 14 days are left, as Discord can't bulk delete them (needs **Manage Messages**)
 - `/ping` - Show latency and uptime (5-minute cooldown)
 - `/updatestats` - Update the voice channel stats now instead of waiting for the next 10-minute refresh (admin)
 

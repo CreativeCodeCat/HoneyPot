@@ -20,6 +20,7 @@ static TASKS_STARTED: AtomicBool = AtomicBool::new(false);
 fn commands() -> Vec<poise::Command<Data, Error>> {
     let mut commands = vec![
         general::ping(),
+        general::cleanup(),
         automod::automod(),
         cog_manager::enablecog(),
         cog_manager::disablecog(),
