@@ -16,15 +16,17 @@ const UPDATE_INTERVAL: Duration = Duration::from_secs(10 * 60);
 const UPPERCASE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const SMALL_CAPS: &str = "ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢ";
 
-const STAT_KEYWORDS: &[&str] = &["MEMBERS", "BOTS", "ROLES", "BOOSTS", "CHANNELS"];
+const STAT_KEYWORDS: &[&str] = &["MEMBERS", "BOTS", "ROLES", "BOOSTS", "CHANNELS", "GUILDS"];
 
-fn stat_value(guild: &serenity::Guild, keyword: &str) -> u64 {
+/// `guilds` is how many servers the bot is in, for "GUILDS" channels.
+fn stat_value(guild: &serenity::Guild, keyword: &str, guilds: u64) -> u64 {
     match keyword {
         "MEMBERS" => guild.members.values().filter(|m| !m.user.bot).count() as u64,
         "BOTS" => guild.members.values().filter(|m| m.user.bot).count() as u64,
         "ROLES" => guild.roles.len() as u64,
         "BOOSTS" => guild.premium_subscription_count.unwrap_or(0),
         "CHANNELS" => guild.channels.len() as u64,
+        "GUILDS" => guilds,
         _ => 0,
     }
 }
@@ -70,6 +72,7 @@ pub async fn update_guild_channels(
     }
 
     // Work out renames from the cache first; cache references can't be held across awaits.
+    let guilds = ctx.cache.guild_count() as u64;
     let renames: Vec<(serenity::ChannelId, String)> = {
         let Some(guild) = ctx.cache.guild(guild_id) else {
             return (0, 0);
@@ -84,7 +87,7 @@ pub async fn update_guild_channels(
                 let new_name = format!(
                     "【📺】{}: {}",
                     to_small_caps(keyword),
-                    stat_value(&guild, keyword)
+                    stat_value(&guild, keyword, guilds)
                 );
                 (channel.name != new_name).then_some((channel.id, new_name))
             })
