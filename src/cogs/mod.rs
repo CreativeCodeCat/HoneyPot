@@ -53,6 +53,7 @@ pub struct State {
     pub start_time: Instant,
     pub cog_config: Mutex<cog_manager::CogConfig>,
     pub cooldowns: Mutex<cooldowns::Cooldowns>,
+    pub counting: Mutex<games::counting::Store>,
     pub economy: Mutex<economy::store::Store>,
     pub honeypot: Mutex<honeypot::store::Store>,
     pub levels: Mutex<levels::store::Store>,
