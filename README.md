@@ -187,7 +187,7 @@ All `/suggestion` commands need **Administrator**.
 
 ### Server Logs
 
-The Logs cog (`/enablecog logs`) posts what happens in the server to a log channel per type, set with `/server-setup logs <type> <channel>`. Types without a channel aren't logged.
+The Logs cog (`/enablecog logs`) posts what happens in the server to a log channel per type, set with `/server-setup logs <type> <channel>`. Types without a channel aren't logged. When Discord's audit log records who made a change, the log adds **By** (and their **Reason**) — e.g. who deleted a channel, changed roles, banned or kicked someone, or deleted another member's message. This needs the bot to have **View Audit Log**; without it the logs still work, just without who did it. Joins, voice and username changes aren't in the audit log.
 
 | Type | Logs |
 |---|---|
