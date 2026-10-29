@@ -204,6 +204,13 @@ The Logs cog (`/enablecog logs`) posts what happens in the server to a log chann
 | Thread | Threads created, deleted, renamed, archived or locked |
 | Voice | Members joining, leaving or moving voice channels, and server mutes and deafens |
 
+### Announcement Commands
+
+Announcements always go to the channel set with `/server-setup announcements`, wherever the command is used. Needs **Manage Server**.
+
+- `/announce message <role> <title> <information>` - Post an announcement embed pinging `role`. Use `\n` for new lines
+- `/announce help` - Show help for the command
+
 ### Sticky Commands
 
 A sticky message stays near the bottom of its channel: once enough messages are posted below it, the old copy is deleted and it's posted again at the bottom. All need **Manage Messages**.
@@ -232,7 +239,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `logs`, `pets`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `logs`, `pets`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -316,6 +323,7 @@ HoneyPot/
         │   └── store.rs    # SQLite storage
         ├── games.rs        # /hack
         ├── general.rs      # /ping
+        ├── announce.rs     # /announce
         ├── automod.rs      # /automod
         ├── levels/
         │   ├── mod.rs      # XP on messages and level commands

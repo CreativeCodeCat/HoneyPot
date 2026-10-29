@@ -2,6 +2,7 @@
 //! attribute, and a framework-wide check uses it to enforce the per-guild
 //! enabled/disabled flag stored by the cog manager.
 
+pub mod announce;
 pub mod automod;
 pub mod cog_manager;
 pub mod cooldowns;
@@ -31,6 +32,7 @@ pub type Data = Arc<State>;
 
 /// Every cog compiled into the bot, by display name.
 pub const COGS: &[&str] = &[
+    "Announcements",
     "AutoMod",
     "CogManager",
     "Economy",

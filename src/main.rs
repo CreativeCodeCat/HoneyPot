@@ -10,7 +10,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, logs, pets, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
+    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, logs, pets, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -53,6 +53,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
     commands.push(suggestions::suggest());
     commands.push(suggestions::suggestion());
     commands.push(sticky::sticky());
+    commands.push(announce::announce());
     commands
 }
 
