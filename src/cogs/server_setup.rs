@@ -1,5 +1,5 @@
-//! `/server-setup`: stores the channels and roles a server uses for logs, status, counting,
-//! announcements and so on. Other cogs read them back with `Store::get`.
+//! `/server-setup`: stores the channels a server uses for logs, commands, games and
+//! announcements. Other cogs read them back with `Store::get`.
 
 use std::time::Duration;
 
@@ -16,7 +16,7 @@ const BLANK: u32 = 0x2b2d31;
 /// How long the confirmation posted in a newly set channel stays before it's deleted
 const CONFIRM_DELETE_AFTER: Duration = Duration::from_secs(5);
 
-/// Per-guild settings, keyed like "logs.message" or "roles.bots", holding a channel or role ID.
+/// Per-guild settings, keyed like "logs.message" or "channel.games", holding a channel ID.
 pub struct Store {
     conn: Connection,
 }
@@ -35,7 +35,10 @@ impl Store {
                 -- Channel or role ID
                 value INTEGER NOT NULL,
                 PRIMARY KEY (guild_id, key)
-            )",
+            );
+            -- Settings from /server-setup options that were removed, as nothing used them
+            DELETE FROM settings WHERE key LIKE 'status.%' OR key LIKE 'command.%'
+                OR key IN ('channel.counting', 'channel.invite') OR key LIKE 'roles.%';",
         )?;
         Ok(Self { conn })
     }
@@ -92,31 +95,6 @@ pub enum LogType {
     Ready,
 }
 
-#[derive(poise::ChoiceParameter, Clone, Copy)]
-pub enum RoleType {
-    Bots,
-    Partners,
-    Pro,
-    Supporters,
-    Helpers,
-    Welcome,
-}
-
-#[derive(poise::ChoiceParameter, Clone, Copy)]
-pub enum StatusType {
-    Members,
-    Bots,
-    Roles,
-    Boosts,
-    Channels,
-    Guilds,
-}
-
-#[derive(poise::ChoiceParameter, Clone, Copy)]
-pub enum CommandType {
-    Apply,
-}
-
 /// Cogs whose commands work in any channel: setup commands, tickets (used inside ticket
 /// channels) and moderation (used where the trouble is)
 const ANY_CHANNEL_COGS: &[&str] = &["CogManager", "Moderation", "StaffPolicy", "Tickets"];
@@ -170,7 +148,7 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Me
 
 /// Where game commands go once set with `/server-setup games`
 const GAMES_CHANNEL: &str = "channel.games";
-/// Games with their own channels, set with `/server-setup counting` and the guessing setup
+/// Games with their own channels, set with `/counting` and `/guessing`
 const OWN_CHANNEL_GAMES: &[&str] = &["counting", "guessing"];
 
 /// Framework-wide check: once a games channel is set, games can only be played there; and
@@ -235,7 +213,7 @@ async fn set_channel(ctx: Context<'_>, key: &str, channel: &serenity::GuildChann
     reply(ctx, embed(PURPLE, format!("✅ | Successfully setup the {what}: <#{}>.", channel.id))).await
 }
 
-/// Setup or reset the channels and roles the bot uses on this server
+/// Setup or reset the channels the bot uses on this server
 #[poise::command(
     slash_command,
     guild_only,
@@ -243,7 +221,7 @@ async fn set_channel(ctx: Context<'_>, key: &str, channel: &serenity::GuildChann
     category = "CogManager",
     required_permissions = "ADMINISTRATOR",
     default_member_permissions = "ADMINISTRATOR",
-    subcommands("logs", "roles", "status", "command", "commands", "counting", "games_channel", "announcements", "invite", "reset", "help"),
+    subcommands("logs", "commands", "games_channel", "announcements", "reset", "help"),
     subcommand_required
 )]
 pub async fn server_setup(_ctx: Context<'_>) -> Result<(), Error> {
@@ -263,44 +241,6 @@ async fn logs(
     set_channel(ctx, &key("logs", name), &channel, &format!("{name} logs")).await
 }
 
-/// Setup the server roles
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
-async fn roles(
-    ctx: Context<'_>,
-    #[description = "The type of role to setup"] r#type: RoleType,
-    #[description = "The role to give to that type"] role: serenity::Role,
-) -> Result<(), Error> {
-    let name = r#type.name();
-    ctx.data().server_setup.lock().unwrap().set(ctx.guild_id().unwrap().get(), &key("roles", name), role.id.get())?;
-    reply(ctx, embed(PURPLE, format!("✅ | Successfully setup the {name} role: <@&{}>.", role.id))).await
-}
-
-/// Setup the server status channels
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
-async fn status(
-    ctx: Context<'_>,
-    #[description = "The type of status to setup"] r#type: StatusType,
-    #[description = "The channel to send status messages to"]
-    #[channel_types("Text")]
-    channel: serenity::GuildChannel,
-) -> Result<(), Error> {
-    let name = r#type.name();
-    set_channel(ctx, &key("status", name), &channel, &format!("{name} status channel")).await
-}
-
-/// Setup the channel for a select command's output
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
-async fn command(
-    ctx: Context<'_>,
-    #[description = "The command to setup"] r#type: CommandType,
-    #[description = "The channel to send command output to"]
-    #[channel_types("Text")]
-    channel: serenity::GuildChannel,
-) -> Result<(), Error> {
-    let name = r#type.name();
-    set_channel(ctx, &key("command", name), &channel, &format!("{name} command channel")).await
-}
-
 /// Setup the server commands channel
 #[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn commands(
@@ -310,17 +250,6 @@ async fn commands(
     channel: serenity::GuildChannel,
 ) -> Result<(), Error> {
     set_channel(ctx, "channel.commands", &channel, "server commands channel").await
-}
-
-/// Setup the server counting channel
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
-async fn counting(
-    ctx: Context<'_>,
-    #[description = "The channel to run server counting in"]
-    #[channel_types("Text")]
-    channel: serenity::GuildChannel,
-) -> Result<(), Error> {
-    set_channel(ctx, "channel.counting", &channel, "server counting channel").await
 }
 
 /// Setup the channel games are played in
@@ -345,18 +274,7 @@ async fn announcements(
     set_channel(ctx, "channel.announcements", &channel, "server announcements channel").await
 }
 
-/// Setup the server invite channel
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
-async fn invite(
-    ctx: Context<'_>,
-    #[description = "The channel to get invites from"]
-    #[channel_types("Text")]
-    channel: serenity::GuildChannel,
-) -> Result<(), Error> {
-    set_channel(ctx, "channel.invite", &channel, "server invite channel").await
-}
-
-/// Reset all of the channels and roles
+/// Reset all of the channels
 #[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn reset(ctx: Context<'_>) -> Result<(), Error> {
     let removed = ctx.data().server_setup.lock().unwrap().reset(ctx.guild_id().unwrap().get())?;
@@ -375,7 +293,7 @@ async fn help(ctx: Context<'_>) -> Result<(), Error> {
     } else {
         settings
             .iter()
-            .map(|(key, id)| if key.starts_with("roles.") { format!("`{key}` → <@&{id}>") } else { format!("`{key}` → <#{id}>") })
+            .map(|(key, id)| format!("`{key}` → <#{id}>"))
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -387,15 +305,10 @@ async fn help(ctx: Context<'_>) -> Result<(), Error> {
              > Get help with the commands: `/server-setup`!\n\n\
              > `help` • Get information about the server-setup commands.\n\
              > `logs` • Setup the server logs channels.\n\
-             > `roles` • Setup the server roles.\n\
-             > `status` • Setup the server status channels.\n\
-             > `command` • Setup the channel for a select command output.\n\
              > `commands` • Setup the server commands channel.\n\
-             > `counting` • Setup the server counting channel.\n\
              > `games` • Setup the channel games are played in.\n\
              > `announcements` • Setup the server announcements channel.\n\
-             > `invite` • Setup the server invite channel.\n\
-             > `reset` • Reset all of the channels and roles.",
+             > `reset` • Reset all of the channels.",
         )
         .field("Current Setup", current, false)
         .colour(BLANK)
@@ -410,7 +323,6 @@ mod tests {
     #[test]
     fn keys_are_flat() {
         assert_eq!(key("logs", LogType::JoinLeave.name()), "logs.joinleave");
-        assert_eq!(key("roles", RoleType::Bots.name()), "roles.bots");
     }
 
     #[test]
@@ -418,12 +330,12 @@ mod tests {
         let s = Store::open_path(":memory:").unwrap();
         s.set(1, "logs.message", 10).unwrap();
         s.set(1, "logs.message", 11).unwrap();
-        s.set(2, "roles.bots", 20).unwrap();
+        s.set(2, "channel.games", 20).unwrap();
         assert_eq!(s.get(1, "logs.message").unwrap(), Some(11));
         assert_eq!(s.all(1).unwrap().len(), 1);
         assert_eq!(s.reset(1).unwrap(), 1);
         assert_eq!(s.get(1, "logs.message").unwrap(), None);
-        assert_eq!(s.get(2, "roles.bots").unwrap(), Some(20));
+        assert_eq!(s.get(2, "channel.games").unwrap(), Some(20));
     }
 
     #[test]

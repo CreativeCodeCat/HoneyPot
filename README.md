@@ -300,6 +300,17 @@ Only the bot's owner can use these (the owner of its Discord application, or the
 - `/blacklist remove <entry>` - Take a server or user off the blacklist, picked from a list
 - `/blacklist list` - List the blacklisted servers and users
 
+### Server Setup Commands
+
+Admins tell the bot which channels to use. Settings are kept by ID, so renaming a channel is fine, but one that's deleted and recreated has to be set again.
+
+- `/server-setup logs <type> <channel>` - Where each type of server log goes (see Server Logs)
+- `/server-setup commands <channel>` - Members can only use commands there (staff, and some cogs' commands, work anywhere)
+- `/server-setup games <channel>` - Where `/hack`, `/heist`, `/fight` and `/defuse` are played
+- `/server-setup announcements <channel>` - Where `/announce message` posts
+- `/server-setup reset` - Clear all of the above
+- `/server-setup help` - Show the commands and what's set
+
 ### Cog Management Commands
 
 Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `moderation`, `pets`, `profile`, `rules`, `serverstats`, `staffpolicy`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
