@@ -247,6 +247,10 @@ Members make an "about me" profile that anyone can view. Profiles belong to the 
 - `/profile delete` - Delete your profile
 - `/profile help` - Show help for the command
 
+### AFK Commands
+
+- `/afk [reason]` - Mark yourself as AFK (away), or clear it if you already are. While you're AFK, anyone who mentions you is told why and since when, and the next time you send a message you're welcomed back and it clears. The bot's AFK notices delete themselves after 10 seconds. AFK is per server
+
 ### Info Commands
 
 - `/info server` - Show the server's details and statistics, with its roles on the following pages
@@ -313,7 +317,7 @@ Admins tell the bot which channels to use. Settings are kept by ID, so renaming 
 
 ### Cog Management Commands
 
-Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `moderation`, `pets`, `profile`, `rules`, `serverstats`, `staffpolicy`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `afk`, `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `moderation`, `pets`, `profile`, `rules`, `serverstats`, `staffpolicy`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -351,6 +355,7 @@ The bot includes 6 pre-configured templates for quick honeypot setup:
 
 The bot uses SQLite for persistent storage:
 - `database/honeypot.db` - Honeypot configuration, activity logs, offenders, audit log
+- `database/afk.db` - Members who are AFK
 - `database/blacklist.db` - Blacklisted servers and users
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
@@ -406,6 +411,7 @@ HoneyPot/
         ├── games.rs        # /hack
         ├── general.rs      # /ping
         ├── info.rs         # /info and the User Info user menu
+        ├── afk.rs          # /afk and AFK notices
         ├── announce.rs     # /announce
         ├── automod.rs      # /automod
         ├── levels/

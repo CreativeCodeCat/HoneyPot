@@ -2,6 +2,7 @@
 //! attribute, and a framework-wide check uses it to enforce the per-guild
 //! enabled/disabled flag stored by the cog manager.
 
+pub mod afk;
 pub mod announce;
 pub mod automod;
 pub mod cog_manager;
@@ -36,6 +37,7 @@ pub type Data = Arc<State>;
 
 /// Every cog compiled into the bot, by display name.
 pub const COGS: &[&str] = &[
+    "AFK",
     "Announcements",
     "AutoMod",
     "CogManager",
@@ -64,6 +66,7 @@ pub const COG_MANAGER: &str = "cogmanager";
 pub struct State {
     pub start_time: Instant,
     pub cog_config: Mutex<cog_manager::CogConfig>,
+    pub afk: Mutex<afk::Store>,
     pub blacklist: Mutex<crate::developer::Blacklist>,
     pub cooldowns: Mutex<cooldowns::Cooldowns>,
     pub counting: Mutex<games::counting::Store>,

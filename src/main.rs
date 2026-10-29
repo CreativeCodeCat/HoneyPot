@@ -13,7 +13,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, info, levels, lockdown, logs, moderation, pets, profile, rules, normalize_cog_name, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context, Data,
+    afk, announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, info, levels, lockdown, logs, moderation, pets, profile, rules, normalize_cog_name, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -26,6 +26,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         general::cleanup(),
         general::resetchannel(),
         info::info(),
+        afk::afk(),
         info::user_info_menu(),
         developer::leave(),
         developer::blacklist(),
@@ -167,6 +168,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
 
     data.cog_config.lock().unwrap().cleanup_stale(&guild_ids);
     data.cooldowns.lock().unwrap().cleanup_stale(&guild_ids);
+    if let Err(e) = data.afk.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale AFKs: {e}"));
+    }
     if let Err(e) = data.honeypot.lock().unwrap().cleanup_stale(&current) {
         log::error(format!("Error cleaning up stale data: {e}"));
     }
@@ -307,6 +311,7 @@ async fn event_handler(
             tickets::on_message(data, new_message);
             levels::on_message(ctx, data, new_message).await;
             sticky::on_message(ctx, data, new_message).await;
+            afk::on_message(ctx, data, new_message).await;
             games::counting::on_message(ctx, data, new_message).await;
             games::guessing::on_message(ctx, data, new_message).await;
         }
@@ -332,6 +337,7 @@ async fn main() {
         cog_config: Mutex::new(
             cog_manager::CogConfig::open().expect("failed to open cog config database"),
         ),
+        afk: Mutex::new(afk::Store::open().expect("failed to open AFK database")),
         blacklist: Mutex::new(developer::Blacklist::open().expect("failed to open blacklist database")),
         cooldowns: Mutex::new(cooldowns::Cooldowns::open().expect("failed to open cooldowns database")),
         counting: Mutex::new(games::counting::Store::open().expect("failed to open counting database")),
