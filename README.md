@@ -231,7 +231,15 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Other Commands
 
-- `/automod <rule_type> [mention_limit]` - Create a Discord AutoMod rule (flagged words, capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites, mention spam, message spam)
+- `/automod` - Create a Discord AutoMod rule (needs **Administrator**). Each subcommand only has the options that work with it:
+  - `/automod word-list <list> [allow_list]` - Block Discord's word lists: all, profanity, sexual content or slurs
+  - `/automod words <words> [allow_list] [timeout_minutes]` - Block the comma-separated `words` in messages (`*` as a wildcard)
+  - `/automod profile-names <words> [allow_list]` - Block `words` in member names; matching members can't chat or interact until they change it
+  - `/automod pattern <pattern> [allow_list] [timeout_minutes]` - Block capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists or invites, or all of them in one rule with `All`
+  - `/automod mention-spam [mention_limit] [timeout_minutes] [raid_protection]` - Block messages with more than `mention_limit` mentions (default 10), and optionally mention raids
+  - `/automod message-spam` - Block messages Discord flags as spam
+
+  `allow_list` is comma-separated words that never trigger the rule. `timeout_minutes` also times the member out, up to 4 weeks (the bot needs **Moderate Members**). Every subcommand also takes `alert_channel`, where Discord posts alerts (the server's system channel if not given). Rules are enabled as soon as they're created. Discord allows only one word-list, profile-names, mention-spam and message-spam rule per server, so running one of those again overwrites the existing rule of that kind (even one made in Discord's settings) instead of failing. Exempt roles and channels set on it are kept.
 - `/cleanup <amount> [user]` - Delete up to 1,000 recent messages in the channel, optionally only one member's. Messages older than 14 days are left, as Discord can't bulk delete them (needs **Manage Messages**)
 - `/ping` - Show latency and uptime (5-minute cooldown)
 - `/resetchannel [channel]` - After a confirm button, recreate a channel (this one by default) with the same name, category, position, settings and permissions, then delete the old one and its messages (needs **Manage Channels**)
