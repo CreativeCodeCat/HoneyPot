@@ -14,9 +14,21 @@ use crate::log;
 pub const COG_NAME: &str = "staffpolicy";
 const DB_FILE: &str = "database/staff_policy.db";
 const COLOUR: u32 = 0xed4245;
+/// How long `/staffpolicy setup`'s menus keep working after the last change
+const SETUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// Roles taken from a staff member: (user ID, role IDs, when).
 pub type Removed = (u64, Vec<u64>, String);
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Settings {
+    /// Given to staff in place of the roles taken
+    pub demoted_role: Option<u64>,
+    /// Where cases are posted; the Logs cog's member log channel if not set
+    pub log_channel: Option<u64>,
+    /// The roles to take; every role the bot can take if empty
+    pub staff_roles: Vec<u64>,
+}
 
 pub struct Store {
     conn: Connection,
@@ -44,6 +56,17 @@ impl Store {
                 demoted_role INTEGER
             )",
         )?;
+        // Added after the table was first made
+        for (column, kind) in [("log_channel", "INTEGER"), ("staff_roles", "TEXT NOT NULL DEFAULT ''")] {
+            let exists: bool = conn.query_row(
+                "SELECT COUNT(*) > 0 FROM pragma_table_info('settings') WHERE name = ?",
+                [column],
+                |row| row.get(0),
+            )?;
+            if !exists {
+                conn.execute_batch(&format!("ALTER TABLE settings ADD COLUMN {column} {kind}"))?;
+            }
+        }
         Ok(Self { conn })
     }
 
@@ -80,22 +103,33 @@ impl Store {
         Ok(())
     }
 
+    /// Forgets every saved record for a guild, returning how many there were.
+    pub fn clear(&self, guild_id: u64) -> rusqlite::Result<usize> {
+        self.conn.execute("DELETE FROM removed_roles WHERE guild_id = ?", [guild_id])
+    }
+
     pub fn list(&self, guild_id: u64) -> rusqlite::Result<Vec<Removed>> {
         let mut stmt = self.conn.prepare("SELECT user_id, role_ids, removed_at FROM removed_roles WHERE guild_id = ? ORDER BY removed_at DESC")?;
         let rows = stmt.query_map([guild_id], |row| Ok((row.get(0)?, Self::parse(&row.get::<_, String>(1)?), row.get(2)?)))?;
         rows.collect()
     }
 
-    pub fn demoted_role(&self, guild_id: u64) -> rusqlite::Result<Option<u64>> {
+    pub fn settings(&self, guild_id: u64) -> rusqlite::Result<Settings> {
         Ok(self
             .conn
-            .query_row("SELECT demoted_role FROM settings WHERE guild_id = ?", [guild_id], |row| row.get::<_, Option<u64>>(0))
+            .query_row("SELECT demoted_role, log_channel, staff_roles FROM settings WHERE guild_id = ?", [guild_id], |row| {
+                Ok(Settings { demoted_role: row.get(0)?, log_channel: row.get(1)?, staff_roles: Self::parse(&row.get::<_, String>(2)?) })
+            })
             .optional()?
-            .flatten())
+            .unwrap_or_default())
     }
 
-    pub fn set_demoted_role(&self, guild_id: u64, role_id: Option<u64>) -> rusqlite::Result<()> {
-        self.conn.execute("INSERT OR REPLACE INTO settings (guild_id, demoted_role) VALUES (?, ?)", params![guild_id, role_id])?;
+    pub fn save_settings(&self, guild_id: u64, settings: &Settings) -> rusqlite::Result<()> {
+        let roles: Vec<String> = settings.staff_roles.iter().map(u64::to_string).collect();
+        self.conn.execute(
+            "INSERT OR REPLACE INTO settings (guild_id, demoted_role, log_channel, staff_roles) VALUES (?, ?, ?, ?)",
+            params![guild_id, settings.demoted_role, settings.log_channel, roles.join(",")],
+        )?;
         Ok(())
     }
 
@@ -204,19 +238,22 @@ pub async fn on_audit_entry(ctx: &serenity::Context, data: &Data, guild_id: sere
         return;
     }
     let Ok(staff) = guild_id.member(ctx, staff_id).await else { return };
-    let demoted = match data.staff_policy.lock().unwrap().demoted_role(guild_id.get()) {
-        Ok(role) => role.map(serenity::RoleId::new),
+    let settings = match data.staff_policy.lock().unwrap().settings(guild_id.get()) {
+        Ok(settings) => settings,
         Err(e) => {
-            log::error(format!("Error reading demoted role for guild {guild_id}: {e}"));
-            None
+            log::error(format!("Error reading staff policy settings for guild {guild_id}: {e}"));
+            Settings::default()
         }
     };
+    let demoted = settings.demoted_role.map(serenity::RoleId::new);
     let Some((owner_id, guild_name, roles, demoted)) = ctx.cache.guild(guild_id).map(|guild| {
         let bot_top = guild.members.get(&ctx.cache.current_user().id).and_then(|m| guild.member_highest_role(m)).map_or(0, |r| r.position);
         let manageable = |id: &serenity::RoleId| guild.roles.get(id).is_some_and(|r| !r.managed && r.position < bot_top);
-        // Roles the bot can take away: not managed by an integration, below its own, and not the demoted role
+        // Roles the bot can take away: not managed by an integration, below its own, not the
+        // demoted role, and one of the chosen staff roles if any are chosen
+        let chosen = |id: &serenity::RoleId| settings.staff_roles.is_empty() || settings.staff_roles.contains(&id.get());
         let removable: Vec<serenity::RoleId> =
-            staff.roles.iter().filter(|id| manageable(id) && Some(**id) != demoted).copied().collect();
+            staff.roles.iter().filter(|id| manageable(id) && chosen(id) && Some(**id) != demoted).copied().collect();
         // A demoted role that was deleted or moved above the bot's can't be given
         (guild.owner_id, guild.name.clone(), removable, demoted.filter(|id| manageable(id)))
     }) else {
@@ -270,7 +307,8 @@ pub async fn on_audit_entry(ctx: &serenity::Context, data: &Data, guild_id: sere
     );
     let _ = staff.user.direct_message(ctx, serenity::CreateMessage::new().content(dm)).await;
 
-    if let Some(channel) = super::logs::log_channel(data, guild_id, "member") {
+    let channel = settings.log_channel.map(serenity::ChannelId::new).or_else(|| super::logs::log_channel(data, guild_id, "member"));
+    if let Some(channel) = channel {
         let mut text = format!("<@{staff_id}> {action} {target_text} using Discord's own menus instead of the bot.");
         text += &format!("\n**Roles removed:** {}", if roles_removed { roles.iter().map(|r| format!("<@&{r}>")).collect::<Vec<_>>().join(" ") } else { "None".into() });
         if let Some(role) = demoted.filter(|_| roles_removed) {
@@ -298,40 +336,91 @@ async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Er
     category = "StaffPolicy",
     required_permissions = "ADMINISTRATOR",
     default_member_permissions = "ADMINISTRATOR",
-    subcommands("setup", "restore", "list"),
+    subcommands("setup", "restore", "list", "clear"),
     subcommand_required
 )]
 pub async fn staff_policy(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-/// Set the role staff are given in place of the roles taken from them
+fn settings_embed(settings: &Settings) -> serenity::CreateEmbed {
+    let roles: Vec<String> = settings.staff_roles.iter().map(|r| format!("<@&{r}>")).collect();
+    serenity::CreateEmbed::new()
+        .colour(COLOUR)
+        .title("Staff Policy Settings")
+        .field("Demoted Role", settings.demoted_role.map_or("None (roles are only taken)".to_string(), |r| format!("<@&{r}>")), false)
+        .field("Log Channel", settings.log_channel.map_or("The member log channel".to_string(), |c| format!("<#{c}>")), false)
+        .field(
+            "Roles to Remove",
+            if roles.is_empty() { "Every role the bot can remove".to_string() } else { roles.join(" ") },
+            false,
+        )
+        .footer(serenity::CreateEmbedFooter::new("Pick the roles to remove below, or leave it empty to remove every role."))
+}
+
+/// Set the demoted role, the log channel and which roles are removed
 #[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn setup(
     ctx: Context<'_>,
-    #[description = "The role to give, like Demoted (leave empty to only take roles)"] demoted_role: Option<serenity::Role>,
+    #[description = "The role to give in place of the roles taken, like Demoted"] demoted_role: Option<serenity::Role>,
+    #[description = "Where to log cases (default: the member log channel)"]
+    #[channel_types("Text")]
+    log_channel: Option<serenity::GuildChannel>,
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
-    let Some(role) = demoted_role else {
-        ctx.data().staff_policy.lock().unwrap().set_demoted_role(guild_id.get(), None)?;
-        return say_private(ctx, "✅ Staff who break the policy will now only have their roles taken, with no role given.").await;
-    };
-    let problem = {
-        let guild = ctx.guild().ok_or("server isn't cached")?;
-        let bot_top = guild.members.get(&ctx.cache().current_user().id).and_then(|m| guild.member_highest_role(m)).map_or(0, |r| r.position);
-        if role.managed || role.id.get() == guild_id.get() {
-            Some("❌ That role can't be given to members.")
-        } else if role.position >= bot_top {
-            Some("❌ That role is the same as or above my highest role, so I can't give it. Move my role above it first.")
-        } else {
-            None
+    let mut settings = ctx.data().staff_policy.lock().unwrap().settings(guild_id.get())?;
+
+    if let Some(role) = demoted_role {
+        let problem = {
+            let guild = ctx.guild().ok_or("server isn't cached")?;
+            let bot_top = guild.members.get(&ctx.cache().current_user().id).and_then(|m| guild.member_highest_role(m)).map_or(0, |r| r.position);
+            if role.managed || role.id.get() == guild_id.get() {
+                Some("❌ That role can't be given to members.")
+            } else if role.position >= bot_top {
+                Some("❌ That role is the same as or above my highest role, so I can't give it. Move my role above it first.")
+            } else {
+                None
+            }
+        };
+        if let Some(problem) = problem {
+            return say_private(ctx, problem).await;
         }
-    };
-    if let Some(problem) = problem {
-        return say_private(ctx, problem).await;
+        settings.demoted_role = Some(role.id.get());
     }
-    ctx.data().staff_policy.lock().unwrap().set_demoted_role(guild_id.get(), Some(role.id.get()))?;
-    say_private(ctx, format!("✅ Staff who break the policy will have their roles replaced with <@&{}>.", role.id)).await
+    if let Some(channel) = log_channel {
+        settings.log_channel = Some(channel.id.get());
+    }
+    ctx.data().staff_policy.lock().unwrap().save_settings(guild_id.get(), &settings)?;
+
+    let prefix = ctx.id();
+    let roles_id = format!("{prefix}sp_roles");
+    let components = |settings: &Settings| {
+        let defaults = settings.staff_roles.iter().map(|r| serenity::RoleId::new(*r)).collect();
+        let roles = serenity::CreateSelectMenu::new(&roles_id, serenity::CreateSelectMenuKind::Role { default_roles: Some(defaults) })
+            .placeholder("Roles to remove (none picked = every role)")
+            .min_values(0)
+            .max_values(25);
+        vec![serenity::CreateActionRow::SelectMenu(roles)]
+    };
+    let reply = ctx.send(poise::CreateReply::default().embed(settings_embed(&settings)).components(components(&settings))).await?;
+
+    loop {
+        let id = roles_id.clone();
+        let press = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+            .filter(move |i| i.data.custom_id == id)
+            .timeout(SETUP_TIMEOUT)
+            .await;
+        let Some(press) = press else { break };
+        let serenity::ComponentInteractionDataKind::RoleSelect { values } = &press.data.kind else { continue };
+        settings.staff_roles = values.iter().map(|r| r.get()).collect();
+        ctx.data().staff_policy.lock().unwrap().save_settings(guild_id.get(), &settings)?;
+        let update = serenity::CreateInteractionResponseMessage::new().embed(settings_embed(&settings)).components(components(&settings));
+        press.create_response(ctx, serenity::CreateInteractionResponse::UpdateMessage(update)).await?;
+    }
+
+    // Already gone if someone dismissed it
+    let _ = reply.edit(ctx, poise::CreateReply::default().embed(settings_embed(&settings)).components(vec![])).await;
+    Ok(())
 }
 
 /// Give a staff member back the roles the policy took from them
@@ -347,13 +436,23 @@ async fn restore(ctx: Context<'_>, #[description = "The staff member"] member: s
         saved.iter().map(|id| serenity::RoleId::new(*id)).filter(|id| guild.roles.contains_key(id)).collect()
     };
     let reason = format!("Staff policy: roles restored by {}", ctx.author().name);
-    let demoted = ctx.data().staff_policy.lock().unwrap().demoted_role(guild_id.get())?.map(serenity::RoleId::new);
+    let demoted = ctx.data().staff_policy.lock().unwrap().settings(guild_id.get())?.demoted_role.map(serenity::RoleId::new);
     let mut all: Vec<serenity::RoleId> = member.roles.iter().filter(|r| Some(**r) != demoted).copied().collect();
     all.extend(roles.iter().filter(|r| !all.contains(r)).copied().collect::<Vec<_>>());
     guild_id.edit_member(ctx, member.user.id, serenity::EditMember::new().roles(all).audit_log_reason(&reason)).await?;
     ctx.data().staff_policy.lock().unwrap().remove(guild_id.get(), member.user.id.get())?;
     let mentions: Vec<String> = roles.iter().map(|r| format!("<@&{r}>")).collect();
     say_private(ctx, format!("✅ Restored {} role(s) to <@{}>: {}", roles.len(), member.user.id, mentions.join(" "))).await
+}
+
+/// Clear the list of staff whose roles were taken, without giving any back
+#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+async fn clear(ctx: Context<'_>) -> Result<(), Error> {
+    let cleared = ctx.data().staff_policy.lock().unwrap().clear(ctx.guild_id().unwrap().get())?;
+    if cleared == 0 {
+        return say_private(ctx, "The list is already empty.").await;
+    }
+    say_private(ctx, format!("✅ Cleared {cleared} record(s). Their roles can no longer be restored with `/staffpolicy restore`.")).await
 }
 
 /// List staff whose roles the policy has taken
@@ -382,13 +481,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn demoted_role_is_set_and_cleared() {
+    fn settings_are_saved() {
         let s = Store::open_path(":memory:").unwrap();
-        assert_eq!(s.demoted_role(1).unwrap(), None);
-        s.set_demoted_role(1, Some(5)).unwrap();
-        assert_eq!(s.demoted_role(1).unwrap(), Some(5));
-        s.set_demoted_role(1, None).unwrap();
-        assert_eq!(s.demoted_role(1).unwrap(), None);
+        assert_eq!(s.settings(1).unwrap(), Settings::default());
+        let settings = Settings { demoted_role: Some(5), log_channel: Some(6), staff_roles: vec![7, 8] };
+        s.save_settings(1, &settings).unwrap();
+        assert_eq!(s.settings(1).unwrap(), settings);
+        s.save_settings(1, &Settings::default()).unwrap();
+        assert_eq!(s.settings(1).unwrap(), Settings::default());
     }
 
     #[test]
@@ -399,6 +499,10 @@ mod tests {
         s.add(1, 2, &[11, 12]).unwrap();
         assert_eq!(s.get(1, 2).unwrap(), Some(vec![10, 11, 12]));
         assert_eq!(s.list(1).unwrap().len(), 1);
+        s.add(1, 3, &[10]).unwrap();
+        assert_eq!(s.clear(1).unwrap(), 2);
+        assert!(s.list(1).unwrap().is_empty());
+        s.add(1, 2, &[10, 11, 12]).unwrap();
         s.remove(1, 2).unwrap();
         assert_eq!(s.get(1, 2).unwrap(), None);
     }
