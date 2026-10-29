@@ -200,7 +200,7 @@ A tamagotchi for Discord. Pets are bought and fed with money from the economy wa
 - `/guessing stats` - See guesses so far, numbers found and the fewest guesses it's taken
 - `/guessing stop` - Stop guessing in this server, keeping the stats (admin)
 
-Bets on heists, fights and bombs are held until the game ends, and refunded if the bot restarts mid-game. Each game is off until an admin turns it on with `/enablegame`. Once an admin sets a games channel with `/server-setup games <channel>`, `/hack`, `/heist`, `/fight` and `/defuse` only work there (even if a commands channel is set too), and using them anywhere else tells the member to head to the games channel. Counting and guessing keep their own channels.
+Bets on heists, fights and bombs are held until the game ends, and refunded if the bot restarts mid-game. Each game is off until an admin turns it on with `/enablegame`. Once an admin sets a games channel with `/server-setup games <channel>`, `/hack`, `/heist`, `/fight` and `/defuse` only work there (even if a commands channel is set too), and using them anywhere else tells the member to head to the games channel. Like the commands channel, any message there that isn't a command is deleted, so it stays clear for playing. Other commands used there tell the member to use the commands channel instead (staff, and setup, moderation and ticket commands, still work there). Counting and guessing keep their own channels.
 
 ### Suggestion Commands
 
@@ -311,7 +311,7 @@ Admins tell the bot which channels to use. Settings are kept by ID, so renaming 
 
 - `/server-setup logs <type> <channel>` - Where each type of server log goes (see Server Logs)
 - `/server-setup commands <channel>` - Members can only use commands there (staff, and some cogs' commands, work anywhere)
-- `/server-setup games <channel>` - Where `/hack`, `/heist`, `/fight` and `/defuse` are played
+- `/server-setup games <channel>` - Where `/hack`, `/heist`, `/fight` and `/defuse` are played. Other messages there are deleted
 - `/server-setup announcements <channel>` - Where `/announce message` posts
 - `/server-setup reset` - Clear all of the above
 - `/server-setup help` - Show the commands and what's set

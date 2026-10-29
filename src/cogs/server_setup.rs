@@ -120,27 +120,25 @@ fn is_prefix_command(content: &str, commands: &[poise::Command<Data, Error>]) ->
     commands.iter().any(|c| c.prefix_action.is_some() && (c.name == name || c.aliases.contains(&name)))
 }
 
-/// Keeps the commands channel for commands only: deletes every message that isn't a
-/// prefix command, from admins too. Bots' messages (like command replies) stay.
+/// Keeps the commands and games channels for commands only: deletes every message that
+/// isn't a prefix command, from admins too. Bots' messages (like command replies) stay.
 /// Returns true if the message was deleted.
 pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Message, commands: &[poise::Command<Data, Error>]) -> bool {
     let Some(guild_id) = msg.guild_id else { return false };
     if msg.author.bot || is_prefix_command(&msg.content, commands) {
         return false;
     }
-    let commands_channel = match data.server_setup.lock().unwrap().get(guild_id.get(), "channel.commands") {
-        Ok(channel) => channel,
-        Err(e) => {
-            crate::log::error(format!("Error reading the commands channel: {e}"));
-            return false;
-        }
+    // The commands and games channels are only for using the bot's commands
+    let channel = msg.channel_id.get();
+    let kept_clear = {
+        let setup = data.server_setup.lock().unwrap();
+        ["channel.commands", GAMES_CHANNEL].into_iter().find(|key| setup.get(guild_id.get(), key).is_ok_and(|id| id == Some(channel)))
     };
-    if commands_channel != Some(msg.channel_id.get()) {
-        return false;
-    }
+    let Some(key) = kept_clear else { return false };
 
     if let Err(e) = msg.delete(ctx).await {
-        crate::log::error(format!("Couldn't delete a message in the commands channel (needs Manage Messages): {e}"));
+        let which = if key == GAMES_CHANNEL { "games" } else { "commands" };
+        crate::log::error(format!("Couldn't delete a message in the {which} channel (needs Manage Messages): {e}"));
         return false;
     }
     true
@@ -151,8 +149,9 @@ const GAMES_CHANNEL: &str = "channel.games";
 /// Games with their own channels, set with `/counting` and `/guessing`
 const OWN_CHANNEL_GAMES: &[&str] = &["counting", "guessing"];
 
-/// Framework-wide check: once a games channel is set, games can only be played there; and
-/// once a commands channel is set, members can only use other commands there.
+/// Framework-wide check: once a games channel is set, games can only be played there and
+/// other commands can't be used there; and once a commands channel is set, members can only
+/// use other commands there. Staff, and some cogs' commands, are only held to the games rule.
 pub async fn commands_channel_check(ctx: Context<'_>) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else { return Ok(()) };
     let root = super::root_command(ctx).name.as_str();
@@ -173,7 +172,18 @@ pub async fn commands_channel_check(ctx: Context<'_>) -> Result<(), Error> {
     if super::command_category(ctx).is_some_and(|cog| ANY_CHANNEL_COGS.contains(&cog)) {
         return Ok(());
     }
-    let commands_channel = ctx.data().server_setup.lock().unwrap().get(guild_id.get(), "channel.commands")?;
+    let (games_channel, commands_channel) = {
+        let setup = ctx.data().server_setup.lock().unwrap();
+        (setup.get(guild_id.get(), GAMES_CHANNEL)?, setup.get(guild_id.get(), "channel.commands")?)
+    };
+    // The games channel is only for games, so other commands are sent elsewhere
+    if games_channel == Some(ctx.channel_id().get()) && !is_staff(ctx).await {
+        return Err(match commands_channel {
+            Some(channel) => format!("🎮 This channel is only for games. Use `/{root}` in <#{channel}> instead."),
+            None => format!("🎮 This channel is only for games. Use `/{root}` in another channel instead."),
+        }
+        .into());
+    }
     match commands_channel {
         Some(channel) if channel != ctx.channel_id().get() && !is_staff(ctx).await => {
             Err(format!("❌ Commands can only be used in <#{channel}>.").into())
