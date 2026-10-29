@@ -10,7 +10,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, logs, pets, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
+    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, logs, pets, profile, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -54,6 +54,8 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
     commands.push(suggestions::suggestion());
     commands.push(sticky::sticky());
     commands.push(announce::announce());
+    commands.push(profile::profile());
+    commands.push(profile::profile_menu());
     commands
 }
 
@@ -304,6 +306,7 @@ async fn main() {
         economy: Mutex::new(economy::store::Store::open().expect("failed to open economy database")),
         levels: Mutex::new(levels::store::Store::open().expect("failed to open levels database")),
         pets: Mutex::new(pets::store::Store::open().expect("failed to open pets database")),
+        profiles: Mutex::new(profile::Store::open().expect("failed to open profiles database")),
         rules: Mutex::new(rules::Store::open().expect("failed to open rules database")),
         server_setup: Mutex::new(server_setup::Store::open().expect("failed to open server setup database")),
         sticky: Mutex::new(sticky::Store::open().expect("failed to open sticky database")),

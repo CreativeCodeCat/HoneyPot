@@ -211,6 +211,16 @@ Announcements always go to the channel set with `/server-setup announcements`, w
 - `/announce message <role> <title> <information>` - Post an announcement embed pinging `role`. Use `\n` for new lines
 - `/announce help` - Show help for the command
 
+### Profile Commands
+
+Members make an "about me" profile that anyone can view. Profiles belong to the member, so they're the same in every server.
+
+- `/profile create` - Create your profile
+- `/profile view [user]` - View your profile or someone else's: their name, username and ID, plus the fields they've set and their money if the Economy cog is on (anything not set is left out). Also in the user right-click menu under Apps → **Profile**
+- `/profile set <field> <value>` - Set `gender`, `age`, `birthday` (DD-MM-YYYY is shown like "Wednesday, 23rd February 2022"), `languages`, `favorite-color`, `favorite-animals`, `favorite-foods`, `favorite-songs`, `favorite-artists`, `favorite-movies`, `favorite-actors`, `origin`, `status`, `hobbies` or `aboutme`
+- `/profile delete` - Delete your profile
+- `/profile help` - Show help for the command
+
 ### Sticky Commands
 
 A sticky message stays near the bottom of its channel: once enough messages are posted below it, the old copy is deleted and it's posted again at the bottom. All need **Manage Messages**.
@@ -247,7 +257,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `logs`, `pets`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `logs`, `pets`, `profile`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -296,6 +306,7 @@ The bot uses SQLite for persistent storage:
 - `database/levels.db` - XP, reputation and level settings
 - `database/rules.db` - Rules sections and the last posted messages
 - `database/pets.db` - Pets and their needs
+- `database/profiles.db` - User profiles
 - `database/games.db` - Mini-game cooldowns
 
 ## Use Cases
@@ -342,6 +353,7 @@ HoneyPot/
         │   ├── mod.rs      # /pet commands, battles and hunger DMs
         │   ├── card.rs     # /pet status picture card
         │   └── store.rs    # SQLite storage and pet needs
+        ├── profile.rs      # /profile and the Profile user menu
         ├── rules.rs        # /rules
         ├── stats.rs        # Voice channel stats
         ├── sticky.rs       # /sticky and moving sticky messages down

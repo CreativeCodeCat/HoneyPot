@@ -14,6 +14,7 @@ pub mod levels;
 pub mod lockdown;
 pub mod logs;
 pub mod pets;
+pub mod profile;
 pub mod rules;
 pub mod server_setup;
 pub mod stats;
@@ -43,6 +44,7 @@ pub const COGS: &[&str] = &[
     "Lockdown",
     "Logs",
     "Pets",
+    "Profile",
     "Rules",
     "ServerStats",
     "Sticky",
@@ -64,6 +66,7 @@ pub struct State {
     pub levels: Mutex<levels::store::Store>,
     pub lockdown: Mutex<lockdown::Store>,
     pub pets: Mutex<pets::store::Store>,
+    pub profiles: Mutex<profile::Store>,
     pub rules: Mutex<rules::Store>,
     pub server_setup: Mutex<server_setup::Store>,
     pub sticky: Mutex<sticky::Store>,
