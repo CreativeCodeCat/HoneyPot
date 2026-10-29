@@ -65,6 +65,8 @@ async fn server(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
     let guild_id = ctx.guild_id().unwrap();
     let members = all_members(ctx, guild_id).await?;
+    // The cached server can be missing its description, so it's fetched fresh
+    let description = guild_id.to_partial_guild(ctx).await?.description.filter(|d| !d.is_empty());
     let bots = members.iter().filter(|m| m.user.bot).count();
 
     // Read everything needed from the cache before any more awaits
@@ -94,7 +96,7 @@ async fn server(ctx: Context<'_>) -> Result<(), Error> {
             "**❯ Name:** `{}`\n**❯ Description:** {}\n**❯ ID:** `{}`\n**❯ Owner:** <@{}>\n**❯ Boost Tier:** `{tier}`\n\
              **❯ Explicit Filter:** `{filter}`\n**❯ Verification Level:** `{verification}`\n**❯ Created:** {}",
             guild.name,
-            guild.description.as_deref().map_or("None".to_string(), |d| format!("`{d}`")),
+            description.as_deref().map_or("None".to_string(), |d| format!("`{d}`")),
             guild.id,
             guild.owner_id,
             when(guild.id.created_at()),
