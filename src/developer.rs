@@ -203,7 +203,7 @@ async fn blacklist_add(
     #[description = "The server to leave"]
     #[autocomplete = "autocomplete_server"]
     server: String,
-    #[description = "Server: I leave if added again. Server owner: I leave all their servers and they can't use my commands"]
+    #[description = "Server: leave it if re-added. Owner: leave all their servers and block their commands"]
     #[rename = "type"]
     kind: BlacklistType,
 ) -> Result<(), Error> {

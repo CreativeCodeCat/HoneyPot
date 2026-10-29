@@ -319,6 +319,54 @@ mod tests {
         assert_eq!(global.len(), cog_manager);
     }
 
+    /// Discord rejects a whole batch of commands if one breaks its limits, so check them all:
+    /// names 1-32 lowercase characters, descriptions 1-100, at most 25 options or choices.
+    #[test]
+    fn commands_fit_discords_limits() {
+        fn check(command: &poise::Command<Data, Error>, path: &str, problems: &mut Vec<String>) {
+            let path = format!("{path}/{}", command.name);
+            let description = command.description.as_deref().unwrap_or_default();
+            if command.context_menu_name.is_none() {
+                if !(1..=32).contains(&command.name.chars().count()) || command.name.chars().any(|c| c.is_uppercase() || c.is_whitespace()) {
+                    problems.push(format!("{path}: bad name"));
+                }
+                if !(1..=100).contains(&description.chars().count()) {
+                    problems.push(format!("{path}: description is {} characters", description.chars().count()));
+                }
+            }
+            if command.parameters.len() + command.subcommands.len() > 25 {
+                problems.push(format!("{path}: more than 25 options"));
+            }
+            // A right-click menu's one option is the user or message clicked, with no description
+            for parameter in command.parameters.iter().filter(|_| command.context_menu_name.is_none()) {
+                let name = format!("{path} {}", parameter.name);
+                let length = parameter.description.as_deref().unwrap_or_default().chars().count();
+                if !(1..=100).contains(&length) {
+                    problems.push(format!("{name}: description is {length} characters"));
+                }
+                if !(1..=32).contains(&parameter.name.chars().count()) || parameter.name.chars().any(|c| c.is_uppercase() || c.is_whitespace()) {
+                    problems.push(format!("{name}: bad name"));
+                }
+                if parameter.choices.len() > 25 {
+                    problems.push(format!("{name}: more than 25 choices"));
+                }
+                for choice in &parameter.choices {
+                    if !(1..=100).contains(&choice.name.chars().count()) {
+                        problems.push(format!("{name}: choice {:?} is too long", choice.name));
+                    }
+                }
+            }
+            for subcommand in &command.subcommands {
+                check(subcommand, &path, problems);
+            }
+        }
+        let mut problems = vec![];
+        for command in crate::commands() {
+            check(&command, "", &mut problems);
+        }
+        assert!(problems.is_empty(), "{problems:#?}");
+    }
+
     #[test]
     fn every_game_can_be_toggled() {
         let mut games: Vec<_> = crate::commands().into_iter().filter(|c| c.category.as_deref() == Some("Games") && !["enablegame", "disablegame", "gamestatus"].contains(&c.name.as_str())).map(|c| c.name).collect();
