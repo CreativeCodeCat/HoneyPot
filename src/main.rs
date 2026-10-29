@@ -27,7 +27,8 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         general::resetchannel(),
         info::info(),
         info::user_info_menu(),
-        developer::remove(),
+        developer::leave(),
+        developer::blacklist(),
         developer::maintenance_mode(),
         presence::presence(),
         automod::automod(),
@@ -76,18 +77,21 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
 /// Blocks commands whose cog is disabled in the current guild, then applies the command's cooldown.
 async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
     // Owner-only commands belong to no cog and work in any channel
-    if ctx.command().category.as_deref() == Some(developer::CATEGORY) {
+    if cogs::command_category(ctx) == Some(developer::CATEGORY) {
         return Ok(true);
+    }
+    if developer::is_user_blacklisted(ctx.data(), ctx.author().id) {
+        return Err("🚫 You've been blacklisted from using this bot.".into());
     }
     if developer::maintenance() && !ctx.framework().options().owners.contains(&ctx.author().id) {
         return Err("🛠️ The bot is under maintenance right now. Please try again later.".into());
     }
-    if let (Some(guild_id), Some(category)) = (ctx.guild_id(), ctx.command().category.as_deref()) {
+    if let (Some(guild_id), Some(category)) = (ctx.guild_id(), cogs::command_category(ctx)) {
         let cog_name = normalize_cog_name(category);
         if cog_name != COG_MANAGER && !ctx.data().is_cog_enabled(guild_id.get(), &cog_name) {
             return Ok(false);
         }
-        if cog_name == "games" && !ctx.data().cog_config.lock().unwrap().is_game_enabled(guild_id.get(), &ctx.command().name) {
+        if cog_name == "games" && !ctx.data().cog_config.lock().unwrap().is_game_enabled(guild_id.get(), &cogs::root_command(ctx).name) {
             return Ok(false);
         }
     }
@@ -127,7 +131,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
         poise::FrameworkError::CommandCheckFailed {
             error: None, ctx, ..
         } => {
-            let cog = ctx.command().category.clone().unwrap_or_default();
+            let cog = cogs::command_category(ctx).unwrap_or_default().to_string();
             reply_ephemeral(ctx, format!("❌ The {cog} cog is disabled on this server.")).await;
         }
         poise::FrameworkError::CommandCheckFailed {
@@ -253,6 +257,8 @@ async fn event_handler(
             staff_policy::on_audit_entry(ctx, data, *guild_id, entry).await;
         }
         serenity::FullEvent::GuildCreate { guild, is_new } => {
+            // Also runs for every server on startup
+            developer::enforce_blacklist(ctx, data, guild).await;
             // Guilds the bot was already in are synced on startup by `startup_report`
             if *is_new == Some(true) {
                 if let Err(e) = cog_manager::sync_guild_commands(&ctx.http, &framework.options().commands, data, guild.id).await {
@@ -325,6 +331,7 @@ async fn main() {
         cog_config: Mutex::new(
             cog_manager::CogConfig::open().expect("failed to open cog config database"),
         ),
+        blacklist: Mutex::new(developer::Blacklist::open().expect("failed to open blacklist database")),
         cooldowns: Mutex::new(cooldowns::Cooldowns::open().expect("failed to open cooldowns database")),
         counting: Mutex::new(games::counting::Store::open().expect("failed to open counting database")),
         guessing: Mutex::new(games::guessing::Store::open().expect("failed to open guessing database")),

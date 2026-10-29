@@ -64,6 +64,7 @@ pub const COG_MANAGER: &str = "cogmanager";
 pub struct State {
     pub start_time: Instant,
     pub cog_config: Mutex<cog_manager::CogConfig>,
+    pub blacklist: Mutex<crate::developer::Blacklist>,
     pub cooldowns: Mutex<cooldowns::Cooldowns>,
     pub counting: Mutex<games::counting::Store>,
     pub economy: Mutex<economy::store::Store>,
@@ -88,6 +89,17 @@ impl State {
             .unwrap()
             .is_enabled(guild_id, cog_name)
     }
+}
+
+/// The top-level command being run: for a subcommand like `/sticky stick`, `/sticky`.
+pub fn root_command<'a>(ctx: Context<'a>) -> &'a poise::Command<Data, Error> {
+    ctx.parent_commands().first().copied().unwrap_or(ctx.command())
+}
+
+/// The cog of the command being run. Subcommands take their top-level command's, as only
+/// it says which cog it belongs to.
+pub fn command_category(ctx: Context<'_>) -> Option<&str> {
+    root_command(ctx).category.as_deref()
 }
 
 /// The name a cog is stored under in the config table, e.g. "ServerStats" -> "serverstats".

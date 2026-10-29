@@ -294,7 +294,10 @@ Only the bot's owner can use these (the owner of its Discord application, or the
 
 - `/maintenance` - Turn maintenance mode on or off. While it's on, everyone else is told the bot is under maintenance when they use a command, and the bot's status shows Do Not Disturb with "Under maintenance". Background features (honeypots, logs, AutoMod, staff policy...) keep running. It stays on across restarts
 - `/presence <status> [activity] [text]` - Set the bot's status (Online, Idle, Do Not Disturb or Invisible) and activity (a custom status, Playing, Watching, Listening to, Competing in, or none). Without `text` it shows "Development of <bot> v<version>". It's kept across restarts; maintenance mode's status shows instead while it's on
-- `/remove <server>` - Make the bot leave a server, picked from a list of the servers it's in, after a confirm button
+- `/leave <server>` - Make the bot leave a server, picked from a list of the servers it's in, after a confirm button
+- `/blacklist add <server> <type>` - Leave a server, after a confirm button, and blacklist either the server (the bot leaves straight away if it's added again) or its owner (the bot leaves any server they own, now or later, and they can't use its commands)
+- `/blacklist remove <entry>` - Take a server or user off the blacklist, picked from a list
+- `/blacklist list` - List the blacklisted servers and users
 
 ### Cog Management Commands
 
@@ -336,6 +339,7 @@ The bot includes 6 pre-configured templates for quick honeypot setup:
 
 The bot uses SQLite for persistent storage:
 - `database/honeypot.db` - Honeypot configuration, activity logs, offenders, audit log
+- `database/blacklist.db` - Blacklisted servers and users
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
 - `database/suggestions.db` - Suggestion channels and open suggestions
@@ -377,7 +381,7 @@ HoneyPot/
 └── src/
     ├── main.rs             # Startup, event dispatch, cog check, error handling
     ├── log.rs              # Colored console logging
-    ├── developer.rs        # Bot owner commands: /remove and /maintenance
+    ├── developer.rs        # Bot owner commands: /leave, /blacklist and /maintenance
     ├── pagination.rs       # Previous / Next / Delete buttons for multi-page replies
     ├── presence.rs         # The bot's status and activity, and /presence
     ├── render.rs           # Shared drawing code for the image cards

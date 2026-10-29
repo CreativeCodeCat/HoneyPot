@@ -171,7 +171,7 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Me
 /// Framework-wide check: once a commands channel is set, members can only use commands there.
 pub async fn commands_channel_check(ctx: Context<'_>) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else { return Ok(()) };
-    if ctx.command().category.as_deref().is_some_and(|cog| ANY_CHANNEL_COGS.contains(&cog)) {
+    if super::command_category(ctx).is_some_and(|cog| ANY_CHANNEL_COGS.contains(&cog)) {
         return Ok(());
     }
     let commands_channel = ctx.data().server_setup.lock().unwrap().get(guild_id.get(), "channel.commands")?;
