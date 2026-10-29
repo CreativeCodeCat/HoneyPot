@@ -255,6 +255,17 @@ Members make an "about me" profile that anyone can view. Profiles belong to the 
 
 - `/afk [reason]` - Mark yourself as AFK (away), or clear it if you already are. While you're AFK, anyone who mentions you is told why and since when, and the next time you send a message you're welcomed back and it clears. The bot's AFK notices delete themselves after 10 seconds. AFK is per server
 
+### Application Commands
+
+Admins create their own positions to apply for, each with up to five questions (Discord allows five boxes in a pop-up, with questions up to 45 characters) and an optional role. Members apply in a pop-up, and their answers are posted in the review channel with **Accept** and **Deny** buttons, which work for members with **Manage Server**, even after a restart. The applicant gets a DM with the decision, and accepting gives them the position's role. A member can't apply for the same position again while their last application is waiting.
+
+- `/apply <position>` - Apply for a position, answering its questions in a pop-up
+- `/application channel <channel>` - Where applications are posted for review (**Manage Server**)
+- `/application add <name> [role]` - Add a position, writing its questions in a pop-up (**Manage Server**)
+- `/application edit <position> [role]` - Change a position's questions, and optionally its role (**Manage Server**)
+- `/application remove <position>` - Remove a position (**Manage Server**)
+- `/application list` - List the positions, their questions and roles, and the review channel (**Manage Server**)
+
 ### Info Commands
 
 - `/info server` - Show the server's details and statistics, with its roles on the following pages
@@ -322,7 +333,7 @@ Admins tell the bot which channels to use. Settings are kept by ID, so renaming 
 
 ### Cog Management Commands
 
-Cogs: `afk`, `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `moderation`, `pets`, `profile`, `rules`, `serverstats`, `staffpolicy`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `afk`, `announcements`, `applications`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `moderation`, `pets`, `profile`, `rules`, `serverstats`, `staffpolicy`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -361,6 +372,7 @@ The bot includes 6 pre-configured templates for quick honeypot setup:
 The bot uses SQLite for persistent storage:
 - `database/honeypot.db` - Honeypot configuration, activity logs, offenders, audit log
 - `database/afk.db` - Members who are AFK
+- `database/applications.db` - Application positions, the review channel and applications
 - `database/blacklist.db` - Blacklisted servers and users
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
@@ -418,6 +430,7 @@ HoneyPot/
         ├── info.rs         # /info and the User Info user menu
         ├── afk.rs          # /afk and AFK notices
         ├── announce.rs     # /announce
+        ├── applications.rs # /apply and /application
         ├── automod.rs      # /automod
         ├── levels/
         │   ├── mod.rs      # XP on messages and level commands

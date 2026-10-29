@@ -4,6 +4,7 @@
 
 pub mod afk;
 pub mod announce;
+pub mod applications;
 pub mod automod;
 pub mod cog_manager;
 pub mod cooldowns;
@@ -40,6 +41,7 @@ pub type Data = Arc<State>;
 pub const COGS: &[&str] = &[
     "AFK",
     "Announcements",
+    "Applications",
     "AutoMod",
     "CogManager",
     "Economy",
@@ -68,6 +70,7 @@ pub struct State {
     pub start_time: Instant,
     pub cog_config: Mutex<cog_manager::CogConfig>,
     pub afk: Mutex<afk::Store>,
+    pub applications: Mutex<applications::Store>,
     pub blacklist: Mutex<crate::developer::Blacklist>,
     pub cooldowns: Mutex<cooldowns::Cooldowns>,
     pub counting: Mutex<games::counting::Store>,
