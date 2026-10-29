@@ -7,7 +7,7 @@ use std::sync::LazyLock;
 
 use poise::serenity_prelude as serenity;
 
-use super::{Context, Error};
+use crate::cogs::{truncate, Context, Error};
 
 /// The category these commands are filed under
 pub const CATEGORY: &str = "Developer";
@@ -19,15 +19,6 @@ static MAINTENANCE: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(std:
 /// Whether the bot is in maintenance mode, when only its owner can use commands.
 pub fn maintenance() -> bool {
     MAINTENANCE.load(Ordering::Relaxed)
-}
-
-/// Shows maintenance mode in the bot's status: Do Not Disturb with "Under maintenance".
-pub fn apply_presence(ctx: &serenity::Context) {
-    if maintenance() {
-        ctx.set_presence(Some(serenity::ActivityData::custom("🛠️ Under maintenance")), serenity::OnlineStatus::DoNotDisturb);
-    } else {
-        ctx.set_presence(None, serenity::OnlineStatus::Online);
-    }
 }
 
 /// How long the confirm buttons wait
@@ -47,7 +38,7 @@ async fn autocomplete_server(ctx: Context<'_>, partial: &str) -> Vec<serenity::A
     servers
         .into_iter()
         .take(25)
-        .map(|(name, id)| serenity::AutocompleteChoice::new(super::truncate(&format!("{name} ({id})"), 100), id.to_string()))
+        .map(|(name, id)| serenity::AutocompleteChoice::new(truncate(&format!("{name} ({id})"), 100), id.to_string()))
         .collect()
 }
 
@@ -135,7 +126,7 @@ pub async fn maintenance_mode(ctx: Context<'_>) -> Result<(), Error> {
         }
     }
     MAINTENANCE.store(on, Ordering::Relaxed);
-    apply_presence(ctx.serenity_context());
+    crate::presence::apply(ctx.serenity_context());
 
     let (title, text) = if on {
         ("Maintenance mode **enabled**", "👷 The bot is in maintenance mode. Only you can use its commands until you run `/maintenance` again.")

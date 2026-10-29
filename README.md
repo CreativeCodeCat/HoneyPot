@@ -293,6 +293,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 Only the bot's owner can use these (the owner of its Discord application, or the members of the team that owns it). They work in every server and channel and can't be disabled.
 
 - `/maintenance` - Turn maintenance mode on or off. While it's on, everyone else is told the bot is under maintenance when they use a command, and the bot's status shows Do Not Disturb with "Under maintenance". Background features (honeypots, logs, AutoMod, staff policy...) keep running. It stays on across restarts
+- `/presence <status> [activity] [text]` - Set the bot's status (Online, Idle, Do Not Disturb or Invisible) and activity (a custom status, Playing, Watching, Listening to, Competing in, or none). Without `text` it shows "Development of <bot> v<version>". It's kept across restarts; maintenance mode's status shows instead while it's on
 - `/remove <server>` - Make the bot leave a server, picked from a list of the servers it's in, after a confirm button
 
 ### Cog Management Commands
@@ -339,6 +340,7 @@ The bot uses SQLite for persistent storage:
 - `database/tickets.db` - Ticket system setup and tickets
 - `database/suggestions.db` - Suggestion channels and open suggestions
 - `database/maintenance` - Exists while maintenance mode is on
+- `database/presence.json` - The bot's status and activity set with `/presence`
 - `database/staff_policy.db` - Roles taken by the staff policy, for restoring
 - `database/sticky.db` - Sticky messages
 - `database/counting.db` - Counting channels, counts and high scores
@@ -375,12 +377,13 @@ HoneyPot/
 └── src/
     ├── main.rs             # Startup, event dispatch, cog check, error handling
     ├── log.rs              # Colored console logging
+    ├── developer.rs        # Bot owner commands: /remove and /maintenance
     ├── pagination.rs       # Previous / Next / Delete buttons for multi-page replies
+    ├── presence.rs         # The bot's status and activity, and /presence
     ├── render.rs           # Shared drawing code for the image cards
     └── cogs/
         ├── mod.rs          # Shared state, cog list, helpers
         ├── cog_manager.rs  # Per-server enable/disable
-        ├── developer.rs    # Bot owner commands: /remove
         ├── economy/
         │   ├── mod.rs      # /eco commands
         │   └── store.rs    # SQLite storage

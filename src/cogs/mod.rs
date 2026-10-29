@@ -6,7 +6,6 @@ pub mod announce;
 pub mod automod;
 pub mod cog_manager;
 pub mod cooldowns;
-pub mod developer;
 pub mod economy;
 pub mod games;
 pub mod general;

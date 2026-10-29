@@ -1,6 +1,8 @@
 mod cogs;
+mod developer;
 mod log;
 mod pagination;
+mod presence;
 mod render;
 
 use std::collections::{HashMap, HashSet};
@@ -11,7 +13,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    announce, automod, cog_manager, cooldowns, developer, economy, games, general, honeypot, info, levels, lockdown, logs, moderation, pets, profile, rules, normalize_cog_name, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context, Data,
+    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, info, levels, lockdown, logs, moderation, pets, profile, rules, normalize_cog_name, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -27,6 +29,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         info::user_info_menu(),
         developer::remove(),
         developer::maintenance_mode(),
+        presence::presence(),
         automod::automod(),
         cog_manager::enablecog(),
         cog_manager::disablecog(),
@@ -279,7 +282,7 @@ async fn event_handler(
         }
         serenity::FullEvent::CacheReady { .. } => {
             cleanup_stale_data(ctx, data);
-            developer::apply_presence(ctx);
+            presence::apply(ctx);
             if !TASKS_STARTED.swap(true, Ordering::SeqCst) {
                 startup_report(ctx, data, &framework.options().commands).await;
                 tokio::spawn(stats::update_stats_loop(ctx.clone(), data.clone()));

@@ -127,7 +127,7 @@ pub fn application_commands(commands: &[poise::Command<Data, Error>], keep: impl
 /// Whether a cog's commands are registered globally rather than per guild: CogManager, and
 /// the owner-only Developer commands, which belong to no cog.
 fn is_global(cog: &str) -> bool {
-    cog == COG_MANAGER || cog == normalize_cog_name(super::developer::CATEGORY)
+    cog == COG_MANAGER || cog == normalize_cog_name(crate::developer::CATEGORY)
 }
 
 /// Registers the CogManager and Developer commands globally; every other cog's commands are per guild.
