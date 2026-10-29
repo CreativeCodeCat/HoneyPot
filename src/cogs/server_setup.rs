@@ -306,7 +306,7 @@ async fn counting(
 async fn announcements(
     ctx: Context<'_>,
     #[description = "The channel to post server announcements in"]
-    #[channel_types("Text")]
+    #[channel_types("Text", "News")]
     channel: serenity::GuildChannel,
 ) -> Result<(), Error> {
     set_channel(ctx, "channel.announcements", &channel, "server announcements channel").await

@@ -60,8 +60,16 @@ async fn message(
         .embed(embed)
         .allowed_mentions(serenity::CreateAllowedMentions::new().roles([role.id]).everyone(role.id.get() == guild_id.get()));
 
-    if let Err(e) = channel.send_message(ctx, message).await {
-        return say_private(ctx, format!("❌ Couldn't post in <#{channel_id}>: {e}")).await;
+    let posted = match channel.send_message(ctx, message).await {
+        Ok(posted) => posted,
+        Err(e) => return say_private(ctx, format!("❌ Couldn't post in <#{channel_id}>: {e}")).await,
+    };
+    // In an announcement channel, publish it so servers following the channel get it too
+    let is_news = ctx.guild().is_some_and(|g| g.channels.get(&channel).is_some_and(|c| c.kind == serenity::ChannelType::News));
+    if is_news {
+        if let Err(e) = posted.crosspost(ctx).await {
+            return say_private(ctx, format!("⚠️ Posted in <#{channel_id}>, but couldn't publish it to following servers: {e}")).await;
+        }
     }
     say_private(ctx, format!("✅ Your announcement has been posted in <#{channel_id}>.")).await
 }

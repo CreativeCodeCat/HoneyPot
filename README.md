@@ -206,7 +206,7 @@ The Logs cog (`/enablecog logs`) posts what happens in the server to a log chann
 
 ### Announcement Commands
 
-Announcements always go to the channel set with `/server-setup announcements`, wherever the command is used. Needs **Manage Server**.
+Announcements always go to the channel set with `/server-setup announcements`, wherever the command is used. It can be a text or announcement channel; in an announcement channel the post is also published to servers following it. Needs **Manage Server**.
 
 - `/announce message <role> <title> <information>` - Post an announcement embed pinging `role`. Use `\n` for new lines
 - `/announce help` - Show help for the command
