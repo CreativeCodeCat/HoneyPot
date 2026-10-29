@@ -107,6 +107,8 @@ All commands can be used with `!` prefix or as slash commands (`/`). Most comman
 - `/ticket add <member>` / `/ticket remove <member>` - Give or remove a member's access to the current ticket
 - `/ticket followup` - Post a follow-up; the ticket closes 48 hours later unless someone replies
 
+`/ticket add`, `/ticket remove` and `/ticket followup` only work inside the ticket channel they're for. `/ticket-setup` follows the commands channel rule like other commands (staff with Administrator or Manage Server can use it anywhere).
+
 Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handlers or admins) and **Transcript** (DMs an HTML transcript to whoever clicks it). On close, the ticket's details and HTML transcript are posted in the transcript channel and the ticket channel is deleted. Tickets also close automatically after 7 days without messages, or when the member who opened them leaves the server.
 
 ### Lockdown Commands

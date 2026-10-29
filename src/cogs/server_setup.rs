@@ -95,9 +95,9 @@ pub enum LogType {
     Ready,
 }
 
-/// Cogs whose commands work in any channel: setup commands, tickets (used inside ticket
-/// channels) and moderation (used where the trouble is)
-const ANY_CHANNEL_COGS: &[&str] = &["CogManager", "Moderation", "StaffPolicy", "Tickets"];
+/// Cogs whose commands work in any channel: setup commands and moderation (used where the
+/// trouble is)
+const ANY_CHANNEL_COGS: &[&str] = &["CogManager", "Moderation", "StaffPolicy"];
 
 /// Members who can manage the server, so moderation commands work where they're needed.
 async fn is_staff(ctx: Context<'_>) -> bool {
@@ -171,6 +171,12 @@ pub async fn commands_channel_check(ctx: Context<'_>) -> Result<(), Error> {
     }
     if super::command_category(ctx).is_some_and(|cog| ANY_CHANNEL_COGS.contains(&cog)) {
         return Ok(());
+    }
+    // `/ticket` manages the ticket it's used in, so it only works inside ticket channels;
+    // `/ticket-setup` follows the commands channel rule
+    if root == "ticket" {
+        let in_ticket = ctx.data().tickets.lock().unwrap().open_ticket(ctx.channel_id().get())?.is_some();
+        return if in_ticket { Ok(()) } else { Err("🎫 `/ticket` only works inside a ticket channel.".into()) };
     }
     let (games_channel, commands_channel) = {
         let setup = ctx.data().server_setup.lock().unwrap();
