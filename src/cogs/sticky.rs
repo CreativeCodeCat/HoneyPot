@@ -230,9 +230,11 @@ async fn list(ctx: Context<'_>) -> Result<(), Error> {
             format!("<#{}> (moves after {} messages): {preview}", s.channel_id, s.max_count)
         })
         .collect();
-    let embed = serenity::CreateEmbed::new().colour(COLOUR).title("Sticky Messages").description(super::truncate(&lines.join("\n"), 4000));
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
-    Ok(())
+    let pages = super::pagination::chunk_lines(&lines, 10)
+        .into_iter()
+        .map(|text| serenity::CreateEmbed::new().colour(COLOUR).title("Sticky Messages").description(text))
+        .collect();
+    super::pagination::paginate(ctx, pages).await
 }
 
 #[cfg(test)]

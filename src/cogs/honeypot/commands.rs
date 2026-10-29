@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 
 use super::honeypot_embed;
 use super::store::ChannelConfig;
+use crate::cogs::pagination::{field_pages, paginate};
 use crate::cogs::{format_time, title_case, truncate, Context, Error};
 use crate::log;
 
@@ -507,14 +508,13 @@ pub async fn honeypotstatus(ctx: Context<'_>) -> Result<(), Error> {
 )]
 pub async fn honeypotlogs(
     ctx: Context<'_>,
-    #[description = "Number of entries to show (max 12)"]
+    #[description = "Number of entries to show, 5 per page (default 10, max 50)"]
     #[min = 1]
-    #[max = 12]
+    #[max = 50]
     limit: Option<i64>,
 ) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
-    // Each entry uses two embed fields and Discord allows 25
-    let limit = limit.unwrap_or(10).clamp(1, 12);
+    let limit = limit.unwrap_or(10).clamp(1, 50);
     let logs =
         ctx.data()
             .honeypot
@@ -527,10 +527,8 @@ pub async fn honeypotlogs(
         return Ok(());
     }
 
-    let mut embed = serenity::CreateEmbed::new()
-        .title(format!("Recent Honeypot Activity (Last {})", logs.len()))
-        .colour(0xe67e22);
-    for (i, entry) in logs.iter().enumerate() {
+    let mut fields = vec![];
+    for entry in &logs {
         let display_name = member_display_name(ctx, entry.user_id)
             .await
             .unwrap_or_else(|| entry.username.clone());
@@ -563,21 +561,15 @@ pub async fn honeypotlogs(
             "**Action:** {}\n{details_text}",
             title_case(&entry.action.replace('_', " "))
         );
-        embed = embed.field(
-            truncate(
-                &format!("{display_name} - {}", format_time(&entry.timestamp)),
-                256,
-            ),
+        fields.push((
+            truncate(&format!("{display_name} - {}", format_time(&entry.timestamp)), 256),
             truncate(&value, 1024),
-            false,
-        );
-        if i < logs.len() - 1 {
-            embed = embed.field("\u{200b}", "\u{200b}", false);
-        }
+        ));
     }
 
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
-    Ok(())
+    let title = format!("Recent Honeypot Activity (Last {})", logs.len());
+    let make_page = || serenity::CreateEmbed::new().title(&title).colour(0xe67e22);
+    paginate(ctx, field_pages(make_page, fields, 5, true)).await
 }
 
 /// Clear honeypot activity logs for this server
@@ -1147,13 +1139,13 @@ pub async fn removeadmin(
 )]
 pub async fn auditlog(
     ctx: Context<'_>,
-    #[description = "Number of entries to show (max 25)"]
+    #[description = "Number of entries to show, 10 per page (default 25, max 100)"]
     #[min = 1]
-    #[max = 25]
+    #[max = 100]
     limit: Option<i64>,
 ) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
-    let limit = limit.unwrap_or(10).clamp(1, 25);
+    let limit = limit.unwrap_or(25).clamp(1, 100);
     let entries = ctx
         .data()
         .honeypot
@@ -1166,9 +1158,7 @@ pub async fn auditlog(
         return Ok(());
     }
 
-    let mut embed = serenity::CreateEmbed::new()
-        .title(format!("Audit Log (Last {})", entries.len()))
-        .colour(0x3498db);
+    let mut fields = vec![];
     // Oldest first, like the Python bot
     for entry in entries.iter().rev() {
         let admin_name = match member_display_name(ctx, entry.admin_id).await {
@@ -1180,18 +1170,15 @@ pub async fn auditlog(
                 .unwrap_or_else(|| format!("ID: {}", entry.admin_id)),
         };
         let details = format_audit_details(ctx, &entry.action, &entry.details);
-        embed = embed.field(
-            truncate(
-                &format!("{admin_name} - {}", format_time(&entry.timestamp)),
-                256,
-            ),
+        fields.push((
+            truncate(&format!("{admin_name} - {}", format_time(&entry.timestamp)), 256),
             truncate(&format!("**Action:** {}\n{details}", entry.action), 1024),
-            false,
-        );
+        ));
     }
 
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
-    Ok(())
+    let title = format!("Audit Log (Last {})", entries.len());
+    let make_page = || serenity::CreateEmbed::new().title(&title).colour(0x3498db);
+    paginate(ctx, field_pages(make_page, fields, 10, false)).await
 }
 
 /// Check if a user is in the offender list
@@ -1275,16 +1262,8 @@ pub async fn crossservercheck(
         return Ok(());
     }
 
-    let mut embed = serenity::CreateEmbed::new()
-        .title(format!(
-            "🌍 Cross-Server Activity for {}",
-            user.display_name()
-        ))
-        .colour(0x3498db);
-    let mut total_events = 0;
-
-    for (gid, logs) in per_guild.iter().take(24) {
-        total_events += logs.len();
+    let mut fields = vec![];
+    for (gid, logs) in &per_guild {
         let guild_name = ctx
             .cache()
             .guild(*gid)
@@ -1339,20 +1318,15 @@ pub async fn crossservercheck(
         }
         value += &format!("Latest: {}", format_time(&logs[0].timestamp));
 
-        embed = embed.field(
-            truncate(&format!("📊 {guild_name}"), 256),
-            truncate(&value, 1024),
-            false,
-        );
+        fields.push((truncate(&format!("📊 {guild_name}"), 256), truncate(&value, 1024)));
     }
 
-    embed = embed.field(
-        "📈 Summary",
-        format!("Total Events: {total_events}\nServers: {}", per_guild.len()),
-        false,
-    );
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
-    Ok(())
+    // The summary covers every server, so it's on every page
+    let total_events: usize = per_guild.iter().map(|(_, logs)| logs.len()).sum();
+    let title = format!("🌍 Cross-Server Activity for {}", user.display_name());
+    let summary = format!("📈 **Total Events:** {total_events} • **Servers:** {}", per_guild.len());
+    let make_page = || serenity::CreateEmbed::new().title(&title).description(&summary).colour(0x3498db);
+    paginate(ctx, field_pages(make_page, fields, 5, false)).await
 }
 
 /// Apply a pre-configured honeypot template

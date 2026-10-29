@@ -13,6 +13,7 @@ pub mod honeypot;
 pub mod levels;
 pub mod lockdown;
 pub mod logs;
+pub mod pagination;
 pub mod pets;
 pub mod profile;
 pub mod rules;

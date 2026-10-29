@@ -92,14 +92,14 @@ All commands can be used with `!` prefix or as slash commands (`/`). Most comman
 
 **Monitoring & Logs:**
 - `/honeypotstatus` - Check honeypot configuration for this server
-- `/honeypotlogs [limit]` - View recent honeypot activity logs (up to 12)
+- `/honeypotlogs [limit]` - View recent honeypot activity logs, 5 per page (default 10, up to 50)
 - `/clearhoneypotlogs` - Clear honeypot activity logs for this server
 - `/exportlogs` - Export honeypot logs to CSV
-- `/auditlog [limit]` - View configuration audit log (up to 25)
+- `/auditlog [limit]` - View configuration audit log, 10 per page (default 25, up to 100)
 - `/bancount` - Show the total number of honeypot bans
 - `/resetbancount` - Reset the ban counter
 - `/checkoffender [user]` - Check if user is in offender list
-- `/crossservercheck [user]` - Check user's activity across all servers
+- `/crossservercheck [user]` - Check user's activity across all servers, 5 servers per page
 
 ### Ticket Commands
 
@@ -134,7 +134,7 @@ Each server has its own economy. Members start with ₪ 100 in the bank after jo
 Members earn XP for chatting, at most once per XP cooldown (5 minutes by default). A message earns the base XP (25), or the max XP (300) instead when it's sent within the engagement window (5 minutes) after the latest message from a *different* member in the same channel, so conversation is rewarded rather than message volume. Your own earlier messages never count, bots and webhooks are ignored, and a message on cooldown earns nothing but still counts as the channel's latest message. Each level needs 2,500 more XP than the last. Level-ups are announced in the level-up channel set with `/rank-setup`, otherwise the server's system channel, otherwise the channel the member was chatting in.
 
 - `/rank [user]` - Show a rank card image with level, rank, reputation, highest role and progress to the next level
-- `/leaderboard` - Show the top 10 members by XP
+- `/leaderboard` - Show the top 100 members by XP, 10 per page
 - `/reputation <user>` - Give a member +3 reputation (once every 2 hours)
 - `/rank-setup [rate] [base] [max] [window] [cooldown] [channel]` - Change the levels settings for the server (**Administrator**):
 
@@ -227,7 +227,7 @@ A sticky message stays near the bottom of its channel: once enough messages are 
 
 - `/sticky stick <message> [count]` - Stick a message in this channel; it moves down after `count` messages (default 3). Use `\n` for new lines
 - `/sticky unstick` - Remove this channel's sticky message
-- `/sticky list` - List the server's sticky messages
+- `/sticky list` - List the server's sticky messages, 10 per page
 
 ### Rules Commands
 
@@ -349,6 +349,7 @@ HoneyPot/
         │   └── store.rs    # SQLite storage and the level curve
         ├── lockdown.rs     # /lock and /unlock
         ├── logs.rs         # Server logs for /server-setup logs channels
+        ├── pagination.rs   # Previous / Next / Delete buttons for multi-page replies
         ├── pets/
         │   ├── mod.rs      # /pet commands, battles and hunger DMs
         │   ├── card.rs     # /pet status picture card

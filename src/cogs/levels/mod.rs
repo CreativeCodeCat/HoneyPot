@@ -281,12 +281,15 @@ pub async fn rank(
     Ok(())
 }
 
-/// Show the top 10 members by XP
+/// Members shown on `/leaderboard`, 10 per page
+const LEADERBOARD_SIZE: i64 = 100;
+
+/// Show the top members by XP
 #[poise::command(slash_command, prefix_command, guild_only, category = "Levels")]
 pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
     let (settings, top) = {
         let levels = ctx.data().levels.lock().unwrap();
-        (levels.settings(guild_id(ctx))?, levels.leaderboard(guild_id(ctx), 10)?)
+        (levels.settings(guild_id(ctx))?, levels.leaderboard(guild_id(ctx), LEADERBOARD_SIZE)?)
     };
 
     if top.is_empty() {
@@ -308,9 +311,11 @@ pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
         })
         .collect();
 
-    let embed = serenity::CreateEmbed::new().title("🏆 Leaderboard").description(lines.join("\n")).colour(PURPLE);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
-    Ok(())
+    let pages = super::pagination::chunk_lines(&lines, 10)
+        .into_iter()
+        .map(|text| serenity::CreateEmbed::new().title("🏆 Leaderboard").description(text).colour(PURPLE))
+        .collect();
+    super::pagination::paginate(ctx, pages).await
 }
 
 /// Give reputation to a member (once every 2 hours)
