@@ -16,6 +16,7 @@ pub mod levels;
 pub mod lockdown;
 pub mod moderation;
 pub mod logs;
+pub mod member_card;
 pub mod pets;
 pub mod profile;
 pub mod rules;
@@ -25,7 +26,6 @@ pub mod stats;
 pub mod sticky;
 pub mod suggestions;
 pub mod tickets;
-pub mod welcome_card;
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;

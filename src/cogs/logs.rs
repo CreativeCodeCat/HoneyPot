@@ -19,6 +19,8 @@ const GREEN: u32 = 0x57f287;
 const RED: u32 = 0xed4245;
 const YELLOW: u32 = 0xfee75c;
 const BLUE: u32 = 0x3498db;
+const PINK: u32 = 0xff73fa;
+const GREY: u32 = 0x95a5a6;
 
 /// Longest text quoted from a message, so the embed stays under Discord's limit
 const MAX_QUOTE: usize = 1000;
@@ -81,6 +83,58 @@ async fn send(ctx: &serenity::Context, data: &Data, guild_id: serenity::GuildId,
     }
 }
 
+/// The member's names and avatar, for the welcome and boost images.
+async fn card_member(member: &serenity::Member) -> super::member_card::Member {
+    let user = &member.user;
+    // Discord serves PNGs for any avatar; the image renderer only decodes PNG
+    let avatar_url = match &user.avatar {
+        Some(hash) => format!("https://cdn.discordapp.com/avatars/{}/{hash}.png?size=256", user.id),
+        None => user.default_avatar_url(),
+    };
+    super::member_card::Member {
+        names: vec![member.display_name().to_string(), user.name.clone()],
+        avatar: crate::render::download(&avatar_url).await,
+    }
+}
+
+/// Posts in the boosts log when a member starts or stops boosting: a thank-you image for a
+/// new boost (an embed if it can't be drawn), and an embed when they stop.
+async fn boost_change(ctx: &serenity::Context, data: &Data, old: &serenity::Member, new: &serenity::Member) {
+    let started = old.premium_since.is_none() && new.premium_since.is_some();
+    let stopped = old.premium_since.is_some() && new.premium_since.is_none();
+    if !started && !stopped {
+        return;
+    }
+    let Some(channel) = log_channel(data, new.guild_id, "boosts") else { return };
+    // Fetched, as the cached server may not have the new boost count yet
+    let (server, boosts, level) = match new.guild_id.to_partial_guild(ctx).await {
+        Ok(guild) => (guild.name, guild.premium_subscription_count.unwrap_or(0), u8::from(guild.premium_tier)),
+        Err(e) => return log::error(format!("Error reading boosts for guild {}: {e}", new.guild_id)),
+    };
+    let user = &new.user;
+    let level_text = if level == 0 { "no level yet".to_string() } else { format!("level {level}") };
+    let mut message = serenity::CreateMessage::new().allowed_mentions(serenity::CreateAllowedMentions::new());
+    if started {
+        let card = card_member(new).await;
+        let name = server.clone();
+        let image = tokio::task::spawn_blocking(move || super::member_card::boost(&card, &name, boosts, level)).await.ok().flatten();
+        message = match image {
+            Some(png) => message.add_file(serenity::CreateAttachment::bytes(png, "boost.png")),
+            None => {
+                log::warning("Could not draw the boost image, sending an embed instead");
+                let text = format!("<@{}> boosted **{server}**! 💎 The server now has {boosts} boosts ({level_text}).", user.id);
+                message.embed(with_user(embed(PINK, "Server Boosted", text), user))
+            }
+        };
+    } else {
+        let text = format!("<@{}> stopped boosting **{server}**. The server now has {boosts} boosts ({level_text}).", user.id);
+        message = message.embed(with_user(embed(GREY, "Boost Ended", text), user));
+    }
+    if let Err(e) = channel.send_message(ctx, message).await {
+        log::error(format!("Error posting boost log in guild {}: {e}", new.guild_id));
+    }
+}
+
 /// Greets a new member in the welcome channel with a welcome image. Falls back to an embed
 /// if the image can't be drawn.
 async fn welcome(ctx: &serenity::Context, data: &Data, member: &serenity::Member) {
@@ -90,18 +144,9 @@ async fn welcome(ctx: &serenity::Context, data: &Data, member: &serenity::Member
         None => return,
     };
     let user = &member.user;
-    // Discord serves PNGs for any avatar; the image renderer only decodes PNG
-    let avatar_url = match &user.avatar {
-        Some(hash) => format!("https://cdn.discordapp.com/avatars/{}/{hash}.png?size=256", user.id),
-        None => user.default_avatar_url(),
-    };
-    let card = super::welcome_card::WelcomeData {
-        names: vec![member.display_name().to_string(), user.name.clone()],
-        avatar: crate::render::download(&avatar_url).await,
-        server: server.clone(),
-        member_count: count,
-    };
-    let image = tokio::task::spawn_blocking(move || super::welcome_card::render(&card)).await.ok().flatten();
+    let card = card_member(member).await;
+    let name = server.clone();
+    let image = tokio::task::spawn_blocking(move || super::member_card::welcome(&card, &name, count)).await.ok().flatten();
 
     // Just the image, with nobody pinged
     let mut message = serenity::CreateMessage::new().allowed_mentions(serenity::CreateAllowedMentions::new());
@@ -304,6 +349,7 @@ pub async fn on_event(ctx: &serenity::Context, data: &Data, event: &serenity::Fu
 
         // Member (and User, for changes to the account itself)
         GuildMemberUpdate { old_if_available: Some(old), new: Some(new), .. } => {
+            boost_change(ctx, data, old, new).await;
             let mut lines = vec![];
             if old.nick != new.nick {
                 lines.push(format!("**Nickname:** {} → {}", or_none(old.nick.as_ref()), or_none(new.nick.as_ref())));

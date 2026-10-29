@@ -95,6 +95,8 @@ pub enum LogType {
     Ready,
     /// A friendly welcome for each new member
     Welcome,
+    /// Members starting and stopping server boosts
+    Boosts,
 }
 
 /// Cogs whose commands work in any channel: setup commands and moderation (used where the
