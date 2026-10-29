@@ -135,11 +135,12 @@ In both menus each button needs its own permission and is greyed out without it.
 All moderation has to go through the bot, so it's logged properly. While the `staffpolicy` cog is enabled, a member who kicks, bans, unbans, times out or ends a timeout using Discord's own menus:
 
 - Is sent a DM warning them about the policy
-- Has their roles removed (except roles managed by integrations, and roles at or above the bot's highest role, which it can't touch). They're saved so an admin can give them back
+- Has their roles removed (except roles managed by integrations, and roles at or above the bot's highest role, which it can't touch). They're saved so an admin can give them back. If a demoted role is set with `/staffpolicy setup`, they're given it instead; restoring takes it away again
 - Has what they did undone, so it must be redone through the bot: bans are lifted, unbans are reversed by banning again, timeouts are removed, and removed timeouts are put back (if they hadn't run out). A kicked member can't be put back, so they're DMed a one-use invite valid for 7 days
 
 The bot's own actions, other bots and the server owner are ignored. If a member log channel is set with `/server-setup logs`, each case is posted there too. Keep the bot's role above your staff roles, or it can't remove them. The bot needs **View Audit Log**, plus **Ban Members**, **Moderate Members** and **Create Invite** to undo actions.
 
+- `/staffpolicy setup [demoted_role]` - Set a role, like `Demoted`, that staff are given in place of the roles taken; leave it empty to only take roles (admin)
 - `/staffpolicy list` - List staff whose roles were taken and not yet restored (admin)
 - `/staffpolicy restore <member>` - Give a staff member back the roles the policy took (admin)
 
