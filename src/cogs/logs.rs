@@ -34,7 +34,7 @@ const AUDIT_WINDOW_SECS: i64 = 20;
 const AUDIT_DELAY: std::time::Duration = std::time::Duration::from_millis(1500);
 
 /// The server's log channel for `kind` (a `logs.<kind>` setting), if it has one.
-fn log_channel(data: &Data, guild_id: serenity::GuildId, kind: &str) -> Option<serenity::ChannelId> {
+pub(crate) fn log_channel(data: &Data, guild_id: serenity::GuildId, kind: &str) -> Option<serenity::ChannelId> {
     if !data.is_cog_enabled(guild_id.get(), COG_NAME) {
         return None;
     }

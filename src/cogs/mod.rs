@@ -13,11 +13,13 @@ pub mod honeypot;
 pub mod info;
 pub mod levels;
 pub mod lockdown;
+pub mod moderation;
 pub mod logs;
 pub mod pets;
 pub mod profile;
 pub mod rules;
 pub mod server_setup;
+pub mod staff_policy;
 pub mod stats;
 pub mod sticky;
 pub mod suggestions;
@@ -44,11 +46,13 @@ pub const COGS: &[&str] = &[
     "Info",
     "Levels",
     "Lockdown",
+    "Moderation",
     "Logs",
     "Pets",
     "Profile",
     "Rules",
     "ServerStats",
+    "StaffPolicy",
     "Sticky",
     "Suggestions",
     "Tickets",
@@ -71,6 +75,7 @@ pub struct State {
     pub profiles: Mutex<profile::Store>,
     pub rules: Mutex<rules::Store>,
     pub server_setup: Mutex<server_setup::Store>,
+    pub staff_policy: Mutex<staff_policy::Store>,
     pub sticky: Mutex<sticky::Store>,
     pub suggestions: Mutex<suggestions::Store>,
     pub tickets: Mutex<tickets::store::Store>,

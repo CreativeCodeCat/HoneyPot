@@ -11,7 +11,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, info, levels, lockdown, logs, pets, profile, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
+    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, info, levels, lockdown, logs, moderation, pets, profile, rules, normalize_cog_name, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -34,6 +34,14 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         stats::updatestats(),
         lockdown::lock(),
         lockdown::unlock(),
+        moderation::ban(),
+        moderation::unban(),
+        moderation::kick(),
+        moderation::timeout(),
+        moderation::untimeout(),
+        moderation::moderate_message(),
+        moderation::moderate_user(),
+        staff_policy::staff_policy(),
         economy::eco(),
         rules::rules(),
         pets::pet(),
@@ -156,6 +164,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     if let Err(e) = data.guessing.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale guessing games: {e}"));
     }
+    if let Err(e) = data.staff_policy.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale staff policy records: {e}"));
+    }
     if let Err(e) = data.sticky.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale sticky messages: {e}"));
     }
@@ -228,6 +239,9 @@ async fn event_handler(
 ) -> Result<(), Error> {
     logs::on_event(ctx, data, event).await;
     match event {
+        serenity::FullEvent::GuildAuditLogEntryCreate { entry, guild_id } => {
+            staff_policy::on_audit_entry(ctx, data, *guild_id, entry).await;
+        }
         serenity::FullEvent::GuildCreate { guild, is_new } => {
             // Guilds the bot was already in are synced on startup by `startup_report`
             if *is_new == Some(true) {
@@ -312,6 +326,7 @@ async fn main() {
         profiles: Mutex::new(profile::Store::open().expect("failed to open profiles database")),
         rules: Mutex::new(rules::Store::open().expect("failed to open rules database")),
         server_setup: Mutex::new(server_setup::Store::open().expect("failed to open server setup database")),
+        staff_policy: Mutex::new(staff_policy::Store::open().expect("failed to open staff policy database")),
         sticky: Mutex::new(sticky::Store::open().expect("failed to open sticky database")),
         suggestions: Mutex::new(suggestions::Store::open().expect("failed to open suggestions database")),
         lockdown: Mutex::new(lockdown::Store::open().expect("failed to open lockdown database")),

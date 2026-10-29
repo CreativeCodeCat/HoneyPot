@@ -116,6 +116,33 @@ Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handl
 
 Both need **Manage Channels**. Timed lockdowns are lifted automatically, even if the bot restarts in between.
 
+### Moderation Commands
+
+Each command needs the matching permission for both the member using it and the bot. Nobody can moderate themselves, the bot, the server owner, or a member whose highest role is the same as or above theirs or the bot's. Members are sent a DM saying what happened and why (if their DMs are open), and the reason goes in the audit log.
+
+- `/ban <user> [reason] [delete_messages]` - Ban a member, or anyone by pasting their user ID; optionally delete their messages from the last day or week (**Ban Members**)
+- `/unban <user> [reason]` - Unban a user by pasting their user ID (**Ban Members**)
+- `/kick <member> [reason]` - Kick a member (**Kick Members**)
+- `/timeout <member> <length> [reason]` - Time a member out for 60 seconds up to 28 days (**Moderate Members**)
+- `/untimeout <member> [reason]` - End a member's timeout (**Moderate Members**)
+- Right-click a message → Apps → **Moderate** - Delete the message, or time out, end the timeout of, kick or ban its author (banning from here also deletes their last day of messages). Shown to members with **Manage Messages**
+- Right-click a member → Apps → **Moderate** - Time out, end the timeout of, kick or ban them. Shown to members with **Moderate Members**
+
+In both menus each button needs its own permission and is greyed out without it.
+
+### Staff Policy
+
+All moderation has to go through the bot, so it's logged properly. While the `staffpolicy` cog is enabled, a member who kicks, bans, unbans, times out or ends a timeout using Discord's own menus:
+
+- Is sent a DM warning them about the policy
+- Has their roles removed (except roles managed by integrations, and roles at or above the bot's highest role, which it can't touch). They're saved so an admin can give them back
+- Has what they did undone, so it must be redone through the bot: bans are lifted, unbans are reversed by banning again, timeouts are removed, and removed timeouts are put back (if they hadn't run out). A kicked member can't be put back, so they're DMed a one-use invite valid for 7 days
+
+The bot's own actions, other bots and the server owner are ignored. If a member log channel is set with `/server-setup logs`, each case is posted there too. Keep the bot's role above your staff roles, or it can't remove them. The bot needs **View Audit Log**, plus **Ban Members**, **Moderate Members** and **Create Invite** to undo actions.
+
+- `/staffpolicy list` - List staff whose roles were taken and not yet restored (admin)
+- `/staffpolicy restore <member>` - Give a staff member back the roles the policy took (admin)
+
 ### Economy Commands
 
 Each server has its own economy. Members start with ₪ 100 in the bank after joining.
@@ -264,7 +291,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `pets`, `profile`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `moderation`, `pets`, `profile`, `rules`, `serverstats`, `staffpolicy`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -305,6 +332,7 @@ The bot uses SQLite for persistent storage:
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
 - `database/suggestions.db` - Suggestion channels and open suggestions
+- `database/staff_policy.db` - Roles taken by the staff policy, for restoring
 - `database/sticky.db` - Sticky messages
 - `database/counting.db` - Counting channels, counts and high scores
 - `database/guessing.db` - Guessing channels, current numbers and stats
@@ -358,12 +386,14 @@ HoneyPot/
         │   └── store.rs    # SQLite storage and the level curve
         ├── lockdown.rs     # /lock and /unlock
         ├── logs.rs         # Server logs for /server-setup logs channels
+        ├── moderation.rs   # /ban, /kick, /timeout... and the Moderate message menu
         ├── pets/
         │   ├── mod.rs      # /pet commands, battles and hunger DMs
         │   ├── card.rs     # /pet status picture card
         │   └── store.rs    # SQLite storage and pet needs
         ├── profile.rs      # /profile and the Profile user menu
         ├── rules.rs        # /rules
+        ├── staff_policy.rs # Punishing moderation done outside the bot
         ├── stats.rs        # Voice channel stats
         ├── sticky.rs       # /sticky and moving sticky messages down
         ├── suggestions.rs  # /suggest and /suggestion
