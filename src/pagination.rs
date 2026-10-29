@@ -1,11 +1,11 @@
-//! Shared paging for any cog: `paginate` replies with the first of several embeds and
+//! Shared paging for every cog: `paginate` replies with the first of several embeds and
 //! Previous / Next / Delete buttons to move between them.
 
 use std::time::Duration;
 
 use poise::serenity_prelude as serenity;
 
-use super::{Context, Error};
+use crate::cogs::{Context, Error};
 
 /// How long the buttons keep working after the last press
 const TIMEOUT: Duration = Duration::from_secs(120);

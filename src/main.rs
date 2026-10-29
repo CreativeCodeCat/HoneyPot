@@ -1,5 +1,6 @@
 mod cogs;
 mod log;
+mod pagination;
 mod render;
 
 use std::collections::{HashMap, HashSet};
@@ -10,7 +11,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, levels, lockdown, logs, pets, profile, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
+    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, info, levels, lockdown, logs, pets, profile, rules, normalize_cog_name, server_setup, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -22,6 +23,8 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         general::ping(),
         general::cleanup(),
         general::resetchannel(),
+        info::info(),
+        info::user_info_menu(),
         automod::automod(),
         cog_manager::enablecog(),
         cog_manager::disablecog(),

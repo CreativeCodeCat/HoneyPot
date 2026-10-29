@@ -221,6 +221,13 @@ Members make an "about me" profile that anyone can view. Profiles belong to the 
 - `/profile delete` - Delete your profile
 - `/profile help` - Show help for the command
 
+### Info Commands
+
+- `/info server` - Show the server's details and statistics, with its roles on the following pages
+- `/info channel [channel]` - Show a channel's details (this channel by default)
+- `/info user [user]` - Show a user's account and server details (you by default). Also in the user right-click menu under Apps → **User Info**
+- `/info staff` - List the server's owner, administrators (Administrator or Manage Server) and moderators (Moderate, Kick or Ban Members, or Manage Messages)
+
 ### Sticky Commands
 
 A sticky message stays near the bottom of its channel: once enough messages are posted below it, the old copy is deleted and it's posted again at the bottom. All need **Manage Messages**.
@@ -257,7 +264,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Cog Management Commands
 
-Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `levels`, `lockdown`, `logs`, `pets`, `profile`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `pets`, `profile`, `rules`, `serverstats`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -333,6 +340,7 @@ HoneyPot/
 └── src/
     ├── main.rs             # Startup, event dispatch, cog check, error handling
     ├── log.rs              # Colored console logging
+    ├── pagination.rs       # Previous / Next / Delete buttons for multi-page replies
     ├── render.rs           # Shared drawing code for the image cards
     └── cogs/
         ├── mod.rs          # Shared state, cog list, helpers
@@ -342,6 +350,7 @@ HoneyPot/
         │   └── store.rs    # SQLite storage
         ├── games.rs        # /hack
         ├── general.rs      # /ping
+        ├── info.rs         # /info and the User Info user menu
         ├── announce.rs     # /announce
         ├── automod.rs      # /automod
         ├── levels/
@@ -349,7 +358,6 @@ HoneyPot/
         │   └── store.rs    # SQLite storage and the level curve
         ├── lockdown.rs     # /lock and /unlock
         ├── logs.rs         # Server logs for /server-setup logs channels
-        ├── pagination.rs   # Previous / Next / Delete buttons for multi-page replies
         ├── pets/
         │   ├── mod.rs      # /pet commands, battles and hunger DMs
         │   ├── card.rs     # /pet status picture card

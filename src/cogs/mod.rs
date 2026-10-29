@@ -10,10 +10,10 @@ pub mod economy;
 pub mod games;
 pub mod general;
 pub mod honeypot;
+pub mod info;
 pub mod levels;
 pub mod lockdown;
 pub mod logs;
-pub mod pagination;
 pub mod pets;
 pub mod profile;
 pub mod rules;
@@ -41,6 +41,7 @@ pub const COGS: &[&str] = &[
     "Games",
     "General",
     "HoneyPot",
+    "Info",
     "Levels",
     "Lockdown",
     "Logs",

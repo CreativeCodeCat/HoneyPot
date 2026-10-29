@@ -311,11 +311,11 @@ pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
         })
         .collect();
 
-    let pages = super::pagination::chunk_lines(&lines, 10)
+    let pages = crate::pagination::chunk_lines(&lines, 10)
         .into_iter()
         .map(|text| serenity::CreateEmbed::new().title("🏆 Leaderboard").description(text).colour(PURPLE))
         .collect();
-    super::pagination::paginate(ctx, pages).await
+    crate::pagination::paginate(ctx, pages).await
 }
 
 /// Give reputation to a member (once every 2 hours)

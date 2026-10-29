@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 
 use super::honeypot_embed;
 use super::store::ChannelConfig;
-use crate::cogs::pagination::{field_pages, paginate};
+use crate::pagination::{field_pages, paginate};
 use crate::cogs::{format_time, title_case, truncate, Context, Error};
 use crate::log;
 
