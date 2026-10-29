@@ -256,3 +256,11 @@ mod tests {
         assert!(lines.iter().all(|l| fonts.width(Weight::Regular, l, 30.0) <= width + 1.0));
     }
 }
+
+/// Downloads an image, giving up quietly after a few seconds.
+pub async fn download(url: &str) -> Option<Vec<u8>> {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    let client = CLIENT.get_or_init(|| reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build().unwrap());
+    let response = client.get(url).send().await.ok()?.error_for_status().ok()?;
+    Some(response.bytes().await.ok()?.to_vec())
+}

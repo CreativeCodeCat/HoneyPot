@@ -3,8 +3,6 @@
 mod card;
 pub mod store;
 
-use std::sync::OnceLock;
-use std::time::Duration;
 
 use chrono::Utc;
 use poise::serenity_prelude as serenity;
@@ -173,14 +171,6 @@ pub async fn rank_setup(
     Ok(())
 }
 
-/// Downloads an image, giving up quietly after a few seconds.
-async fn download(url: &str) -> Option<Vec<u8>> {
-    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-    let client = CLIENT.get_or_init(|| reqwest::Client::builder().timeout(Duration::from_secs(5)).build().unwrap());
-    let response = client.get(url).send().await.ok()?.error_for_status().ok()?;
-    Some(response.bytes().await.ok()?.to_vec())
-}
-
 /// Gathers everything the rank card shows for a member.
 async fn card_data(
     ctx: Context<'_>,
@@ -217,13 +207,13 @@ async fn card_data(
         .unwrap_or((None, 0xe5e9f0, None));
 
     let role_icon = match role_icon_url {
-        Some(url) => download(&url).await,
+        Some(url) => crate::render::download(&url).await,
         None => None,
     };
 
     card::CardData {
         names: vec![display_name, user.name.clone()],
-        avatar: download(&avatar_url).await,
+        avatar: crate::render::download(&avatar_url).await,
         level,
         rep,
         position,

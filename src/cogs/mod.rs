@@ -25,6 +25,7 @@ pub mod stats;
 pub mod sticky;
 pub mod suggestions;
 pub mod tickets;
+pub mod welcome_card;
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;

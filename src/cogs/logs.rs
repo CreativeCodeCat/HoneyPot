@@ -81,26 +81,46 @@ async fn send(ctx: &serenity::Context, data: &Data, guild_id: serenity::GuildId,
     }
 }
 
-/// Greets a new member in the welcome channel, pinging them so they see it.
+/// Greets a new member in the welcome channel with a welcome image. Falls back to an embed
+/// if the image can't be drawn.
 async fn welcome(ctx: &serenity::Context, data: &Data, member: &serenity::Member) {
     let Some(channel) = log_channel(data, member.guild_id, "welcome") else { return };
     let (server, count, icon) = match ctx.cache.guild(member.guild_id) {
         Some(guild) => (guild.name.clone(), guild.member_count, guild.icon_url()),
         None => return,
     };
-    let mut embed = serenity::CreateEmbed::new()
-        .colour(GREEN)
-        .title(format!("Welcome to {server}!"))
-        .description(format!("Hey <@{}>, welcome to **{server}**! 🎉\nYou're member **#{count}**. We're glad to have you here.", member.user.id))
-        .thumbnail(member.face())
-        .timestamp(serenity::Timestamp::now());
-    if let Some(icon) = icon {
-        embed = embed.footer(serenity::CreateEmbedFooter::new(&server).icon_url(icon));
+    let user = &member.user;
+    // Discord serves PNGs for any avatar; the image renderer only decodes PNG
+    let avatar_url = match &user.avatar {
+        Some(hash) => format!("https://cdn.discordapp.com/avatars/{}/{hash}.png?size=256", user.id),
+        None => user.default_avatar_url(),
+    };
+    let card = super::welcome_card::WelcomeData {
+        names: vec![member.display_name().to_string(), user.name.clone()],
+        avatar: crate::render::download(&avatar_url).await,
+        server: server.clone(),
+        member_count: count,
+    };
+    let image = tokio::task::spawn_blocking(move || super::welcome_card::render(&card)).await.ok().flatten();
+
+    // Just the image, with nobody pinged
+    let mut message = serenity::CreateMessage::new().allowed_mentions(serenity::CreateAllowedMentions::new());
+    match image {
+        Some(png) => message = message.add_file(serenity::CreateAttachment::bytes(png, "welcome.png")),
+        None => {
+            log::warning("Could not draw the welcome image, sending an embed instead");
+            let mut embed = serenity::CreateEmbed::new()
+                .colour(GREEN)
+                .title(format!("Welcome to {server}!"))
+                .description(format!("Hey <@{}>, welcome to **{server}**! 🎉\nYou're member **#{count}**. We're glad to have you here.", user.id))
+                .thumbnail(member.face())
+                .timestamp(serenity::Timestamp::now());
+            if let Some(icon) = icon {
+                embed = embed.footer(serenity::CreateEmbedFooter::new(&server).icon_url(icon));
+            }
+            message = message.embed(embed);
+        }
     }
-    let message = serenity::CreateMessage::new()
-        .content(format!("<@{}>", member.user.id))
-        .embed(embed)
-        .allowed_mentions(serenity::CreateAllowedMentions::new().users([member.user.id]));
     if let Err(e) = channel.send_message(ctx, message).await {
         log::error(format!("Error posting welcome message in guild {}: {e}", member.guild_id));
     }
