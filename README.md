@@ -118,17 +118,13 @@ Both need **Manage Channels**. Timed lockdowns are lifted automatically, even if
 
 ### Moderation Commands
 
-Each command needs the matching permission for both the member using it and the bot. Nobody can moderate themselves, the bot, the server owner, or a member whose highest role is the same as or above theirs or the bot's. Members are sent a DM saying what happened and why (if their DMs are open), and the reason goes in the audit log.
+These work in any channel, even when a commands channel is set with `/server-setup commands`. Each command needs the matching permission for both the member using it and the bot. Nobody can moderate themselves, the bot, the server owner, or a member whose highest role is the same as or above theirs or the bot's. Members are sent a DM saying what happened and why (if their DMs are open), and the reason goes in the audit log.
 
 - `/ban <user> [reason] [delete_messages]` - Ban a member, or anyone by pasting their user ID; optionally delete their messages from the last day or week (**Ban Members**)
 - `/unban <user> [reason]` - Unban a user by pasting their user ID (**Ban Members**)
 - `/kick <member> [reason]` - Kick a member (**Kick Members**)
-- `/timeout <member> <length> [reason]` - Time a member out for 60 seconds up to 28 days (**Moderate Members**)
+- `/timeout <member> <length> [reason]` - Time a member out for up to 28 days. Pick a usual length or type your own, like `90m`, `2h30m`, `1d 12h` or `3 days` (**Moderate Members**)
 - `/untimeout <member> [reason]` - End a member's timeout (**Moderate Members**)
-- Right-click a message → Apps → **Moderate** - Delete the message, or time out, end the timeout of, kick or ban its author (banning from here also deletes their last day of messages). Shown to members with **Manage Messages**
-- Right-click a member → Apps → **Moderate** - Time out, end the timeout of, kick or ban them. Shown to members with **Moderate Members**
-
-In both menus each button needs its own permission and is greyed out without it.
 
 ### Staff Policy
 
@@ -388,7 +384,7 @@ HoneyPot/
         │   └── store.rs    # SQLite storage and the level curve
         ├── lockdown.rs     # /lock and /unlock
         ├── logs.rs         # Server logs for /server-setup logs channels
-        ├── moderation.rs   # /ban, /kick, /timeout... and the Moderate message menu
+        ├── moderation.rs   # /ban, /unban, /kick, /timeout, /untimeout
         ├── pets/
         │   ├── mod.rs      # /pet commands, battles and hunger DMs
         │   ├── card.rs     # /pet status picture card

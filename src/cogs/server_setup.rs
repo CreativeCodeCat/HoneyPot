@@ -117,8 +117,9 @@ pub enum CommandType {
     Apply,
 }
 
-/// Cogs whose commands work in any channel: setup commands, and tickets (used inside ticket channels)
-const ANY_CHANNEL_COGS: &[&str] = &["CogManager", "Tickets"];
+/// Cogs whose commands work in any channel: setup commands, tickets (used inside ticket
+/// channels) and moderation (used where the trouble is)
+const ANY_CHANNEL_COGS: &[&str] = &["CogManager", "Moderation", "StaffPolicy", "Tickets"];
 
 /// Members who can manage the server, so moderation commands work where they're needed.
 async fn is_staff(ctx: Context<'_>) -> bool {

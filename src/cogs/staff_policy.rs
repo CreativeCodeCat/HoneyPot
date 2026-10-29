@@ -265,7 +265,12 @@ pub async fn on_audit_entry(ctx: &serenity::Context, data: &Data, guild_id: sere
     }
     let target = entry.target_id.map(|id| serenity::UserId::new(id.get()));
     let target_text = target.map_or("someone".to_string(), |id| format!("<@{id}>"));
-    let reason = format!("Staff policy: {} {action} {} outside the bot", staff.user.name, target.map_or("someone".to_string(), |id| id.to_string()));
+    // The target may have left or been banned, so they're fetched rather than read from the cache
+    let target_tag = match target {
+        Some(id) => id.to_user(ctx).await.map_or_else(|_| id.to_string(), |user| user.tag()),
+        None => "someone".to_string(),
+    };
+    let reason = format!("Staff policy: {} {action} {target_tag} outside the bot", staff.user.tag());
 
     let undone = match target {
         Some(target) => undo(ctx, guild_id, entry, target, &reason).await,
@@ -435,7 +440,7 @@ async fn restore(ctx: Context<'_>, #[description = "The staff member"] member: s
         let guild = ctx.guild().ok_or("server isn't cached")?;
         saved.iter().map(|id| serenity::RoleId::new(*id)).filter(|id| guild.roles.contains_key(id)).collect()
     };
-    let reason = format!("Staff policy: roles restored by {}", ctx.author().name);
+    let reason = format!("Staff policy: roles restored by {}", ctx.author().tag());
     let demoted = ctx.data().staff_policy.lock().unwrap().settings(guild_id.get())?.demoted_role.map(serenity::RoleId::new);
     let mut all: Vec<serenity::RoleId> = member.roles.iter().filter(|r| Some(**r) != demoted).copied().collect();
     all.extend(roles.iter().filter(|r| !all.contains(r)).copied().collect::<Vec<_>>());

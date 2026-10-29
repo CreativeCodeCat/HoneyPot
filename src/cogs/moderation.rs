@@ -1,8 +1,4 @@
-//! Moderation cog: `/ban`, `/unban`, `/kick`, `/timeout` and `/untimeout`, plus the
-//! "Moderate" message and user context menus, which delete the message or time out, kick
-//! or ban the member with buttons.
-
-use std::time::Duration;
+//! Moderation cog: `/ban`, `/unban`, `/kick`, `/timeout` and `/untimeout`.
 
 use poise::serenity_prelude as serenity;
 use poise::ChoiceParameter;
@@ -10,8 +6,6 @@ use poise::ChoiceParameter;
 use super::{truncate, Context, Error};
 
 const COLOUR: u32 = 0xed4245;
-/// How long the context menu's buttons keep working after the last press
-const MENU_TIMEOUT: Duration = Duration::from_secs(120);
 /// Discord's limit on audit log reasons
 const MAX_REASON: usize = 512;
 
@@ -34,19 +28,53 @@ pub enum TimeoutLength {
 }
 
 impl TimeoutLength {
+    /// The lengths `/timeout` suggests
     const ALL: [Self; 7] = [Self::Minute, Self::FiveMinutes, Self::TenMinutes, Self::Hour, Self::Day, Self::Week, Self::Max];
+}
 
-    fn seconds(self) -> i64 {
-        match self {
-            Self::Minute => 60,
-            Self::FiveMinutes => 5 * 60,
-            Self::TenMinutes => 10 * 60,
-            Self::Hour => 60 * 60,
-            Self::Day => 24 * 60 * 60,
-            Self::Week => 7 * 24 * 60 * 60,
-            Self::Max => 28 * 24 * 60 * 60,
+/// Discord's longest timeout: 28 days
+const MAX_TIMEOUT_SECS: i64 = 28 * 24 * 60 * 60;
+
+/// Parses a length like "90m", "2h30m", "1d 12h" or "3 days" into seconds.
+fn parse_duration(text: &str) -> Option<i64> {
+    let text = text.to_lowercase();
+    let mut total = 0i64;
+    let mut rest = text.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    while !rest.is_empty() {
+        let digits = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+        let number: i64 = rest[..digits].parse().ok()?;
+        rest = rest[digits..].trim_start();
+        let letters = rest.find(|c: char| !c.is_alphabetic()).unwrap_or(rest.len());
+        let unit = match &rest[..letters] {
+            "s" | "sec" | "secs" | "second" | "seconds" => 1,
+            "m" | "min" | "mins" | "minute" | "minutes" => 60,
+            "h" | "hr" | "hrs" | "hour" | "hours" => 60 * 60,
+            "d" | "day" | "days" => 24 * 60 * 60,
+            "w" | "week" | "weeks" => 7 * 24 * 60 * 60,
+            _ => return None,
+        };
+        total = total.checked_add(number.checked_mul(unit)?)?;
+        rest = rest[letters..].trim_start_matches(|c: char| c.is_whitespace() || c == ',');
+    }
+    Some(total)
+}
+
+/// Suggests the usual lengths, plus whatever's been typed if it's a valid length.
+async fn autocomplete_length(_ctx: Context<'_>, partial: &str) -> Vec<serenity::AutocompleteChoice> {
+    let mut choices = vec![];
+    if parse_duration(partial).is_some_and(|s| (1..=MAX_TIMEOUT_SECS).contains(&s)) {
+        choices.push(serenity::AutocompleteChoice::new(partial.trim().to_string(), partial.trim().to_string()));
+    }
+    let partial = partial.to_lowercase();
+    for length in TimeoutLength::ALL {
+        if length.name().to_lowercase().contains(partial.trim()) || choices.is_empty() {
+            choices.push(serenity::AutocompleteChoice::new(length.name(), length.name()));
         }
     }
+    choices
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, poise::ChoiceParameter)]
@@ -221,7 +249,10 @@ pub async fn kick(
 pub async fn timeout(
     ctx: Context<'_>,
     #[description = "The member to time out"] member: serenity::Member,
-    #[description = "How long for"] length: TimeoutLength,
+    #[description = "How long for: pick one or type your own, like 90m, 2h30m or 3 days (max 28 days)"]
+    #[autocomplete = "autocomplete_length"]
+    #[max_length = 50]
+    length: String,
     #[description = "Why they're being timed out"]
     #[max_length = 400]
     reason: Option<String>,
@@ -229,8 +260,11 @@ pub async fn timeout(
     if let Some(problem) = hierarchy_problem(ctx, member.user.id).await {
         return say_private(ctx, problem).await;
     }
+    let Some(seconds) = parse_duration(&length).filter(|s| (1..=MAX_TIMEOUT_SECS).contains(s)) else {
+        return say_private(ctx, "❌ That isn't a length I understand. Use something like `10m`, `2h30m` or `3 days`, up to 28 days.").await;
+    };
     let reason = reason.as_deref();
-    let until = time_out(ctx, member.user.id, length, &audit_reason(ctx, reason)).await?;
+    let until = time_out(ctx, member.user.id, seconds, &audit_reason(ctx, reason)).await?;
     notify(ctx, &member.user, &format!("timed out until <t:{until}:F>"), reason).await;
     let text = format!("<@{}> has been timed out until <t:{until}:F> (<t:{until}:R>).", member.user.id);
     ctx.send(poise::CreateReply::default().embed(result_embed("⏳ Member Timed Out", text, reason))).await?;
@@ -238,8 +272,8 @@ pub async fn timeout(
 }
 
 /// Times the member out, returning when it ends as a Unix timestamp.
-async fn time_out(ctx: Context<'_>, user_id: serenity::UserId, length: TimeoutLength, reason: &str) -> Result<i64, Error> {
-    let until = serenity::Timestamp::now().unix_timestamp() + length.seconds();
+async fn time_out(ctx: Context<'_>, user_id: serenity::UserId, seconds: i64, reason: &str) -> Result<i64, Error> {
+    let until = serenity::Timestamp::now().unix_timestamp() + seconds;
     let edit = serenity::EditMember::new()
         .disable_communication_until_datetime(serenity::Timestamp::from_unix_timestamp(until)?)
         .audit_log_reason(reason);
@@ -276,151 +310,25 @@ pub async fn untimeout(
     Ok(())
 }
 
-/// The moderator's permissions in the channel the command was used in.
-fn permissions(ctx: Context<'_>) -> serenity::Permissions {
-    match ctx {
-        poise::Context::Application(app) => app.interaction.member.as_ref().and_then(|m| m.permissions).unwrap_or_default(),
-        poise::Context::Prefix(_) => serenity::Permissions::empty(),
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn durations_are_parsed() {
+        assert_eq!(parse_duration("90m"), Some(90 * 60));
+        assert_eq!(parse_duration("2h30m"), Some(2 * 3600 + 30 * 60));
+        assert_eq!(parse_duration("1d 12h"), Some(36 * 3600));
+        assert_eq!(parse_duration("3 Days"), Some(3 * 86400));
+        assert_eq!(parse_duration("1 week, 2 days"), Some(9 * 86400));
+        assert_eq!(parse_duration("60 Seconds"), Some(60));
+        // Every suggested length can be read back, and is allowed
+        for length in TimeoutLength::ALL {
+            assert!(parse_duration(length.name()).is_some_and(|s| (1..=MAX_TIMEOUT_SECS).contains(&s)));
+        }
+        assert_eq!(parse_duration("28 Days"), Some(MAX_TIMEOUT_SECS));
+        assert_eq!(parse_duration(""), None);
+        assert_eq!(parse_duration("10"), None);
+        assert_eq!(parse_duration("soon"), None);
     }
-}
-
-/// Delete a message, or time out, kick or ban its author
-#[poise::command(
-    context_menu_command = "Moderate",
-    guild_only,
-    ephemeral,
-    category = "Moderation",
-    // Discord shows the menu only to members with every listed permission, so only the
-    // basic one is required; each button is disabled without its own permission
-    default_member_permissions = "MANAGE_MESSAGES"
-)]
-pub async fn moderate_message(ctx: Context<'_>, message: serenity::Message) -> Result<(), Error> {
-    moderation_menu(ctx, message.author.clone(), Some(message)).await
-}
-
-/// Time out, kick or ban this member
-#[poise::command(
-    context_menu_command = "Moderate",
-    guild_only,
-    ephemeral,
-    category = "Moderation",
-    // As above, each button is disabled without its own permission
-    default_member_permissions = "MODERATE_MEMBERS"
-)]
-pub async fn moderate_user(ctx: Context<'_>, user: serenity::User) -> Result<(), Error> {
-    moderation_menu(ctx, user, None).await
-}
-
-/// Buttons to moderate `user`, and to delete `message` when it came from a message.
-async fn moderation_menu(ctx: Context<'_>, user: serenity::User, message: Option<serenity::Message>) -> Result<(), Error> {
-    let perms = permissions(ctx);
-    let prefix = ctx.id();
-    let (delete_id, kick_id, ban_id, timeout_id, untimeout_id) = (
-        format!("{prefix}mod_delete"),
-        format!("{prefix}mod_kick"),
-        format!("{prefix}mod_ban"),
-        format!("{prefix}mod_timeout"),
-        format!("{prefix}mod_untimeout"),
-    );
-    let components = |deleted: bool| {
-        let mut buttons = vec![];
-        if message.is_some() {
-            buttons.push(
-                serenity::CreateButton::new(&delete_id)
-                    .label(if deleted { "Message Deleted" } else { "Delete Message" })
-                    .emoji('🗑')
-                    .style(serenity::ButtonStyle::Secondary)
-                    .disabled(deleted || !perms.manage_messages()),
-            );
-        }
-        buttons.extend([
-            serenity::CreateButton::new(&untimeout_id).label("End Timeout").emoji('✅').style(serenity::ButtonStyle::Secondary).disabled(!perms.moderate_members()),
-            serenity::CreateButton::new(&kick_id).label("Kick").emoji('👢').style(serenity::ButtonStyle::Danger).disabled(!perms.kick_members()),
-            serenity::CreateButton::new(&ban_id).label("Ban").emoji('🔨').style(serenity::ButtonStyle::Danger).disabled(!perms.ban_members()),
-        ]);
-        let options = TimeoutLength::ALL
-            .iter()
-            .enumerate()
-            .map(|(i, length)| serenity::CreateSelectMenuOption::new(length.name(), i.to_string()))
-            .collect();
-        let select = serenity::CreateSelectMenu::new(&timeout_id, serenity::CreateSelectMenuKind::String { options })
-            .placeholder("⏳ Time out for...")
-            .disabled(!perms.moderate_members());
-        vec![serenity::CreateActionRow::Buttons(buttons), serenity::CreateActionRow::SelectMenu(select)]
-    };
-
-    let mut embed = serenity::CreateEmbed::new()
-        .colour(COLOUR)
-        .author(serenity::CreateEmbedAuthor::new(&user.name).icon_url(user.face()))
-        .field("Member", format!("<@{}>", user.id), true);
-    // What the audit log and the member's DM say it was about
-    let (reason, why) = match &message {
-        Some(message) => {
-            let preview = if message.content.is_empty() { "*No text*".to_string() } else { truncate(&message.content, 1000) };
-            embed = embed.title("Moderate Message").description(preview).field("Message", message.link(), true);
-            (format!("{}: From the message {}", ctx.author().name, message.link()), Some(format!("Your message {}", message.link())))
-        }
-        None => {
-            embed = embed.title("Moderate Member").thumbnail(user.face());
-            (format!("{}: From the Moderate menu", ctx.author().name), None)
-        }
-    };
-    let reason = truncate(&reason, MAX_REASON);
-    let reply = ctx.send(poise::CreateReply::default().embed(embed).components(components(false))).await?;
-
-    loop {
-        let ids = [delete_id.clone(), kick_id.clone(), ban_id.clone(), timeout_id.clone(), untimeout_id.clone()];
-        let press = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
-            .filter(move |i| ids.contains(&i.data.custom_id))
-            .timeout(MENU_TIMEOUT)
-            .await;
-        let Some(press) = press else { break };
-        press.create_response(ctx, serenity::CreateInteractionResponse::Acknowledge).await?;
-        let id = press.data.custom_id.as_str();
-        let guild_id = ctx.guild_id().unwrap();
-
-        if let (true, Some(message)) = (id == delete_id, &message) {
-            message.delete(ctx).await?;
-            reply.edit(ctx, poise::CreateReply::default().components(components(true))).await?;
-            say_private(ctx, "🗑️ The message has been deleted.").await?;
-            continue;
-        }
-
-        if let Some(problem) = hierarchy_problem(ctx, user.id).await {
-            say_private(ctx, problem).await?;
-            continue;
-        }
-        if id == timeout_id {
-            let serenity::ComponentInteractionDataKind::StringSelect { values } = &press.data.kind else { continue };
-            let Some(length) = values.first().and_then(|v| v.parse::<usize>().ok()).and_then(|i| TimeoutLength::ALL.get(i)) else { continue };
-            let until = time_out(ctx, user.id, *length, &reason).await?;
-            notify(ctx, &user, &format!("timed out until <t:{until}:F>"), why.as_deref()).await;
-            say_private(ctx, format!("⏳ <@{}> has been timed out until <t:{until}:F>.", user.id)).await?;
-            continue;
-        }
-        if id == untimeout_id {
-            let edit = serenity::EditMember::new().enable_communication().audit_log_reason(&reason);
-            guild_id.edit_member(ctx, user.id, edit).await?;
-            say_private(ctx, format!("✅ <@{}>'s timeout has ended.", user.id)).await?;
-            continue;
-        }
-
-        // Kicking or banning ends the menu
-        if id == kick_id {
-            notify(ctx, &user, "kicked", why.as_deref()).await;
-            guild_id.kick_with_reason(ctx, user.id, &reason).await?;
-            say_private(ctx, format!("👢 <@{}> has been kicked.", user.id)).await?;
-        } else {
-            notify(ctx, &user, "banned", why.as_deref()).await;
-            // From a message, their messages from the last day go too, that one included
-            let days = if message.is_some() { 1 } else { 0 };
-            guild_id.ban_with_reason(ctx, user.id, days, &reason).await?;
-            say_private(ctx, format!("🔨 <@{}> has been banned.", user.id)).await?;
-        }
-        break;
-    }
-
-    // Already gone if someone dismissed it
-    let _ = reply.edit(ctx, poise::CreateReply::default().components(vec![])).await;
-    Ok(())
 }

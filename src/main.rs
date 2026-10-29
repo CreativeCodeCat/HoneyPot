@@ -39,8 +39,6 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         moderation::kick(),
         moderation::timeout(),
         moderation::untimeout(),
-        moderation::moderate_message(),
-        moderation::moderate_user(),
         staff_policy::staff_policy(),
         economy::eco(),
         rules::rules(),
