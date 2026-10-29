@@ -1,6 +1,6 @@
 //! Games cog: small mini-games. In `/hack` you guess the password the bot picks at
 //! random, and crack it to win money for your wallet. `/heist` is in `heist.rs`,
-//! `/fight` in `fight.rs`, counting in `counting.rs` and guessing in `guessing.rs`.
+//! `/defuse` in `defuse.rs`, `/fight` in `fight.rs`, counting in `counting.rs` and guessing in `guessing.rs`.
 
 use std::time::Duration;
 
@@ -14,6 +14,7 @@ use super::{Context, Error};
 use scripts::{Script, DENIED, GRANTED};
 
 pub mod counting;
+pub mod defuse;
 pub mod fight;
 pub mod guessing;
 pub mod heist;
@@ -27,13 +28,14 @@ pub const HACK_COOLDOWN_SECS: i64 = 5 * 60;
 const MAX_GUESS_LEN: usize = 32;
 
 pub use counting::counting;
+pub use defuse::defuse;
 pub use fight::fight;
 pub use guessing::guessing;
 pub use heist::heist;
 pub use settings::{disablegame, enablegame, gamestatus};
 
 /// Every game command; each is off until turned on with `/enablegame`.
-pub const GAMES: &[&str] = &["counting", "fight", "guessing", "hack", "heist"];
+pub const GAMES: &[&str] = &["counting", "defuse", "fight", "guessing", "hack", "heist"];
 
 const GREEN: u32 = 0x57f287;
 const RED: u32 = 0xed4245;

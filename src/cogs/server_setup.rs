@@ -168,9 +168,30 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Me
     true
 }
 
-/// Framework-wide check: once a commands channel is set, members can only use commands there.
+/// Where game commands go once set with `/server-setup games`
+const GAMES_CHANNEL: &str = "channel.games";
+/// Games with their own channels, set with `/server-setup counting` and the guessing setup
+const OWN_CHANNEL_GAMES: &[&str] = &["counting", "guessing"];
+
+/// Framework-wide check: once a games channel is set, games can only be played there; and
+/// once a commands channel is set, members can only use other commands there.
 pub async fn commands_channel_check(ctx: Context<'_>) -> Result<(), Error> {
     let Some(guild_id) = ctx.guild_id() else { return Ok(()) };
+    let root = super::root_command(ctx).name.as_str();
+    let is_game = super::command_category(ctx) == Some("Games")
+        && super::games::GAMES.contains(&root)
+        && !OWN_CHANNEL_GAMES.contains(&root);
+    if is_game {
+        let games_channel = ctx.data().server_setup.lock().unwrap().get(guild_id.get(), GAMES_CHANNEL)?;
+        match games_channel {
+            Some(channel) if channel != ctx.channel_id().get() => {
+                return Err(format!("🎮 Games are played in <#{channel}>. Head over there to play `/{root}`!").into());
+            }
+            // In the games channel, even if it isn't the commands channel
+            Some(_) => return Ok(()),
+            None => {}
+        }
+    }
     if super::command_category(ctx).is_some_and(|cog| ANY_CHANNEL_COGS.contains(&cog)) {
         return Ok(());
     }
@@ -222,7 +243,7 @@ async fn set_channel(ctx: Context<'_>, key: &str, channel: &serenity::GuildChann
     category = "CogManager",
     required_permissions = "ADMINISTRATOR",
     default_member_permissions = "ADMINISTRATOR",
-    subcommands("logs", "roles", "status", "command", "commands", "counting", "announcements", "invite", "reset", "help"),
+    subcommands("logs", "roles", "status", "command", "commands", "counting", "games_channel", "announcements", "invite", "reset", "help"),
     subcommand_required
 )]
 pub async fn server_setup(_ctx: Context<'_>) -> Result<(), Error> {
@@ -302,6 +323,17 @@ async fn counting(
     set_channel(ctx, "channel.counting", &channel, "server counting channel").await
 }
 
+/// Setup the channel games are played in
+#[poise::command(slash_command, guild_only, rename = "games", required_permissions = "ADMINISTRATOR")]
+async fn games_channel(
+    ctx: Context<'_>,
+    #[description = "The channel to play games like /hack, /heist, /fight and /defuse in"]
+    #[channel_types("Text")]
+    channel: serenity::GuildChannel,
+) -> Result<(), Error> {
+    set_channel(ctx, GAMES_CHANNEL, &channel, "games channel").await
+}
+
 /// Setup the server announcements channel
 #[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn announcements(
@@ -360,6 +392,7 @@ async fn help(ctx: Context<'_>) -> Result<(), Error> {
              > `command` • Setup the channel for a select command output.\n\
              > `commands` • Setup the server commands channel.\n\
              > `counting` • Setup the server counting channel.\n\
+             > `games` • Setup the channel games are played in.\n\
              > `announcements` • Setup the server announcements channel.\n\
              > `invite` • Setup the server invite channel.\n\
              > `reset` • Reset all of the channels and roles.",

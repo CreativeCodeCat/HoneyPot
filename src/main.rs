@@ -51,6 +51,7 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         pets::pet(),
         games::hack(),
         games::heist(),
+        games::defuse(),
         games::fight(),
         games::counting(),
         games::guessing(),

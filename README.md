@@ -188,6 +188,7 @@ A tamagotchi for Discord. Pets are bought and fed with money from the economy wa
 ### Games Commands
 
 - `/hack <password>` - Try to hack the bot: it picks one of 25 common passwords at random, and if your guess matches you win ₪ 2,500 for your `/eco` wallet. Once every 5 minutes
+- `/defuse [bet]` - Defuse a bomb: cut one of five coloured wires before the 30-second timer runs out. One wire defuses it, one sets it off, and the other three make the timer jump forward 8 seconds. A clue says which wire the defuse wire is next to. An optional bet (₪ 10 to ₪ 1,000 from your wallet) is paid back doubled if you defuse it. Once a minute
 - `/heist <amount>` - Start or join a heist with a bet from your wallet. After 60 seconds a story plays out; survivors get their bet back plus 30%. A happy pet joins its owner with a free half bet. The server waits 15 minutes between heists
 - `/fight <user> [wager]` - Challenge someone to a fight; they accept with a button and the winner takes both wagers. Challenging the bot skips the accept. Fighters recover for 10 minutes
 
@@ -199,7 +200,7 @@ A tamagotchi for Discord. Pets are bought and fed with money from the economy wa
 - `/guessing stats` - See guesses so far, numbers found and the fewest guesses it's taken
 - `/guessing stop` - Stop guessing in this server, keeping the stats (admin)
 
-Bets on heists and fights are held until the game ends, and refunded if the bot restarts mid-game. Each game is off until an admin turns it on with `/enablegame`.
+Bets on heists, fights and bombs are held until the game ends, and refunded if the bot restarts mid-game. Each game is off until an admin turns it on with `/enablegame`. Once an admin sets a games channel with `/server-setup games <channel>`, `/hack`, `/heist`, `/fight` and `/defuse` only work there (even if a commands channel is set too), and using them anywhere else tells the member to head to the games channel. Counting and guessing keep their own channels.
 
 ### Suggestion Commands
 
@@ -305,7 +306,7 @@ Cogs: `announcements`, `automod`, `economy`, `games`, `general`, `honeypot`, `in
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
-- `/enablegame <game>` / `/disablegame <game>` - Turn single games (`counting`, `fight`, `guessing`, `hack`, `heist`) on or off (only available while the Games cog is enabled). Every game is off by default, so after `/enablecog games` turn on the ones you want.
+- `/enablegame <game>` / `/disablegame <game>` - Turn single games (`counting`, `defuse`, `fight`, `guessing`, `hack`, `heist`) on or off (only available while the Games cog is enabled). Every game is off by default, so after `/enablecog games` turn on the ones you want.
 - `/cooldown set <command> <seconds> [scope]` - Set a command's cooldown (0 removes it). Scope `User` (default) makes each member wait on their own; `Global` makes one use put the command on cooldown for the whole server. `guessing` can be set too, for guesses in the guessing channel
 - `/cooldown list` - List the commands with a cooldown and their scope
 - `/gamestatus` - Check which games are enabled for this server (only available while the Games cog is enabled)

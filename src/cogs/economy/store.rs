@@ -329,6 +329,27 @@ impl Store {
         Ok(refunds)
     }
 
+    /// Returns one member's held bet on a game to their wallet, if it's still held.
+    /// Returns whether there was one.
+    pub fn refund_one(&mut self, guild_id: u64, user_id: u64, game: &str) -> rusqlite::Result<bool> {
+        let tx = self.conn.transaction()?;
+        let amount: Option<i64> = tx
+            .query_row(
+                "SELECT amount FROM held_bets WHERE guild_id = ? AND user_id = ? AND game = ?",
+                params![guild_id, user_id, game],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(amount) = amount else { return Ok(false) };
+        tx.execute(
+            "UPDATE accounts SET wallet = MIN(wallet + ?1, ?2) WHERE guild_id = ?3 AND user_id = ?4",
+            params![amount, MAX_BALANCE, guild_id, user_id],
+        )?;
+        tx.execute("DELETE FROM held_bets WHERE guild_id = ? AND user_id = ? AND game = ?", params![guild_id, user_id, game])?;
+        tx.commit()?;
+        Ok(true)
+    }
+
     /// Admin adjustment: adds (positive) or removes (negative) money from a pocket.
     pub fn adjust(&mut self, guild_id: u64, user_id: u64, pocket: Pocket, delta: i64) -> EcoResult<Balance> {
         let tx = self.conn.transaction()?;

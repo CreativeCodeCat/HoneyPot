@@ -19,6 +19,7 @@ const DEFAULTS: &[(&str, u64)] = &[
     ("suggest", 300),
     ("hack", games::HACK_COOLDOWN_SECS as u64),
     ("heist", games::heist::HEIST_COOLDOWN_SECS as u64),
+    ("defuse", games::defuse::DEFUSE_COOLDOWN_SECS as u64),
     ("fight", games::fight::FIGHT_COOLDOWN_SECS as u64),
     // Guesses are messages, so this is started by the guessing game itself
     ("guessing", games::guessing::GUESS_COOLDOWN_SECS as u64),
