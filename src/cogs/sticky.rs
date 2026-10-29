@@ -16,6 +16,10 @@ const DB_FILE: &str = "database/sticky.db";
 /// Messages posted below the sticky before it's moved down, if not given
 const DEFAULT_COUNT: u32 = 3;
 const FOOTER: &str = "This is a sticky message";
+/// Default seconds a sticky waits once it's due before moving down, so it isn't reposted in
+/// the middle of a conversation; `/sticky delay` changes it for every sticky in a server
+const DEFAULT_DELAY_SECS: u32 = 5;
+const MAX_DELAY_SECS: u32 = 300;
 const COLOUR: u32 = 0x2b2d31;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -47,6 +51,11 @@ impl Store {
                 -- Messages posted since it was last moved down
                 count INTEGER NOT NULL DEFAULT 0,
                 message_id INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS settings (
+                guild_id INTEGER PRIMARY KEY,
+                -- Seconds a sticky waits once it's due before moving down
+                delay_secs INTEGER NOT NULL
             )",
         )?;
         Ok(Self { conn })
@@ -104,6 +113,20 @@ impl Store {
         Ok(())
     }
 
+    /// Seconds every sticky in the guild waits once it's due before moving down.
+    pub fn delay(&self, guild_id: u64) -> rusqlite::Result<u32> {
+        Ok(self
+            .conn
+            .query_row("SELECT delay_secs FROM settings WHERE guild_id = ?", [guild_id], |row| row.get(0))
+            .optional()?
+            .unwrap_or(DEFAULT_DELAY_SECS))
+    }
+
+    pub fn set_delay(&self, guild_id: u64, seconds: u32) -> rusqlite::Result<()> {
+        self.conn.execute("INSERT OR REPLACE INTO settings (guild_id, delay_secs) VALUES (?, ?)", params![guild_id, seconds])?;
+        Ok(())
+    }
+
     /// Removes stickies for guilds the bot is no longer in.
     pub fn cleanup_stale(&self, current_guilds: &[serenity::GuildId]) -> rusqlite::Result<()> {
         // An empty cache means the guilds haven't loaded, not that the bot left them all
@@ -111,7 +134,10 @@ impl Store {
             return Ok(());
         }
         let ids: Vec<String> = current_guilds.iter().map(|g| g.get().to_string()).collect();
-        self.conn.execute_batch(&format!("DELETE FROM stickies WHERE guild_id NOT IN ({})", ids.join(",")))
+        let ids = ids.join(",");
+        self.conn.execute_batch(&format!(
+            "DELETE FROM stickies WHERE guild_id NOT IN ({ids}); DELETE FROM settings WHERE guild_id NOT IN ({ids})"
+        ))
     }
 }
 
@@ -136,15 +162,29 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
         return;
     }
     let channel_id = message.channel_id.get();
-    let sticky = match data.sticky.lock().unwrap().bump(channel_id) {
-        Ok(Some(sticky)) => sticky,
+    match data.sticky.lock().unwrap().bump(channel_id) {
+        Ok(Some(_)) => {}
         Ok(None) => return,
         Err(e) => return log::error(format!("Error reading sticky for channel {channel_id}: {e}")),
-    };
+    }
     if !MOVING.lock().unwrap().insert(channel_id) {
         return;
     }
 
+    let delay = data.sticky.lock().unwrap().delay(guild_id.get()).unwrap_or(DEFAULT_DELAY_SECS);
+    tokio::time::sleep(std::time::Duration::from_secs(delay.into())).await;
+    // It may have been removed while waiting
+    let sticky = match data.sticky.lock().unwrap().get(channel_id) {
+        Ok(Some(sticky)) => sticky,
+        Ok(None) => {
+            MOVING.lock().unwrap().remove(&channel_id);
+            return;
+        }
+        Err(e) => {
+            MOVING.lock().unwrap().remove(&channel_id);
+            return log::error(format!("Error reading sticky for channel {channel_id}: {e}"));
+        }
+    };
     let channel = message.channel_id;
     // Already gone if someone deleted it
     let _ = channel.delete_message(ctx, sticky.message_id).await;
@@ -172,7 +212,7 @@ async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Er
     category = "Sticky",
     required_permissions = "MANAGE_MESSAGES",
     default_member_permissions = "MANAGE_MESSAGES",
-    subcommands("stick", "unstick", "list"),
+    subcommands("stick", "unstick", "list", "delay"),
     subcommand_required
 )]
 pub async fn sticky(_ctx: Context<'_>) -> Result<(), Error> {
@@ -215,6 +255,25 @@ async fn unstick(ctx: Context<'_>) -> Result<(), Error> {
     say_private(ctx, "✅ The sticky message in this channel has been removed.").await
 }
 
+/// Set how long every sticky waits before moving down once it's due
+#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
+async fn delay(
+    ctx: Context<'_>,
+    #[description = "Seconds to wait (default 5, 0 to move straight away)"]
+    #[min = 0]
+    #[max = 300]
+    seconds: u32,
+) -> Result<(), Error> {
+    let seconds = seconds.min(MAX_DELAY_SECS);
+    ctx.data().sticky.lock().unwrap().set_delay(ctx.guild_id().unwrap().get(), seconds)?;
+    let text = if seconds == 0 {
+        "✅ Sticky messages will now move down straight away once they're due.".to_string()
+    } else {
+        format!("✅ Sticky messages will now wait {seconds} second{} before moving down once they're due.", if seconds == 1 { "" } else { "s" })
+    };
+    say_private(ctx, text).await
+}
+
 /// List this server's sticky messages
 #[poise::command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
 async fn list(ctx: Context<'_>) -> Result<(), Error> {
@@ -252,6 +311,11 @@ mod tests {
         assert_eq!(s.bump(5).unwrap(), Some(sticky.clone()));
         // The count starts again
         assert_eq!(s.bump(5).unwrap(), None);
+
+        assert_eq!(s.delay(1).unwrap(), DEFAULT_DELAY_SECS);
+        s.set_delay(1, 30).unwrap();
+        assert_eq!(s.delay(1).unwrap(), 30);
+        assert_eq!(s.delay(2).unwrap(), DEFAULT_DELAY_SECS);
 
         s.set_message(5, 101).unwrap();
         assert_eq!(s.list(1).unwrap()[0].message_id, 101);

@@ -261,11 +261,12 @@ Members make an "about me" profile that anyone can view. Profiles belong to the 
 
 ### Sticky Commands
 
-A sticky message stays near the bottom of its channel: once enough messages are posted below it, the old copy is deleted and it's posted again at the bottom. All need **Manage Messages**.
+A sticky message stays near the bottom of its channel: once enough messages are posted below it, the bot waits a short delay (5 seconds unless changed with `/sticky delay`), then deletes the old copy and posts it again at the bottom. All need **Manage Messages**.
 
 - `/sticky stick <message> [count]` - Stick a message in this channel; it moves down after `count` messages (default 3). Use `\n` for new lines
 - `/sticky unstick` - Remove this channel's sticky message
 - `/sticky list` - List the server's sticky messages, 10 per page
+- `/sticky delay <seconds>` - How long every sticky in the server waits before moving down once it's due, from 0 (straight away) to 300 seconds. The default is 5
 
 ### Rules Commands
 

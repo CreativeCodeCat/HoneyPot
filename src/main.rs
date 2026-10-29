@@ -304,6 +304,9 @@ async fn event_handler(
             }
         }
         serenity::FullEvent::Message { new_message } => {
+            // First, so a message deleted by the commands, counting or guessing channel still
+            // takes its author out of AFK
+            afk::on_message(ctx, data, new_message).await;
             if server_setup::on_message(ctx, data, new_message, &framework.options().commands).await {
                 return Ok(());
             }
@@ -311,7 +314,6 @@ async fn event_handler(
             tickets::on_message(data, new_message);
             levels::on_message(ctx, data, new_message).await;
             sticky::on_message(ctx, data, new_message).await;
-            afk::on_message(ctx, data, new_message).await;
             games::counting::on_message(ctx, data, new_message).await;
             games::guessing::on_message(ctx, data, new_message).await;
         }
