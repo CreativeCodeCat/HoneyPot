@@ -19,7 +19,7 @@ const MAX_QUESTION_LEN: usize = 45;
 const MAX_ANSWER_LEN: u16 = 1000;
 /// How long the applicant has to fill in the pop-up
 const FORM_TIME: std::time::Duration = std::time::Duration::from_secs(15 * 60);
-/// Review buttons' IDs start with this, then "accept:<id>" or "deny:<id>"
+/// Button IDs start with this, then "apply:<position>", "accept:<application>" or "deny:<application>"
 const BUTTON_PREFIX: &str = "application:";
 
 const BLUE: u32 = 0x5865f2;
@@ -87,6 +87,12 @@ impl Store {
                 -- 'pending', 'accepted' or 'denied'
                 status TEXT NOT NULL,
                 created TEXT NOT NULL
+            );
+            -- Posted panels, updated when positions change
+            CREATE TABLE IF NOT EXISTS panels (
+                message_id INTEGER PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL
             )",
         )?;
         Ok(Self { conn })
@@ -169,6 +175,23 @@ impl Store {
             .optional()
     }
 
+    pub fn add_panel(&self, guild_id: u64, channel_id: u64, message_id: u64) -> rusqlite::Result<()> {
+        self.conn.execute("INSERT OR REPLACE INTO panels (message_id, guild_id, channel_id) VALUES (?, ?, ?)", [message_id, guild_id, channel_id])?;
+        Ok(())
+    }
+
+    /// The guild's posted panels: (channel, message).
+    pub fn panels(&self, guild_id: u64) -> rusqlite::Result<Vec<(u64, u64)>> {
+        let mut stmt = self.conn.prepare("SELECT channel_id, message_id FROM panels WHERE guild_id = ?")?;
+        let rows = stmt.query_map([guild_id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect()
+    }
+
+    pub fn remove_panel(&self, message_id: u64) -> rusqlite::Result<()> {
+        self.conn.execute("DELETE FROM panels WHERE message_id = ?", [message_id])?;
+        Ok(())
+    }
+
     /// Removes everything for guilds the bot is no longer in.
     pub fn cleanup_stale(&self, current_guilds: &[serenity::GuildId]) -> rusqlite::Result<()> {
         // An empty cache means the guilds haven't loaded, not that the bot left them all
@@ -180,7 +203,8 @@ impl Store {
         self.conn.execute_batch(&format!(
             "DELETE FROM settings WHERE guild_id NOT IN ({ids});
              DELETE FROM positions WHERE guild_id NOT IN ({ids});
-             DELETE FROM applications WHERE guild_id NOT IN ({ids});"
+             DELETE FROM applications WHERE guild_id NOT IN ({ids});
+             DELETE FROM panels WHERE guild_id NOT IN ({ids});"
         ))
     }
 }
@@ -250,7 +274,7 @@ async fn autocomplete_position(ctx: AppContext<'_>, partial: &str) -> Vec<String
     category = "Applications",
     required_permissions = "MANAGE_GUILD",
     default_member_permissions = "MANAGE_GUILD",
-    subcommands("channel", "add", "edit", "remove", "list"),
+    subcommands("channel", "add", "edit", "remove", "list", "panel"),
     subcommand_required
 )]
 pub async fn application(_ctx: AppContext<'_>) -> Result<(), Error> {
@@ -284,6 +308,7 @@ async fn add(
     let Some(form) = poise::execute_modal(ctx, None::<QuestionsForm>, None).await? else { return Ok(()) };
     let questions = form.questions();
     ctx.data().applications.lock().unwrap().save_position(guild_id(ctx), &name, role.as_ref().map(|r| r.id.get()), &questions)?;
+    refresh_panels(ctx).await;
     let role = role.map_or(String::new(), |r| format!(" Accepted members get <@&{}>.", r.id));
     say_private(ctx, format!("✅ Added the **{}** position with {} question(s).{role} Members can apply with `/apply`.", name.trim(), questions.len())).await
 }
@@ -303,6 +328,7 @@ async fn edit(
     let Some(form) = poise::execute_modal(ctx, Some(QuestionsForm::from_questions(&current.questions)), None).await? else { return Ok(()) };
     let role_id = role.map(|r| r.id.get()).or(current.role_id);
     ctx.data().applications.lock().unwrap().save_position(guild_id(ctx), &current.name, role_id, &form.questions())?;
+    refresh_panels(ctx).await;
     say_private(ctx, format!("✅ Updated the **{}** position.", current.name)).await
 }
 
@@ -315,7 +341,8 @@ async fn remove(
     position: String,
 ) -> Result<(), Error> {
     if ctx.data().applications.lock().unwrap().remove_position(guild_id(ctx), &position)? {
-        say_private(ctx, format!("✅ Removed the **{}** position.", position.trim())).await
+        refresh_panels(ctx).await;
+        say_private(ctx, format!("✅ Removed the **{}** position. Any posted panels have been updated.", position.trim())).await
     } else {
         say_private(ctx, "❌ There's no position with that name.").await
     }
@@ -344,35 +371,26 @@ async fn list(ctx: AppContext<'_>) -> Result<(), Error> {
     crate::pagination::paginate(ctx.into(), crate::pagination::field_pages(page, fields, 5, false)).await
 }
 
-/// Apply for a position, answering its questions in a pop-up
-#[poise::command(slash_command, guild_only, category = "Applications")]
-pub async fn apply(
-    ctx: AppContext<'_>,
-    #[description = "The position to apply for"]
-    #[autocomplete = "autocomplete_position"]
-    position: String,
-) -> Result<(), Error> {
-    let guild = guild_id(ctx);
-    let user_id = ctx.author().id.get();
-    let (position, channel) = {
-        let store = ctx.data().applications.lock().unwrap();
-        (store.position(guild, &position)?, store.channel(guild)?)
-    };
-    let Some(channel) = channel else {
-        return say_private(ctx, "❌ Applications aren't set up on this server yet.").await;
+/// Why a member can't apply for a position right now, or the position and review channel.
+fn can_apply(data: &Data, guild: u64, user_id: u64, position: Option<Position>) -> Result<Result<(Position, u64), String>, Error> {
+    let store = data.applications.lock().unwrap();
+    let Some(channel) = store.channel(guild)? else {
+        return Ok(Err("❌ Applications aren't set up on this server yet.".into()));
     };
     let Some(position) = position else {
-        return say_private(ctx, "❌ There's no position with that name. Pick one from the list.").await;
+        return Ok(Err("❌ That position doesn't exist any more.".into()));
     };
     if position.questions.is_empty() {
-        return say_private(ctx, "❌ That position has no questions yet.").await;
+        return Ok(Err("❌ That position has no questions yet.".into()));
     }
-    if ctx.data().applications.lock().unwrap().has_pending(guild, user_id, position.id)? {
-        return say_private(ctx, format!("❌ You've already applied for **{}**. Wait for it to be reviewed.", position.name)).await;
+    if store.has_pending(guild, user_id, position.id)? {
+        return Ok(Err(format!("❌ You've already applied for **{}**. Wait for it to be reviewed.", position.name)));
     }
+    Ok(Ok((position, channel)))
+}
 
-    // The pop-up is built from the position's own questions
-    let modal_id = format!("{}apply", ctx.id());
+/// The pop-up asking a position's own questions.
+fn application_form(position: &Position, modal_id: &str) -> serenity::CreateInteractionResponse {
     let rows = position
         .questions
         .iter()
@@ -386,11 +404,21 @@ pub async fn apply(
         })
         .collect();
     let title = truncate(&format!("{} Application", position.name), 45);
-    let modal = serenity::CreateModal::new(&modal_id, title).components(rows);
-    ctx.interaction.create_response(ctx, serenity::CreateInteractionResponse::Modal(modal)).await?;
-    ctx.has_sent_initial_response.store(true, std::sync::atomic::Ordering::SeqCst);
+    serenity::CreateInteractionResponse::Modal(serenity::CreateModal::new(modal_id, title).components(rows))
+}
 
-    let submit = serenity::ModalInteractionCollector::new(ctx.serenity_context())
+/// Waits for the application pop-up, then posts the answers for review and tells the
+/// applicant how it went.
+async fn finish_application(
+    ctx: &serenity::Context,
+    data: &Data,
+    guild: u64,
+    applicant: &serenity::User,
+    position: &Position,
+    channel: u64,
+    modal_id: String,
+) -> Result<(), Error> {
+    let submit = serenity::ModalInteractionCollector::new(ctx)
         .filter(move |i| i.data.custom_id == modal_id)
         .timeout(FORM_TIME)
         .await;
@@ -406,13 +434,13 @@ pub async fn apply(
         })
         .collect();
 
-    let id = ctx.data().applications.lock().unwrap().add_application(guild, user_id, position.id)?;
-    let author = ctx.author();
+    let user_id = applicant.id.get();
+    let id = data.applications.lock().unwrap().add_application(guild, user_id, position.id)?;
     let mut embed = serenity::CreateEmbed::new()
         .colour(BLUE)
         .title(format!("{} Application", position.name))
-        .author(serenity::CreateEmbedAuthor::new(author.tag()).icon_url(author.face()))
-        .description(format!("Sent by <@{user_id}> • Account created <t:{}:R>", author.id.created_at().unix_timestamp()))
+        .author(serenity::CreateEmbedAuthor::new(applicant.tag()).icon_url(applicant.face()))
+        .description(format!("Sent by <@{user_id}> • Account created <t:{}:R>", applicant.id.created_at().unix_timestamp()))
         .footer(serenity::CreateEmbedFooter::new(format!("Application #{id} • Pending")))
         .timestamp(serenity::Timestamp::now());
     for (question, answer) in position.questions.iter().zip(&answers) {
@@ -431,7 +459,7 @@ pub async fn apply(
         Err(e) => {
             log::error(format!("Error posting application in guild {guild}: {e}"));
             // Not posted, so it can't be reviewed; let them apply again
-            ctx.data().applications.lock().unwrap().decide(id, Status::Denied)?;
+            data.applications.lock().unwrap().decide(id, Status::Denied)?;
             "❌ Your application couldn't be posted. Please tell a staff member.".to_string()
         }
     };
@@ -440,15 +468,151 @@ pub async fn apply(
     Ok(())
 }
 
-/// Handles the Accept and Deny buttons on posted applications. They work after restarts, as
-/// their IDs hold the application's ID.
+/// Apply for a position, answering its questions in a pop-up
+#[poise::command(slash_command, guild_only, category = "Applications")]
+pub async fn apply(
+    ctx: AppContext<'_>,
+    #[description = "The position to apply for"]
+    #[autocomplete = "autocomplete_position"]
+    position: String,
+) -> Result<(), Error> {
+    let guild = guild_id(ctx);
+    let found = ctx.data().applications.lock().unwrap().position(guild, &position)?;
+    let (position, channel) = match can_apply(ctx.data(), guild, ctx.author().id.get(), found)? {
+        Ok(ok) => ok,
+        Err(problem) => return say_private(ctx, problem).await,
+    };
+    let modal_id = format!("{}apply", ctx.id());
+    ctx.interaction.create_response(ctx, application_form(&position, &modal_id)).await?;
+    ctx.has_sent_initial_response.store(true, std::sync::atomic::Ordering::SeqCst);
+    finish_application(ctx.serenity_context(), ctx.data(), guild, ctx.author(), &position, channel, modal_id).await
+}
+
+/// A panel's embed and buttons for the guild's current positions.
+fn panel_content(positions: &[Position]) -> (serenity::CreateEmbed, Vec<serenity::CreateActionRow>) {
+    let list = if positions.is_empty() {
+        "There are no open positions right now. Check back later!".to_string()
+    } else {
+        let lines: Vec<String> = positions
+            .iter()
+            .map(|p| match p.role_id {
+                Some(role) => format!("• **{}** (<@&{role}>)", p.name),
+                None => format!("• **{}**", p.name),
+            })
+            .collect();
+        format!("**Open positions:**\n{}", lines.join("\n"))
+    };
+    let embed = serenity::CreateEmbed::new()
+        .colour(BLUE)
+        .title("📝 Applications")
+        .description(format!("Want to join the team? Press a button below to apply, and answer a few questions.\n\n{list}"));
+    // Up to 25 buttons, five to a row
+    let buttons: Vec<serenity::CreateButton> = positions
+        .iter()
+        .take(25)
+        .map(|p| {
+            serenity::CreateButton::new(format!("{BUTTON_PREFIX}apply:{}", p.id))
+                .label(truncate(&p.name, 80))
+                .emoji('📝')
+                .style(serenity::ButtonStyle::Primary)
+        })
+        .collect();
+    (embed, buttons.chunks(5).map(|row| serenity::CreateActionRow::Buttons(row.to_vec())).collect())
+}
+
+/// Updates every posted panel to the guild's current positions, forgetting deleted ones.
+async fn refresh_panels(ctx: AppContext<'_>) {
+    let guild = guild_id(ctx);
+    let (positions, panels) = {
+        let store = ctx.data().applications.lock().unwrap();
+        (store.positions(guild).unwrap_or_default(), store.panels(guild).unwrap_or_default())
+    };
+    for (channel_id, message_id) in panels {
+        let (embed, rows) = panel_content(&positions);
+        let edit = serenity::EditMessage::new().embed(embed).components(rows);
+        match serenity::ChannelId::new(channel_id).edit_message(ctx, message_id, edit).await {
+            Ok(_) => {}
+            // The panel or its channel was deleted
+            Err(serenity::Error::Http(serenity::HttpError::UnsuccessfulRequest(resp))) if resp.status_code.as_u16() == 404 => {
+                let _ = ctx.data().applications.lock().unwrap().remove_panel(message_id);
+            }
+            Err(e) => log::error(format!("Error updating application panel {message_id} in guild {guild}: {e}")),
+        }
+    }
+}
+
+/// Post the panel with an Apply button for each position, replacing the old one
+#[poise::command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
+async fn panel(
+    ctx: AppContext<'_>,
+    #[description = "Where to post the panel"]
+    #[channel_types("Text", "News")]
+    channel: serenity::GuildChannel,
+) -> Result<(), Error> {
+    // Posted even with no positions yet; it fills in as they're added
+    let (positions, old) = {
+        let store = ctx.data().applications.lock().unwrap();
+        (store.positions(guild_id(ctx))?, store.panels(guild_id(ctx))?)
+    };
+    let (embed, rows) = panel_content(&positions);
+    let message = channel.send_message(ctx, serenity::CreateMessage::new().embed(embed).components(rows)).await?;
+
+    // A server has one panel, so this replaces the old one
+    for (old_channel, old_message) in &old {
+        // Already gone if someone deleted it
+        let _ = serenity::ChannelId::new(*old_channel).delete_message(ctx, *old_message).await;
+        ctx.data().applications.lock().unwrap().remove_panel(*old_message)?;
+    }
+    ctx.data().applications.lock().unwrap().add_panel(guild_id(ctx), channel.id.get(), message.id.get())?;
+    let replaced = if old.is_empty() { "" } else { " The old panel has been removed." };
+    let more = if positions.len() > 25 { " Only the first 25 positions fit as buttons." } else { "" };
+    say_private(ctx, format!("✅ Posted the application panel in <#{}>.{replaced}{more} It updates itself when positions change.", channel.id)).await
+}
+
+/// Handles the panel's Apply buttons, and the Accept and Deny buttons on posted
+/// applications. They work after restarts, as their IDs hold the position's or application's ID.
 pub async fn on_interaction(ctx: &serenity::Context, data: &Data, interaction: &serenity::Interaction) {
     let serenity::Interaction::Component(press) = interaction else { return };
     let Some(rest) = press.data.custom_id.strip_prefix(BUTTON_PREFIX) else { return };
     let Some(guild_id) = press.guild_id else { return };
-    if let Err(e) = review(ctx, data, press, guild_id, rest).await {
-        log::error(format!("Error reviewing application in guild {guild_id}: {e}"));
+    let result = match rest.strip_prefix("apply:") {
+        Some(position_id) => apply_button(ctx, data, press, guild_id, position_id).await,
+        None => review(ctx, data, press, guild_id, rest).await,
+    };
+    if let Err(e) = result {
+        log::error(format!("Error handling an application button in guild {guild_id}: {e}"));
     }
+}
+
+/// A panel's Apply button: the same as `/apply` for that position.
+async fn apply_button(
+    ctx: &serenity::Context,
+    data: &Data,
+    press: &serenity::ComponentInteraction,
+    guild_id: serenity::GuildId,
+    position_id: &str,
+) -> Result<(), Error> {
+    let private = |text: String| {
+        serenity::CreateInteractionResponse::Message(serenity::CreateInteractionResponseMessage::new().content(text).ephemeral(true))
+    };
+    if !data.is_cog_enabled(guild_id.get(), COG_NAME) {
+        press.create_response(ctx, private("❌ The Applications cog is disabled on this server.".into())).await?;
+        return Ok(());
+    }
+    let found = match position_id.parse::<i64>() {
+        Ok(id) => data.applications.lock().unwrap().position_by_id(id)?,
+        Err(_) => None,
+    };
+    let (position, channel) = match can_apply(data, guild_id.get(), press.user.id.get(), found)? {
+        Ok(ok) => ok,
+        Err(problem) => {
+            press.create_response(ctx, private(problem)).await?;
+            return Ok(());
+        }
+    };
+    let modal_id = format!("{}apply", press.id);
+    press.create_response(ctx, application_form(&position, &modal_id)).await?;
+    finish_application(ctx, data, guild_id.get(), &press.user, &position, channel, modal_id).await
 }
 
 async fn review(
@@ -549,6 +713,11 @@ mod tests {
         // Can't be decided twice
         assert_eq!(s.decide(id, Status::Denied).unwrap(), None);
         assert!(!s.has_pending(1, 2, position.id).unwrap());
+
+        s.add_panel(1, 10, 100).unwrap();
+        assert_eq!(s.panels(1).unwrap(), vec![(10, 100)]);
+        s.remove_panel(100).unwrap();
+        assert!(s.panels(1).unwrap().is_empty());
 
         assert!(s.remove_position(1, "MODERATOR").unwrap());
         assert!(!s.remove_position(1, "Moderator").unwrap());

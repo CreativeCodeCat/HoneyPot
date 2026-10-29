@@ -259,11 +259,12 @@ Members make an "about me" profile that anyone can view. Profiles belong to the 
 
 Admins create their own positions to apply for, each with up to five questions (Discord allows five boxes in a pop-up, with questions up to 45 characters) and an optional role. Members apply in a pop-up, and their answers are posted in the review channel with **Accept** and **Deny** buttons, which work for members with **Manage Server**, even after a restart. The applicant gets a DM with the decision, and accepting gives them the position's role. A member can't apply for the same position again while their last application is waiting.
 
-- `/apply <position>` - Apply for a position, answering its questions in a pop-up
+- `/apply <position>` - Apply for a position, answering its questions in a pop-up. Members can also press the position's button on an application panel
 - `/application channel <channel>` - Where applications are posted for review (**Manage Server**)
 - `/application add <name> [role]` - Add a position, writing its questions in a pop-up (**Manage Server**)
 - `/application edit <position> [role]` - Change a position's questions, and optionally its role (**Manage Server**)
 - `/application remove <position>` - Remove a position (**Manage Server**)
+- `/application panel <channel>` - Post the server's panel listing the positions, replacing (and deleting) the previous one if there is one, with an **Apply** button for each (up to 25). It can be posted before any positions exist, saying there are none open until some are added. The buttons keep working after restarts, and every posted panel updates itself when positions are added, changed or removed (**Manage Server**)
 - `/application list` - List the positions, their questions and roles, and the review channel (**Manage Server**)
 
 ### Info Commands
