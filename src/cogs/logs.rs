@@ -81,6 +81,31 @@ async fn send(ctx: &serenity::Context, data: &Data, guild_id: serenity::GuildId,
     }
 }
 
+/// Greets a new member in the welcome channel, pinging them so they see it.
+async fn welcome(ctx: &serenity::Context, data: &Data, member: &serenity::Member) {
+    let Some(channel) = log_channel(data, member.guild_id, "welcome") else { return };
+    let (server, count, icon) = match ctx.cache.guild(member.guild_id) {
+        Some(guild) => (guild.name.clone(), guild.member_count, guild.icon_url()),
+        None => return,
+    };
+    let mut embed = serenity::CreateEmbed::new()
+        .colour(GREEN)
+        .title(format!("Welcome to {server}!"))
+        .description(format!("Hey <@{}>, welcome to **{server}**! 🎉\nYou're member **#{count}**. We're glad to have you here.", member.user.id))
+        .thumbnail(member.face())
+        .timestamp(serenity::Timestamp::now());
+    if let Some(icon) = icon {
+        embed = embed.footer(serenity::CreateEmbedFooter::new(&server).icon_url(icon));
+    }
+    let message = serenity::CreateMessage::new()
+        .content(format!("<@{}>", member.user.id))
+        .embed(embed)
+        .allowed_mentions(serenity::CreateAllowedMentions::new().users([member.user.id]));
+    if let Err(e) = channel.send_message(ctx, message).await {
+        log::error(format!("Error posting welcome message in guild {}: {e}", member.guild_id));
+    }
+}
+
 /// Like `send`, adding who did it from the audit log.
 async fn send_by(
     ctx: &serenity::Context,
@@ -236,6 +261,9 @@ pub async fn on_event(ctx: &serenity::Context, data: &Data, event: &serenity::Fu
             let user = &new_member.user;
             let text = format!("<@{}> joined. Account created <t:{}:R>.", user.id, user.created_at().unix_timestamp());
             send(ctx, data, new_member.guild_id, "joinleave", with_user(embed(GREEN, "Member Joined", text), user)).await;
+            if !user.bot {
+                welcome(ctx, data, new_member).await;
+            }
         }
         GuildMemberRemoval { guild_id, user, member_data_if_available } => {
             let joined = member_data_if_available

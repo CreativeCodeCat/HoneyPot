@@ -225,6 +225,7 @@ The Logs cog (`/enablecog logs`) posts what happens in the server to a log chann
 | Sticker | Stickers added, removed or renamed |
 | Guild | Server name, icon, banner, owner, verification level and other settings changed |
 | Join & Leave | Members joining (with account age) and leaving |
+| Welcome | A welcome message for each new member (not bots), pinging them, with the server's member count |
 | Member | Nicknames, roles, timeouts and server avatars changed; bans and unbans |
 | User | Usernames, display names and avatars changed |
 | Message | Messages deleted (with their text, if the bot saw them) or edited (before and after), and bulk deletes |

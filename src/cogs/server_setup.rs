@@ -93,6 +93,8 @@ pub enum LogType {
     Voice,
     /// The bot starting up
     Ready,
+    /// A friendly welcome for each new member
+    Welcome,
 }
 
 /// Cogs whose commands work in any channel: setup commands and moderation (used where the
