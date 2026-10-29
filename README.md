@@ -294,8 +294,8 @@ Only the bot's owner can use these (the owner of its Discord application, or the
 
 - `/maintenance` - Turn maintenance mode on or off. While it's on, everyone else is told the bot is under maintenance when they use a command, and the bot's status shows Do Not Disturb with "Under maintenance". Background features (honeypots, logs, AutoMod, staff policy...) keep running. It stays on across restarts
 - `/presence <status> [activity] [text]` - Set the bot's status (Online, Idle, Do Not Disturb or Invisible) and activity (a custom status, Playing, Watching, Listening to, Competing in, or none). Without `text` it shows "Development of <bot> v<version>". It's kept across restarts; maintenance mode's status shows instead while it's on
-- `/leave <server>` - Make the bot leave a server, picked from a list of the servers it's in, after a confirm button
-- `/blacklist add <server> <type>` - Leave a server, after a confirm button, and blacklist either the server (the bot leaves straight away if it's added again) or its owner (the bot leaves any server they own, now or later, and they can't use its commands)
+- `/leave <server>` - Make the bot leave a server, picked from a list of the servers it's in, after a confirm button. Servers owned by a bot owner can't be left this way
+- `/blacklist add <server> <type>` - Leave a server, after a confirm button, and blacklist either the server (the bot leaves straight away if it's added again) or its owner (the bot leaves any server they own, now or later, and they can't use its commands). Servers owned by a bot owner, and bot owners themselves, can't be blacklisted
 - `/blacklist remove <entry>` - Take a server or user off the blacklist, picked from a list
 - `/blacklist list` - List the blacklisted servers and users
 

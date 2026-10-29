@@ -235,9 +235,22 @@ async fn leave_server(ctx: Context<'_>, server: String, blacklist: BlacklistChoi
         ])]
     };
     let embed = |colour: u32, text: String| serenity::CreateEmbed::new().colour(colour).description(text);
-    if blacklist == BlacklistChoice::Owner && ctx.framework().options().owners.contains(&owner_id) {
-        ctx.say("❌ That server's owner is a bot owner, so they can't be blacklisted.").await?;
-        return Ok(());
+    // Servers owned by a bot owner are never left or blacklisted, and bot owners can't be locked out
+    if ctx.framework().options().owners.contains(&owner_id) {
+        match blacklist {
+            BlacklistChoice::Owner => {
+                ctx.say("❌ That server's owner is a bot owner, so they can't be blacklisted.").await?;
+                return Ok(());
+            }
+            BlacklistChoice::Server => {
+                ctx.say("❌ That server is owned by a bot owner, so it can't be blacklisted.").await?;
+                return Ok(());
+            }
+            BlacklistChoice::No => {
+                ctx.say("❌ That server is owned by a bot owner, so I won't leave it.").await?;
+                return Ok(());
+            }
+        }
     }
     let owner_name = match blacklist {
         BlacklistChoice::Owner => owner_id.to_user(ctx).await.map_or_else(|_| owner_id.to_string(), |u| u.tag()),
