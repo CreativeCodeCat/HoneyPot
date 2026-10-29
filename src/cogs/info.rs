@@ -1,4 +1,4 @@
-//! `/info server|channel|user|staff`, plus the "User Info" user context menu.
+//! `/info server|channel|user|staff|bot`, plus the "User Info" user context menu.
 
 use poise::serenity_prelude as serenity;
 
@@ -47,12 +47,12 @@ fn channel_kind(kind: serenity::ChannelType) -> &'static str {
     }
 }
 
-/// Show information about the server, a channel, a user or the staff
+/// Show information about the server, a channel, a user, the staff or the bot
 #[poise::command(
     slash_command,
     guild_only,
     category = "Info",
-    subcommands("server", "channel", "user", "staff"),
+    subcommands("server", "channel", "user", "staff", "bot"),
     subcommand_required
 )]
 pub async fn info(_ctx: Context<'_>) -> Result<(), Error> {
@@ -289,4 +289,160 @@ async fn staff(ctx: Context<'_>) -> Result<(), Error> {
     }
     let pages = field_pages(page, fields, 3, false);
     paginate(ctx, pages).await
+}
+
+/// Total and available memory in bytes, from /proc/meminfo (Linux only).
+fn system_memory() -> Option<(u64, u64)> {
+    let info = std::fs::read_to_string("/proc/meminfo").ok()?;
+    let field = |name: &str| {
+        info.lines().find(|l| l.starts_with(name))?.split_whitespace().nth(1)?.parse::<u64>().ok().map(|kb| kb * 1024)
+    };
+    Some((field("MemTotal:")?, field("MemAvailable:")?))
+}
+
+/// The bot's own memory use in bytes, from /proc/self/status (Linux only).
+fn bot_memory() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let kb: u64 = status.lines().find(|l| l.starts_with("VmRSS:"))?.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kb * 1024)
+}
+
+/// (busy, total) CPU time across all cores, from /proc/stat (Linux only).
+fn cpu_times() -> Option<(u64, u64)> {
+    let stat = std::fs::read_to_string("/proc/stat").ok()?;
+    let times: Vec<u64> = stat.lines().next()?.split_whitespace().skip(1).filter_map(|n| n.parse().ok()).collect();
+    let total: u64 = times.iter().sum();
+    // idle and iowait
+    let idle = times.get(3)? + times.get(4).copied().unwrap_or(0);
+    Some((total - idle, total))
+}
+
+/// System CPU use as a percentage, measured over a short moment.
+async fn cpu_percent() -> Option<f64> {
+    let (busy1, total1) = cpu_times()?;
+    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    let (busy2, total2) = cpu_times()?;
+    let total = total2.checked_sub(total1).filter(|t| *t > 0)?;
+    Some((busy2 - busy1) as f64 * 100.0 / total as f64)
+}
+
+fn bytes(n: u64) -> String {
+    let mb = n as f64 / (1024.0 * 1024.0);
+    if mb >= 1024.0 { format!("{:.2} GB", mb / 1024.0) } else { format!("{mb:.1} MB") }
+}
+
+/// A 20-block bar like `██████░░░░░░░░░░░░░░` for a percentage.
+fn bar(percent: f64) -> String {
+    let filled = ((percent / 5.0).round() as usize).min(20);
+    format!("`{}{}`", "█".repeat(filled), "░".repeat(20 - filled))
+}
+
+/// The SQLite files in `database/`: how many, and their total size.
+fn database_files() -> (usize, u64) {
+    let Ok(entries) = std::fs::read_dir("database") else { return (0, 0) };
+    entries
+        .filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "db"))
+        .filter_map(|e| e.metadata().ok())
+        .fold((0, 0), |(count, size), meta| (count + 1, size + meta.len()))
+}
+
+/// Every command, counting each subcommand rather than the groups holding them.
+fn count_commands(commands: &[poise::Command<super::Data, Error>]) -> usize {
+    commands.iter().map(|c| if c.subcommands.is_empty() { 1 } else { count_commands(&c.subcommands) }).sum()
+}
+
+/// Show information about the bot: its stats, database, host, memory and CPU
+#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
+async fn bot(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer().await?;
+    let me = ctx.cache().current_user().clone();
+    // A team-owned bot's owner is a placeholder user named after the team's ID, so the team's name is shown
+    let owner = ctx.http().get_current_application_info().await.ok().and_then(|app| match app.team {
+        Some(team) => Some(format!("{} (team)", team.name)),
+        None => app.owner.map(|owner| owner.tag()),
+    });
+    let ping = ctx.ping().await.as_millis();
+    let started = serenity::Timestamp::now().unix_timestamp() - ctx.data().start_time.elapsed().as_secs() as i64;
+    let (servers, members) = {
+        let guilds = ctx.cache().guilds();
+        let members: u64 = guilds.iter().filter_map(|id| ctx.cache().guild(*id).map(|g| g.member_count)).sum();
+        (guilds.len(), members)
+    };
+    let commands = count_commands(&ctx.framework().options().commands);
+    let (db_count, db_size) = database_files();
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease").map_or("Unknown".to_string(), |r| r.trim().to_string());
+    let cpu = cpu_percent().await;
+    let cores = std::thread::available_parallelism().map_or(0, |n| n.get());
+
+    let page = |title: &str| {
+        serenity::CreateEmbed::new()
+            .colour(0x9b59b6)
+            .author(serenity::CreateEmbedAuthor::new(ctx.author().tag()).icon_url(ctx.author().face()))
+            .title(title)
+            .thumbnail(me.face())
+            .timestamp(serenity::Timestamp::now())
+    };
+    let unknown = || "Unknown (only shown on Linux)".to_string();
+
+    let mut pages = vec![
+        page("🤖 Client")
+            .field("Username", me.tag(), true)
+            .field("Version", env!("CARGO_PKG_VERSION"), true)
+            .field("Library", "[serenity](https://github.com/serenity-rs/serenity) + [poise](https://github.com/serenity-rs/poise)", true)
+            .field("Ping", format!("🟢 Online, {ping} ms"), true)
+            .field("Owner", owner.unwrap_or_else(|| "Unknown".into()), true)
+            .field("Started", format!("<t:{started}:F> (<t:{started}:R>)"), false),
+        page("📊 Stats")
+            .field("Commands", commands.to_string(), true)
+            .field("Servers", servers.to_string(), true)
+            .field("Members", members.to_string(), true),
+        page("🗄️ Database")
+            .field("Name", "SQLite", true)
+            .field("Status", if db_count > 0 { "🟢 Connected" } else { "🔴 No database files found" }, true)
+            .field("Files", format!("{db_count} ({})", bytes(db_size)), true),
+        page("🖥️ Host")
+            .field("Platform", std::env::consts::OS, true)
+            .field("Architecture", std::env::consts::ARCH, true)
+            .field("Release", kernel, true)
+            .field("CPU Cores", cores.to_string(), true),
+    ];
+
+    let mut memory = page("🧠 Memory");
+    match system_memory() {
+        Some((total, available)) => {
+            let used = total.saturating_sub(available);
+            let percent = used as f64 * 100.0 / total as f64;
+            memory = memory
+                .field("Percentage", format!("{percent:.1}%"), true)
+                .field("Used", format!("{} / {}", bytes(used), bytes(total)), true)
+                .field("Bar", bar(percent), false);
+        }
+        None => memory = memory.field("System", unknown(), false),
+    }
+    memory = memory.field("Used by the Bot", bot_memory().map_or_else(unknown, bytes), false);
+    pages.push(memory);
+
+    let mut cpu_page = page("⚙️ CPU");
+    match cpu {
+        Some(percent) => cpu_page = cpu_page.field("Percentage", format!("{percent:.1}%"), true).field("Bar", bar(percent), false),
+        None => cpu_page = cpu_page.field("Percentage", unknown(), false),
+    }
+    pages.push(cpu_page);
+
+    paginate(ctx, pages).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bars_and_sizes_are_formatted() {
+        assert_eq!(bar(0.0), format!("`{}`", "░".repeat(20)));
+        assert_eq!(bar(50.0), format!("`{}{}`", "█".repeat(10), "░".repeat(10)));
+        assert_eq!(bar(150.0), format!("`{}`", "█".repeat(20)));
+        assert_eq!(bytes(512 * 1024 * 1024), "512.0 MB");
+        assert_eq!(bytes(3 * 1024 * 1024 * 1024), "3.00 GB");
+    }
 }

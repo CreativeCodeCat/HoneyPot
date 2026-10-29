@@ -11,7 +11,7 @@ use std::time::Instant;
 use poise::serenity_prelude as serenity;
 
 use cogs::{
-    announce, automod, cog_manager, cooldowns, economy, games, general, honeypot, info, levels, lockdown, logs, moderation, pets, profile, rules, normalize_cog_name, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context, Data,
+    announce, automod, cog_manager, cooldowns, developer, economy, games, general, honeypot, info, levels, lockdown, logs, moderation, pets, profile, rules, normalize_cog_name, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context, Data,
     Error, State, COG_MANAGER,
 };
 
@@ -25,6 +25,8 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
         general::resetchannel(),
         info::info(),
         info::user_info_menu(),
+        developer::remove(),
+        developer::maintenance_mode(),
         automod::automod(),
         cog_manager::enablecog(),
         cog_manager::disablecog(),
@@ -70,6 +72,13 @@ fn commands() -> Vec<poise::Command<Data, Error>> {
 
 /// Blocks commands whose cog is disabled in the current guild, then applies the command's cooldown.
 async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
+    // Owner-only commands belong to no cog and work in any channel
+    if ctx.command().category.as_deref() == Some(developer::CATEGORY) {
+        return Ok(true);
+    }
+    if developer::maintenance() && !ctx.framework().options().owners.contains(&ctx.author().id) {
+        return Err("🛠️ The bot is under maintenance right now. Please try again later.".into());
+    }
     if let (Some(guild_id), Some(category)) = (ctx.guild_id(), ctx.command().category.as_deref()) {
         let cog_name = normalize_cog_name(category);
         if cog_name != COG_MANAGER && !ctx.data().is_cog_enabled(guild_id.get(), &cog_name) {
@@ -270,6 +279,7 @@ async fn event_handler(
         }
         serenity::FullEvent::CacheReady { .. } => {
             cleanup_stale_data(ctx, data);
+            developer::apply_presence(ctx);
             if !TASKS_STARTED.swap(true, Ordering::SeqCst) {
                 startup_report(ctx, data, &framework.options().commands).await;
                 tokio::spawn(stats::update_stats_loop(ctx.clone(), data.clone()));

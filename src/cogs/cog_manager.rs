@@ -124,9 +124,15 @@ pub fn application_commands(commands: &[poise::Command<Data, Error>], keep: impl
         .collect()
 }
 
-/// Registers the CogManager commands globally; every other cog's commands are per guild.
+/// Whether a cog's commands are registered globally rather than per guild: CogManager, and
+/// the owner-only Developer commands, which belong to no cog.
+fn is_global(cog: &str) -> bool {
+    cog == COG_MANAGER || cog == normalize_cog_name(super::developer::CATEGORY)
+}
+
+/// Registers the CogManager and Developer commands globally; every other cog's commands are per guild.
 pub async fn sync_global_commands(http: &serenity::Http, commands: &[poise::Command<Data, Error>]) -> serenity::Result<usize> {
-    let global = application_commands(commands, |cog, _| cog == COG_MANAGER);
+    let global = application_commands(commands, |cog, _| is_global(cog));
     let count = global.len();
     serenity::Command::set_global_commands(http, global).await?;
     Ok(count)
@@ -142,7 +148,7 @@ pub async fn sync_guild_commands(
     let enabled = {
         let config = data.cog_config.lock().unwrap();
         application_commands(commands, |cog, name| {
-            cog != COG_MANAGER
+            !is_global(cog)
                 && config.is_enabled(guild_id.get(), cog)
                 && (cog != "games" || config.is_game_enabled(guild_id.get(), name))
         })
@@ -308,8 +314,8 @@ mod tests {
         let commands = crate::commands();
         let uncategorised: Vec<_> = commands.iter().filter(|c| c.category.is_none()).map(|c| c.name.clone()).collect();
         assert!(uncategorised.is_empty(), "no cog: {uncategorised:?}");
-        let global = application_commands(&commands, |cog, _| cog == COG_MANAGER);
-        let cog_manager = commands.iter().filter(|c| c.category.as_deref() == Some("CogManager")).count();
+        let global = application_commands(&commands, |cog, _| is_global(cog));
+        let cog_manager = commands.iter().filter(|c| matches!(c.category.as_deref(), Some("CogManager" | "Developer"))).count();
         assert_eq!(global.len(), cog_manager);
     }
 

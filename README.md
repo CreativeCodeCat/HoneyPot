@@ -251,6 +251,7 @@ Members make an "about me" profile that anyone can view. Profiles belong to the 
 - `/info server` - Show the server's details and statistics, with its roles on the following pages
 - `/info channel [channel]` - Show a channel's details (this channel by default)
 - `/info user [user]` - Show a user's account and server details (you by default). Also in the user right-click menu under Apps → **User Info**
+- `/info bot` - Show the bot's details over several pages: its client (version, ping, owner, start time), stats (commands, servers, members), database, host, memory and CPU (admin)
 - `/info staff` - List the server's owner, administrators (Administrator or Manage Server) and moderators (Moderate, Kick or Ban Members, or Manage Messages)
 
 ### Sticky Commands
@@ -286,6 +287,13 @@ Each server writes its own rules as sections (a title, text and colour), which a
 - `/ping` - Show latency and uptime (5-minute cooldown)
 - `/resetchannel [channel]` - After a confirm button, recreate a channel (this one by default) with the same name, category, position, settings and permissions, then delete the old one and its messages (needs **Manage Channels**)
 - `/updatestats` - Update the voice channel stats now instead of waiting for the next 10-minute refresh (admin)
+
+### Developer Commands
+
+Only the bot's owner can use these (the owner of its Discord application, or the members of the team that owns it). They work in every server and channel and can't be disabled.
+
+- `/maintenance` - Turn maintenance mode on or off. While it's on, everyone else is told the bot is under maintenance when they use a command, and the bot's status shows Do Not Disturb with "Under maintenance". Background features (honeypots, logs, AutoMod, staff policy...) keep running. It stays on across restarts
+- `/remove <server>` - Make the bot leave a server, picked from a list of the servers it's in, after a confirm button
 
 ### Cog Management Commands
 
@@ -330,6 +338,7 @@ The bot uses SQLite for persistent storage:
 - `database/cog_config.db` - Per-server cog enable/disable configuration
 - `database/tickets.db` - Ticket system setup and tickets
 - `database/suggestions.db` - Suggestion channels and open suggestions
+- `database/maintenance` - Exists while maintenance mode is on
 - `database/staff_policy.db` - Roles taken by the staff policy, for restoring
 - `database/sticky.db` - Sticky messages
 - `database/counting.db` - Counting channels, counts and high scores
@@ -371,6 +380,7 @@ HoneyPot/
     └── cogs/
         ├── mod.rs          # Shared state, cog list, helpers
         ├── cog_manager.rs  # Per-server enable/disable
+        ├── developer.rs    # Bot owner commands: /remove
         ├── economy/
         │   ├── mod.rs      # /eco commands
         │   └── store.rs    # SQLite storage
