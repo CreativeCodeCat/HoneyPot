@@ -17,20 +17,46 @@ const RED: u32 = 0xed4245;
 
 /// Time between /eco work uses
 const WORK_COOLDOWN_SECS: i64 = 6 * 60 * 60;
-/// Later jobs pay more: the wage is a random 1-120, times the job's position
-const JOBS: &[&str] = &[
-    "Cleaner",
-    "Waiter",
-    "Bus Driver",
-    "Teacher",
-    "Builder",
-    "Programmer",
-    "Mechanic",
-    "Chef",
-    "Developer",
-    "Oil Rigger",
-    "Space Invader",
+/// A job /eco work can give: better jobs are rarer and pay more.
+struct Job {
+    name: &'static str,
+    /// How often it comes up, relative to the other jobs
+    weight: u32,
+    /// The wage is a random amount in this range
+    min_wage: i64,
+    max_wage: i64,
+}
+
+/// Worst to best. On average a shift pays about 490.
+const JOBS: &[Job] = &[
+    Job { name: "Cleaner", weight: 20, min_wage: 50, max_wage: 150 },
+    Job { name: "Waiter", weight: 18, min_wage: 80, max_wage: 200 },
+    Job { name: "Bus Driver", weight: 15, min_wage: 120, max_wage: 300 },
+    Job { name: "Builder", weight: 12, min_wage: 200, max_wage: 450 },
+    Job { name: "Mechanic", weight: 10, min_wage: 300, max_wage: 600 },
+    Job { name: "Chef", weight: 8, min_wage: 400, max_wage: 800 },
+    Job { name: "Teacher", weight: 7, min_wage: 500, max_wage: 1000 },
+    Job { name: "Programmer", weight: 5, min_wage: 800, max_wage: 1600 },
+    Job { name: "Developer", weight: 3, min_wage: 1200, max_wage: 2400 },
+    Job { name: "Oil Rigger", weight: 2, min_wage: 2000, max_wage: 4000 },
+    Job { name: "Space Invader", weight: 1, min_wage: 4000, max_wage: 8000 },
 ];
+
+/// The best jobs, which get a shout-out when someone lands one
+const RARE_JOBS: usize = 3;
+
+/// A random job, weighted towards the common ones, and its index in `JOBS`.
+fn pick_job(rng: &mut impl Rng) -> (usize, &'static Job) {
+    let total: u32 = JOBS.iter().map(|job| job.weight).sum();
+    let mut roll = rng.random_range(0..total);
+    for (index, job) in JOBS.iter().enumerate() {
+        if roll < job.weight {
+            return (index, job);
+        }
+        roll -= job.weight;
+    }
+    unreachable!("the roll is below the total weight")
+}
 
 /// Formats an amount with the currency icon and thousands separators, e.g. "₪ 1,234".
 pub(crate) fn money(amount: i64) -> String {
@@ -103,7 +129,7 @@ fn check_amount(amount: i64) -> Option<&'static str> {
     slash_command,
     guild_only,
     category = "Economy",
-    subcommands("join", "work", "daily", "balance", "deposit", "withdraw", "pay", "dailyrate", "wallet", "bank"),
+    subcommands("join", "work", "jobs", "daily", "balance", "deposit", "withdraw", "pay", "dailyrate", "wallet", "bank"),
     subcommand_required
 )]
 pub async fn eco(_ctx: Context<'_>) -> Result<(), Error> {
@@ -127,10 +153,10 @@ async fn join(ctx: Context<'_>) -> Result<(), Error> {
 /// Work a random job (once every 6 hours)
 #[command(slash_command, guild_only, category = "Economy")]
 async fn work(ctx: Context<'_>) -> Result<(), Error> {
-    let (job, wage) = {
+    let (job, wage, rare) = {
         let mut rng = rand::rng();
-        let index = rng.random_range(0..JOBS.len());
-        (JOBS[index], rng.random_range(1..=120) * (index as i64 + 1))
+        let (index, job) = pick_job(&mut rng);
+        (job.name, rng.random_range(job.min_wage..=job.max_wage), index >= JOBS.len() - RARE_JOBS)
     };
 
     let now = Utc::now().timestamp();
@@ -140,11 +166,34 @@ async fn work(ctx: Context<'_>) -> Result<(), Error> {
             let embed = serenity::CreateEmbed::new()
                 .colour(PURPLE)
                 .description(format!("<@{}> You worked as a {job} and earned {}", ctx.author().id, money(wage)));
+            let embed = if rare { embed.footer(serenity::CreateEmbedFooter::new("⭐ Rare job! Lucky shift.")) } else { embed };
             ctx.send(CreateReply::default().embed(embed)).await?;
             Ok(())
         }
         Err(e) => reply_error(ctx, e, None).await,
     }
+}
+
+/// List the jobs /eco work can give, what they pay and how often they come up
+#[command(slash_command, guild_only, category = "Economy")]
+async fn jobs(ctx: Context<'_>) -> Result<(), Error> {
+    let total: u32 = JOBS.iter().map(|job| job.weight).sum();
+    let lines: Vec<String> = JOBS
+        .iter()
+        .enumerate()
+        .rev()
+        .map(|(index, job)| {
+            let star = if index >= JOBS.len() - RARE_JOBS { " ⭐" } else { "" };
+            let chance = job.weight as f64 * 100.0 / total as f64;
+            format!("**{}**{star}: `{}`–`{}` ({chance:.0}% of shifts)", job.name, money(job.min_wage), money(job.max_wage))
+        })
+        .collect();
+    let embed = serenity::CreateEmbed::new()
+        .title("Jobs")
+        .colour(PURPLE)
+        .description(format!("{}\n\nUse `/eco work` once every 6 hours to work a random job. ⭐ marks the rare ones.", lines.join("\n")))
+        .timestamp(serenity::Timestamp::now());
+    reply_embed(ctx, embed).await
 }
 
 /// The daily payout range for a member: their highest role with a rate set,
@@ -491,6 +540,26 @@ async fn bank_remove(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn better_jobs_are_rarer_and_pay_more() {
+        for pair in JOBS.windows(2) {
+            let (worse, better) = (&pair[0], &pair[1]);
+            assert!(better.weight <= worse.weight, "{} is commoner than {}", better.name, worse.name);
+            assert!(better.min_wage > worse.min_wage && better.max_wage > worse.max_wage, "{} doesn't pay more than {}", better.name, worse.name);
+        }
+        assert!(JOBS.iter().all(|job| job.weight > 0 && job.min_wage <= job.max_wage));
+    }
+
+    #[test]
+    fn every_job_can_come_up() {
+        let mut rng = rand::rng();
+        let mut seen = vec![false; JOBS.len()];
+        for _ in 0..100_000 {
+            seen[pick_job(&mut rng).0] = true;
+        }
+        assert!(seen.iter().all(|s| *s));
+    }
 
     #[test]
     fn formats_money() {

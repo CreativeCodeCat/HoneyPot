@@ -148,7 +148,8 @@ The bot's own actions, other bots and the server owner are ignored. Each case is
 Each server has its own economy. Members start with ₪ 100 in the bank after joining.
 
 - `/eco join` - Open an account
-- `/eco work` - Work a random job for ₪ 1–1,320 (once every 6 hours)
+- `/eco jobs` - List every job with its pay range and how often it comes up
+- `/eco work` - Work a random job (once every 6 hours). Better jobs are rarer and pay more: from Cleaner (₪ 50–150, the most common) up to Space Invader (₪ 4,000–8,000, about 1 shift in 100)
 - `/eco daily` - Claim a daily reward, ₪ 100–5,000 by default (once a day, resets at midnight UTC)
 - `/eco balance [user]` - Show a wallet and bank balance
 - `/eco deposit <amount>` / `/eco withdraw <amount>` - Move money between your wallet and bank
