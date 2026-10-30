@@ -17,6 +17,7 @@ use rand::Rng;
 use serde_json::{json, Value};
 
 use super::framework::Command;
+use crate::database::repositories::dashboard_log::Action as DashboardAction;
 use crate::features::{cog_manager, normalize_cog_name, Data, COGS, COG_MANAGER};
 use crate::log;
 
@@ -32,6 +33,8 @@ const SESSION_LENGTH: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const ADMINISTRATOR: u64 = 0x8;
 /// Administrator or Manage Server
 const MANAGE_PERMISSIONS: u64 = ADMINISTRATOR | 0x20;
+/// Changes listed on a server's Audit page
+const AUDIT_SIZE: u32 = 50;
 
 struct Session {
     user_id: u64,
@@ -148,6 +151,7 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         .route("/servers/{id}", get(|| async { Html(PAGE) }))
         .route("/servers/{id}/{section}", get(|| async { Html(PAGE) }))
         .route("/servers/{id}/{section}/{item}", get(|| async { Html(PAGE) }))
+        .route("/system", get(|| async { Html(PAGE) }))
         .route("/login", get(login))
         .route("/callback", get(callback))
         .route("/logout", get(logout))
@@ -155,6 +159,10 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         .route("/api/servers/{id}", get(server))
         .route("/api/servers/{id}/cogs/{cog}", axum::routing::post(toggle_cog))
         .route("/api/servers/{id}/cogs/{cog}/data", get(cog_data))
+        .route("/api/servers/{id}/activity", get(activity))
+        .route("/api/servers/{id}/settings", get(settings).post(save_setting))
+        .route("/api/servers/{id}/leaderboards", get(leaderboards))
+        .route("/api/system", get(system))
         .with_state(dash.clone());
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(listener) => listener,
@@ -468,8 +476,8 @@ async fn toggle_cog(
         log::error(format!("Error saving cog {cog} for guild {guild_id} from the dashboard: {e}"));
         return error(StatusCode::INTERNAL_SERVER_ERROR, "The change couldn't be saved");
     }
-    let who = dash.session(&headers, |s| format!("{} ({})", s.name, s.user_id)).unwrap_or_default();
-    log::info(format!("{who} turned {cog} {} in guild {guild_id} from the dashboard", if enabled { "on" } else { "off" }));
+    let display = COGS.iter().find(|c| normalize_cog_name(c) == cog).copied().unwrap_or(&cog);
+    dash.record(&headers, guild_id, format!("Turned {display} {}", if enabled { "on" } else { "off" }));
     let guild = serenity::GuildId::new(guild_id);
     tokio::spawn(async move {
         // One at a time, each reading the latest settings, so quick toggles can't finish out
@@ -510,28 +518,279 @@ async fn cog_data(
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "The data couldn't be read" }))).into_response();
         }
     };
-    let list: Vec<Value> = tables.iter().map(|t| json!({ "id": t.id, "name": t.name, "rows": t.rows })).collect();
+    let list: Vec<Value> = tables.iter().map(|t| json!({ "id": t.id, "name": t.name, "description": t.description, "rows": t.rows })).collect();
     let names = data.as_ref().map(|d| dash.names(guild_id, &d["rows"])).unwrap_or_default();
-    Json(json!({ "cog": cog, "tables": list, "table": chosen.map(|t| t.id.clone()), "data": data, "names": names })).into_response()
+    // Readable names for keys stored in a column, like "logs.joinleave" or "game:hack"
+    let mut labels = serde_json::Map::new();
+    match chosen.map(|t| (t.file, t.table.as_str())) {
+        Some(("server_setup.db", "settings")) => {
+            let keys = setting_keys().into_iter().map(|(key, label, _)| (key, Value::String(label)));
+            labels.insert("key".to_string(), Value::Object(keys.collect()));
+        }
+        Some(("cog_config.db", "cog_config")) => {
+            let mut cogs: serde_json::Map<String, Value> =
+                COGS.iter().map(|c| (normalize_cog_name(c), Value::String(c.to_string()))).collect();
+            for game in crate::features::games::GAMES {
+                cogs.insert(format!("game:{game}"), Value::String(format!("{} (game)", crate::features::title_case(game))));
+            }
+            labels.insert("cog_name".to_string(), Value::Object(cogs));
+        }
+        _ => {}
+    }
+    let enabled = dash.data.is_cog_enabled(guild_id, &normalize_cog_name(cog));
+    Json(json!({
+        "cog": cog,
+        "enabled": enabled,
+        "tables": list,
+        "table": chosen.map(|t| t.id.clone()),
+        "data": data,
+        "names": names,
+        "labels": labels,
+    }))
+    .into_response()
+}
+
+impl Dashboard {
+    /// Notes a change someone made on the dashboard, for the server's Audit page and the log.
+    fn record(&self, headers: &HeaderMap, guild_id: u64, action: String) {
+        let Some((user_id, user_name)) = self.session(headers, |s| (s.user_id, s.name.clone())) else { return };
+        log::info(format!("{user_name} ({user_id}) in guild {guild_id} from the dashboard: {action}"));
+        let entry = DashboardAction { user_id, user_name, action, at: chrono::Utc::now().timestamp() };
+        if let Err(e) = self.data.dashboard_log.lock().unwrap().add(guild_id, &entry) {
+            log::error(format!("Error saving a dashboard action for guild {guild_id}: {e}"));
+        }
+    }
+
+    /// Avatar URLs for users, by ID, from the server's members or the users the bot knows.
+    fn avatars<'a>(&self, guild_id: u64, users: impl Iterator<Item = &'a str>) -> serde_json::Map<String, Value> {
+        let cache = &self.ctx.cache;
+        let guild = cache.guild(guild_id);
+        let mut avatars = serde_json::Map::new();
+        for user in users.filter_map(|id| id.parse::<u64>().ok()).filter(|&id| id != 0) {
+            let face = guild
+                .as_ref()
+                .and_then(|g| g.members.get(&serenity::UserId::new(user)).map(|m| m.face()))
+                .or_else(|| cache.user(user).map(|u| u.face()));
+            if let Some(face) = face {
+                avatars.insert(user.to_string(), Value::String(face));
+            }
+        }
+        avatars
+    }
+
+    fn is_owner(&self, headers: &HeaderMap) -> Option<bool> {
+        self.session(headers, |s| s.guilds.is_none())
+    }
+}
+
+fn json_error(status: StatusCode, text: &str) -> Response {
+    (status, Json(json!({ "error": text }))).into_response()
+}
+
+/// The server's security status, recent catches and incidents, and changes made here.
+async fn activity(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+    let (guild_id, _) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    let security = super::dashboard_stats::security(guild_id);
+    let audit: Vec<Value> = match dash.data.dashboard_log.lock().unwrap().list(guild_id, AUDIT_SIZE) {
+        Ok(actions) => actions
+            .into_iter()
+            .map(|a| json!({ "user_id": a.user_id.to_string(), "user_name": a.user_name, "action": a.action, "at": a.at }))
+            .collect(),
+        Err(e) => {
+            log::error(format!("Error reading dashboard actions for guild {guild_id}: {e}"));
+            Vec::new()
+        }
+    };
+    let names = dash.names(guild_id, &security);
+    let catchers = security["honeypot"]["recent"].as_array().into_iter().flatten().filter_map(|c| c["user_id"].as_str());
+    let avatars = dash.avatars(guild_id, catchers);
+    Json(json!({ "security": security, "audit": audit, "names": names, "avatars": avatars })).into_response()
+}
+
+/// The channels a server can pick in Settings: what each is for, by key.
+fn setting_keys() -> Vec<(String, String, &'static str)> {
+    use crate::core::framework::Choice;
+    use crate::features::server_setup;
+    let mut keys = vec![
+        ("channel.commands".to_string(), "Commands channel".to_string(), "Channels"),
+        ("channel.games".to_string(), "Games channel".to_string(), "Channels"),
+        ("channel.announcements".to_string(), "Announcements channel".to_string(), "Channels"),
+    ];
+    keys.extend(server_setup::LOG_TYPES.iter().map(|&log| (server_setup::log_key(log), format!("{} log", log.name()), "Logs")));
+    keys
+}
+
+/// The server's text channels, and the channel picked for each setting.
+async fn settings(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+    let (guild_id, can_edit) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    let channels: Vec<Value> = {
+        let Some(guild) = dash.ctx.cache.guild(guild_id) else { return json_error(StatusCode::NOT_FOUND, "The bot isn't in that server") };
+        let category = |c: &serenity::GuildChannel| c.parent_id.and_then(|p| guild.channels.get(&p)).map(|p| (p.position, p.name.clone()));
+        let mut text: Vec<&serenity::GuildChannel> = guild
+            .channels
+            .values()
+            .filter(|c| matches!(c.kind, serenity::ChannelType::Text | serenity::ChannelType::News))
+            .collect();
+        text.sort_by_key(|c| (category(c).map(|(p, _)| p), c.position, c.id));
+        text.into_iter()
+            .map(|c| json!({ "id": c.id.get().to_string(), "name": c.name, "category": category(c).map(|(_, name)| name) }))
+            .collect()
+    };
+    let saved: HashMap<String, u64> = match dash.data.server_setup.lock().unwrap().all(guild_id) {
+        Ok(all) => all.into_iter().collect(),
+        Err(e) => {
+            log::error(format!("Error reading settings for guild {guild_id}: {e}"));
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "The settings couldn't be read");
+        }
+    };
+    let settings: Vec<Value> = setting_keys()
+        .into_iter()
+        .map(|(key, label, group)| json!({ "key": key, "label": label, "group": group, "channel_id": saved.get(&key).map(|c| c.to_string()) }))
+        .collect();
+    Json(json!({ "can_edit": can_edit, "channels": channels, "settings": settings })).into_response()
+}
+
+/// Picks the channel for a setting, like `/server-setup`. Takes `{"key": "logs.message",
+/// "channel_id": "123"}`, or a null `channel_id` to clear it.
+async fn save_setting(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(id): Path<String>, Json(body): Json<Value>) -> Response {
+    let (guild_id, can_edit) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    if !can_edit {
+        return json_error(StatusCode::FORBIDDEN, "Only the server's owner and admins can change settings");
+    }
+    let Some((key, label, _)) = setting_keys().into_iter().find(|(key, _, _)| Some(key.as_str()) == body["key"].as_str()) else {
+        return json_error(StatusCode::BAD_REQUEST, "There's no setting by that name");
+    };
+    let channel: Option<u64> = match &body["channel_id"] {
+        Value::Null => None,
+        Value::String(id) => match id.parse() {
+            Ok(id) => Some(id),
+            Err(_) => return json_error(StatusCode::BAD_REQUEST, "That isn't a channel"),
+        },
+        _ => return json_error(StatusCode::BAD_REQUEST, "Send a channel_id, or null to clear it"),
+    };
+    let channel_name = match channel {
+        None => None,
+        Some(channel) => {
+            let name = dash.ctx.cache.guild(guild_id).and_then(|g| {
+                g.channels
+                    .get(&serenity::ChannelId::new(channel))
+                    .filter(|c| matches!(c.kind, serenity::ChannelType::Text | serenity::ChannelType::News))
+                    .map(|c| c.name.clone())
+            });
+            match name {
+                Some(name) => Some(name),
+                None => return json_error(StatusCode::BAD_REQUEST, "That isn't a text channel in this server"),
+            }
+        }
+    };
+    let store = dash.data.server_setup.lock().unwrap();
+    let saved = match channel {
+        Some(channel) => store.set(guild_id, &key, channel),
+        None => store.remove(guild_id, &key).map(|_| ()),
+    };
+    drop(store);
+    if let Err(e) = saved {
+        log::error(format!("Error saving {key} for guild {guild_id} from the dashboard: {e}"));
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "The change couldn't be saved");
+    }
+    let action = match &channel_name {
+        Some(name) => format!("Set the {} to #{name}", label.to_lowercase()),
+        None => format!("Cleared the {}", label.to_lowercase()),
+    };
+    dash.record(&headers, guild_id, action);
+    Json(json!({ "key": key, "channel_id": channel.map(|c| c.to_string()) })).into_response()
+}
+
+/// The server's top members by level and by money.
+async fn leaderboards(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+    let (guild_id, _) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    let boards = super::dashboard_stats::leaderboards(guild_id);
+    let names = dash.names(guild_id, &boards);
+    let members = boards["levels"].as_array().into_iter().flatten().chain(boards["economy"].as_array().into_iter().flatten());
+    let avatars = dash.avatars(guild_id, members.filter_map(|m| m["user_id"].as_str()));
+    Json(json!({ "levels": boards["levels"], "economy": boards["economy"], "names": names, "avatars": avatars })).into_response()
+}
+
+/// The bot's host and every server it's in, for its owners.
+async fn system(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Response {
+    match dash.is_owner(&headers) {
+        None => return json_error(StatusCode::UNAUTHORIZED, "Sign in first"),
+        Some(false) => return json_error(StatusCode::FORBIDDEN, "Only the bot's owners can see this"),
+        Some(true) => {}
+    }
+    use crate::features::info;
+    let cpu = info::cpu_percent().await;
+    let memory = info::system_memory();
+    let (db_files, db_size) = info::database_files();
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease").map(|r| r.trim().to_string()).ok();
+    let host = std::fs::read_to_string("/etc/hostname").map(|r| r.trim().to_string()).ok();
+    let cache = &dash.ctx.cache;
+    let mut guilds: Vec<Value> = cache
+        .guilds()
+        .iter()
+        .filter_map(|id| {
+            let g = cache.guild(*id)?;
+            Some(json!({
+                "id": id.get().to_string(),
+                "name": g.name,
+                "icon": g.icon_url(),
+                "members": g.member_count,
+                "owner": g.members.get(&g.owner_id).map(|m| m.user.name.clone()).unwrap_or_else(|| g.owner_id.to_string()),
+                "joined": g.joined_at.unix_timestamp(),
+            }))
+        })
+        .collect();
+    guilds.sort_by_key(|g| std::cmp::Reverse(g["members"].as_u64().unwrap_or(0)));
+    Json(json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime_secs": dash.data.start_time.elapsed().as_secs(),
+        "cpu_percent": cpu,
+        "memory": memory.map(|(total, available)| json!({ "total": total, "used": total - available })),
+        "bot_memory": info::bot_memory(),
+        "database": { "files": db_files, "bytes": db_size },
+        "kernel": kernel,
+        "host": host,
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "commands": info::count_commands(&dash.registered),
+        "shards": cache.shard_count(),
+        "users_cached": cache.user_count(),
+        "guilds": guilds,
+    }))
+    .into_response()
 }
 
 /// Discord IDs: 17 to 20 digits.
 static ID: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"\b\d{17,20}\b").unwrap());
 
 impl Dashboard {
-    /// Names for the Discord IDs in some rows, from what the bot knows about the server:
-    /// `#channel`, `@role`, members' display names, other users' names and the server itself.
-    /// IDs it doesn't know (like message IDs) are left out.
-    fn names(&self, guild_id: u64, rows: &Value) -> serde_json::Map<String, Value> {
-        let mut ids = HashSet::new();
-        let mut collect = |text: &str| ids.extend(ID.find_iter(text).filter_map(|m| m.as_str().parse::<u64>().ok()));
-        for cell in rows.as_array().into_iter().flatten().flat_map(|row| row.as_array().into_iter().flatten()) {
-            match cell {
-                Value::String(text) => collect(text),
-                Value::Number(n) => collect(&n.to_string()),
+    /// Names for the Discord IDs anywhere in `value`, from what the bot knows about the
+    /// server: `#channel`, `@role`, members' display names, other users' names and the server
+    /// itself. IDs it doesn't know (like message IDs) are left out.
+    fn names(&self, guild_id: u64, value: &Value) -> serde_json::Map<String, Value> {
+        fn collect(value: &Value, ids: &mut HashSet<u64>) {
+            match value {
+                Value::String(text) => ids.extend(ID.find_iter(text).filter_map(|m| m.as_str().parse::<u64>().ok())),
+                Value::Number(n) => ids.extend(ID.find_iter(&n.to_string()).filter_map(|m| m.as_str().parse::<u64>().ok())),
+                Value::Array(items) => items.iter().for_each(|v| collect(v, ids)),
+                Value::Object(map) => map.values().for_each(|v| collect(v, ids)),
                 _ => {}
             }
         }
+        let mut ids = HashSet::new();
+        collect(value, &mut ids);
         let mut names = serde_json::Map::new();
         let Some(guild) = self.ctx.cache.guild(guild_id) else { return names };
         for id in ids {

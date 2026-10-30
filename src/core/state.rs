@@ -15,6 +15,7 @@ pub struct State {
     pub applications: Mutex<applications::Store>,
     pub blacklist: Mutex<developer::Blacklist>,
     pub cooldowns: Mutex<cooldowns::Cooldowns>,
+    pub dashboard_log: Mutex<crate::database::repositories::dashboard_log::Store>,
     pub counting: Mutex<games::counting::Store>,
     pub economy: Mutex<economy::store::Store>,
     pub guessing: Mutex<games::guessing::Store>,

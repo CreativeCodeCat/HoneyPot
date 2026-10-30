@@ -11,6 +11,7 @@ pub mod applications;
 pub mod blacklist;
 pub mod bot_messages;
 pub mod cooldowns;
+pub mod dashboard_log;
 pub mod counting;
 pub mod guessing;
 pub mod incidents;

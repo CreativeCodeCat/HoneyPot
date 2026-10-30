@@ -67,7 +67,15 @@ A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenit
 
 Once the bot is connected, it serves a dashboard at http://localhost:8080: the bot's version, uptime and shards, totals for servers, members and channels, and every server with how many cogs it has on. It refreshes every 10 seconds, and the same data is at `/api/overview` as JSON.
 
-Clicking a server switches the sidebar to that server: its **Overview** (members, channels, roles, boosts, owner, creation date), **Commands** (every command people can use there, from the cogs that are on, with the permission each needs, and a filter box), and **Cogs** (each cog, on or off). The server's owner and admins (and the bot's owners) can turn cogs on and off there with a switch, like `/enablecog` and `/disablecog`, and the server's slash commands update to match; people with only Manage Server see them read-only. Each cog has an **Info** button if it keeps data for the server, which opens a read-only view of its database tables (only the server's own rows, 50 per page), and a **Cmd** button if it's on, which opens its commands. The bot owner's commands aren't listed. The page's data is at `/api/servers/<id>`.
+Clicking a server switches the sidebar to that server's pages:
+- **Overview** - members, channels, roles and boosts; its security at a glance (honeypot catches, incidents, quarantined members, open tickets, locked channels), a banner during a raid, and the latest honeypot catches and incidents. It updates every 30 seconds
+- **Settings** - pick the commands, games and announcements channels and every log channel from the server's channels, like `/server-setup`
+- **Commands** - every command people can use there, from the cogs that are on, with the permission each needs and a filter box
+- **Cogs** - each cog with an on/off switch, like `/enablecog` and `/disablecog` (the server's slash commands update to match); **Info** opens a read-only view of what the cog keeps for the server, with its defaults filled in, and **Cmd** opens its commands
+- **Leaderboards** - the top 10 members by level and by money
+- **Audit log** - every change made through the dashboard: who, what and when
+
+Only the server's owner and admins (and the bot's owners) can change settings and cogs; people with only Manage Server see them read-only. The bot's owners also get a **System** page: CPU, memory, host, database size and every server the bot is in. Press **Ctrl+K** anywhere to jump to a server or page, and use the moon/sun button to pick a light or dark theme.
 
 People sign in with Discord and see the servers they own or have **Administrator** or **Manage Server** in; the bot's owners (or its team) see every server. To turn it on:
 
@@ -501,6 +509,7 @@ The bot uses SQLite for persistent storage:
 - `database/presence.json` - The bot's status and activity set with `/presence`
 - `database/staff_policy.db` - Roles taken by the staff policy, for restoring
 - `database/sticky.db` - Sticky messages
+- `database/dashboard_log.db` - Changes made through the web dashboard
 - `database/reaction_roles.db` - Reaction role emojis and the roles they give
 - `database/counting.db` - Counting channels, counts and high scores
 - `database/guessing.db` - Guessing channels, current numbers and stats
@@ -545,6 +554,7 @@ HoneyPot/
     │   ├── cog_data.rs     # Which database tables each cog keeps, for the dashboard's Info pages
     │   ├── command_router.rs # Every registered command, and command error replies
     │   ├── dashboard.rs    # The web dashboard on port 8080 (page in assets/dashboard/)
+    │   ├── dashboard_stats.rs # Security numbers and leaderboards for its server pages
     │   ├── event_router.rs # Sends gateway events to features; startup work and loops
     │   ├── permissions.rs  # The check before every command (blacklist, cog enabled, cooldowns)
     │   ├── error.rs        # Error and Context types

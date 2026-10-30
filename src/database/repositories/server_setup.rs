@@ -36,6 +36,11 @@ impl Store {
         Ok(())
     }
 
+    /// Returns false if it wasn't set.
+    pub fn remove(&self, guild_id: u64, key: &str) -> rusqlite::Result<bool> {
+        Ok(self.conn.execute("DELETE FROM settings WHERE guild_id = ? AND key = ?", params![guild_id, key])? > 0)
+    }
+
     pub fn all(&self, guild_id: u64) -> rusqlite::Result<Vec<(String, u64)>> {
         let mut stmt = self.conn.prepare("SELECT key, value FROM settings WHERE guild_id = ? ORDER BY key")?;
         let rows = stmt.query_map([guild_id], |row| Ok((row.get(0)?, row.get(1)?)))?;

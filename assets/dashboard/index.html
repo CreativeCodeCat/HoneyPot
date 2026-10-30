@@ -4,18 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard</title>
+<script>
+  // Before the page draws, so a chosen theme doesn't flash
+  try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
 <style>
   :root {
     --bg: #f4f5f7; --panel: #ffffff; --side: #ebedf0; --text: #1d1f23; --muted: #6b7280;
     --border: #e1e3e8; --hover: rgba(0, 0, 0, .05); --active: rgba(217, 138, 0, .14); --accent: #c27a00;
-    --green: #2d8a4b; --green-bg: rgba(59, 165, 93, .15); --red: #d83c3e;
+    --green: #2d8a4b; --green-bg: rgba(59, 165, 93, .15); --red: #c93638; --red-bg: rgba(216, 60, 62, .12);
+    --amber: #a86400; --amber-bg: rgba(240, 165, 0, .16); --shadow: 0 10px 40px rgba(0, 0, 0, .18);
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #1e1f22; --panel: #2b2d31; --side: #232428; --text: #e8e9eb; --muted: #9a9ca3;
       --border: #3a3c42; --hover: rgba(255, 255, 255, .05); --active: rgba(240, 165, 0, .16); --accent: #f0a500;
-      --green: #57c27a; --green-bg: rgba(59, 165, 93, .18);
+      --green: #57c27a; --green-bg: rgba(59, 165, 93, .18); --red: #f06a6c; --red-bg: rgba(240, 106, 108, .14);
+      --amber: #f0b445; --amber-bg: rgba(240, 165, 0, .16); --shadow: 0 10px 40px rgba(0, 0, 0, .5);
+      color-scheme: dark;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1e1f22; --panel: #2b2d31; --side: #232428; --text: #e8e9eb; --muted: #9a9ca3;
+    --border: #3a3c42; --hover: rgba(255, 255, 255, .05); --active: rgba(240, 165, 0, .16); --accent: #f0a500;
+    --green: #57c27a; --green-bg: rgba(59, 165, 93, .18); --red: #f06a6c; --red-bg: rgba(240, 106, 108, .14);
+    --amber: #f0b445; --amber-bg: rgba(240, 165, 0, .16); --shadow: 0 10px 40px rgba(0, 0, 0, .5);
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -23,6 +38,8 @@
   [hidden] { display: none !important; }
   a { color: inherit; }
   img { display: block; }
+  button { font: inherit; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--muted); background: var(--panel); }
 
   /* Sign in */
   #signin { min-height: 100%; display: grid; place-items: center; padding: 16px; }
@@ -34,130 +51,241 @@
 
   /* Layout */
   .app { display: flex; min-height: 100%; }
-  .sidebar {
-    width: 260px; flex: none; background: var(--side); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0;
-  }
+  .sidebar { width: 260px; flex: none; background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 16px; border-bottom: 1px solid var(--border); }
   .brand img { width: 36px; height: 36px; border-radius: 50%; background: var(--border); }
   .brand .bname { font-weight: 700; font-size: 15px; line-height: 1.2; }
   .brand .bmeta { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 5px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #3ba55d; flex: none; }
   .dot.down { background: var(--red); }
-  nav { flex: 1; overflow-y: auto; padding: 10px 8px; }
+  .search-btn { margin: 10px 8px 0; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel); color: var(--muted); cursor: pointer; font-size: 13px; text-align: left; }
+  .search-btn:hover { color: var(--text); }
+  .search-btn svg { width: 14px; height: 14px; }
+  .search-btn kbd { margin-left: auto; }
+  nav { flex: 1; overflow-y: auto; padding: 6px 8px 10px; }
   .nav-label { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 14px 10px 6px; }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; text-decoration: none; color: var(--text); font-size: 14px; }
   .nav-item:hover { background: var(--hover); }
   .nav-item.active { background: var(--active); font-weight: 600; }
-  .nav-item .ico { width: 24px; height: 24px; border-radius: 50%; background: var(--border); flex: none; display: grid; place-items: center; font-size: 11px; color: var(--muted); overflow: hidden; }
-  .nav-item .ico svg { width: 15px; height: 15px; }
-  .nav-item span.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ico { width: 24px; height: 24px; border-radius: 50%; background: var(--border); flex: none; display: grid; place-items: center; font-size: 11px; color: var(--muted); overflow: hidden; }
+  .ico svg { width: 15px; height: 15px; }
+  .ico img { width: 24px; height: 24px; }
+  .nav-item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-item .count { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .nav-empty { color: var(--muted); font-size: 13px; padding: 4px 10px; }
-  .nav-back { display: block; color: var(--muted); font-size: 13px; text-decoration: none; padding: 4px 10px 8px; }
+  .nav-back { display: block; color: var(--muted); font-size: 13px; text-decoration: none; padding: 10px 10px 8px; }
   .nav-back:hover { color: var(--text); }
-  .nav-server { display: flex; align-items: center; gap: 10px; padding: 6px 10px 10px; }
+  .nav-server { display: flex; align-items: center; gap: 10px; padding: 4px 10px 10px; }
   .nav-server img, .nav-server .ph { width: 32px; height: 32px; border-radius: 50%; background: var(--border); flex: none; }
   .nav-server b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nav-item .count { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .me { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
   .me img { width: 32px; height: 32px; border-radius: 50%; background: var(--border); }
   .me .who { flex: 1; min-width: 0; font-size: 13px; line-height: 1.3; }
   .me .who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .me .who small { color: var(--muted); }
-  .me a { color: var(--muted); font-size: 12px; text-decoration: none; }
-  .me a:hover { color: var(--text); }
+  .icon-btn { background: none; border: 0; padding: 5px; border-radius: 6px; color: var(--muted); cursor: pointer; display: grid; place-items: center; text-decoration: none; }
+  .icon-btn:hover { color: var(--text); background: var(--hover); }
+  .icon-btn svg { width: 17px; height: 17px; }
 
   .content { flex: 1; min-width: 0; }
   .topbar { display: none; }
-  .page { max-width: 1040px; margin: 0 auto; padding: 28px 28px 48px; }
+  .page { max-width: 1080px; margin: 0 auto; padding: 28px 28px 56px; }
   .page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
   .page-head img, .page-head .ph { width: 48px; height: 48px; border-radius: 50%; background: var(--border); flex: none; }
   .page-head .ph { display: grid; place-items: center; font-size: 18px; color: var(--muted); }
   .page-head h1 { margin: 0; font-size: 22px; line-height: 1.2; }
+  .page-head .grow { flex: 1; min-width: 0; }
+  .updated { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .sub { color: var(--muted); font-size: 13px; }
   .error { color: var(--red); }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  section + section, .block + .block { margin-top: 28px; }
 
-  /* Overview */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  /* Tiles and cards */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
   .tile { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
   .tile .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-  .tile .value { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  h2 { font-size: 16px; margin: 0 0 10px; }
-  .table { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tbody tr:last-child td { border-bottom: 0; }
-  tbody tr.clickable { cursor: pointer; }
-  tbody tr.clickable:hover { background: var(--hover); }
-  .guild { display: flex; align-items: center; gap: 10px; }
-  .guild img, .guild .ph { width: 28px; height: 28px; border-radius: 50%; background: var(--border); flex: none; }
-  .ph { display: grid; place-items: center; font-size: 12px; color: var(--muted); }
-  .guild a { text-decoration: none; font-weight: 500; }
-
-  /* Server */
-  .filter { width: 100%; padding: 9px 12px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
-  .cog { margin-bottom: 20px; }
-  .cog h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; margin: 0 0 8px; }
-  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
-  .badge.on { background: var(--green-bg); color: var(--green); }
-  .badge.off { background: var(--border); color: var(--muted); }
-  .cog.disabled .table { opacity: .6; }
-  td code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
-  td.desc { white-space: normal; color: var(--muted); min-width: 220px; }
-  td.perm { font-size: 12px; color: var(--muted); }
-
-  /* Server overview and cogs */
-  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 28px; }
-  .fact { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
-  .fact .label { color: var(--muted); font-size: 12px; }
-  .fact .value { font-weight: 500; }
+  .tile .value { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.3; }
+  .tile .hint { color: var(--muted); font-size: 12px; }
+  .tile.alert { border-color: var(--red); background: var(--red-bg); }
+  .tile.alert .value { color: var(--red); }
+  .tile.warn .value { color: var(--amber); }
+  .meter { height: 6px; border-radius: 999px; background: var(--border); margin-top: 8px; overflow: hidden; }
+  .meter > div { height: 100%; background: var(--accent); border-radius: 999px; }
   .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
   .card { display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; text-decoration: none; }
-  .card:hover { border-color: var(--accent); }
+  a.card:hover { border-color: var(--accent); }
   .card .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
   .card b { font-size: 15px; }
   .card .sub { font-size: 13px; }
   .card.disabled b { color: var(--muted); }
-  .card .sub a { color: var(--accent); text-decoration: none; }
-  .card .sub a:hover { text-decoration: underline; }
+  .card .actions { display: flex; gap: 6px; margin-top: 10px; }
+  .banner { display: flex; align-items: center; gap: 12px; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 14px; }
+  .banner.red { background: var(--red-bg); border: 1px solid var(--red); color: var(--red); }
+  .banner b { color: inherit; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* Tables */
+  .table { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--text); }
+  th .arrow { font-size: 10px; margin-left: 4px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr.clickable { cursor: pointer; }
+  tbody tr.clickable:hover { background: var(--hover); }
+  td.empty { color: var(--muted); text-align: center; padding: 22px; white-space: normal; }
+  td.wrap { white-space: normal; min-width: 200px; }
+  td.muted { color: var(--muted); }
+  .who-cell { display: flex; align-items: center; gap: 10px; }
+  .who-cell img, .who-cell .ph { width: 28px; height: 28px; border-radius: 50%; background: var(--border); flex: none; }
+  .ph { display: grid; place-items: center; font-size: 12px; color: var(--muted); }
+  .who-cell a { text-decoration: none; font-weight: 500; }
+  .rank { font-weight: 700; color: var(--muted); width: 28px; display: inline-block; }
+  .rank.gold { color: #d4a017; } .rank.silver { color: #9aa2ad; } .rank.bronze { color: #b87333; }
+
+  /* Controls */
+  .filter, select.input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
+  .filter { margin-bottom: 18px; }
+  select.input { width: auto; min-width: 220px; max-width: 100%; padding: 6px 10px; font-size: 14px; }
+  select.input:disabled { opacity: .6; }
+  .btn { display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); text-decoration: none; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .btn[disabled]:hover { border-color: var(--border); color: var(--text); }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge.on { background: var(--green-bg); color: var(--green); }
+  .badge.off { background: var(--border); color: var(--muted); }
+  .badge.red { background: var(--red-bg); color: var(--red); }
+  .badge.amber { background: var(--amber-bg); color: var(--amber); }
   .switch { position: relative; width: 38px; height: 22px; flex: none; border: 0; border-radius: 999px; background: var(--border); cursor: pointer; padding: 0; transition: background .15s; }
   .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
   .switch[aria-checked="true"] { background: #3ba55d; }
   .switch[aria-checked="true"]::after { transform: translateX(16px); }
   .switch:disabled { opacity: .5; cursor: wait; }
-  .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .switch:focus-visible, .btn:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .chips { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .chip { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .chip.active { background: var(--active); border-color: var(--accent); font-weight: 600; }
   .note { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
-  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 14px; z-index: 30; max-width: calc(100% - 32px); }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 14px; z-index: 60; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
   .toast.bad { background: var(--red); color: #fff; }
-  .card .actions { display: flex; gap: 6px; margin-top: 10px; }
-  .btn { display: inline-block; font: inherit; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); text-decoration: none; cursor: pointer; }
-  .btn:hover { border-color: var(--accent); color: var(--accent); }
-  .btn[disabled] { opacity: .5; cursor: default; }
-  .btn[disabled]:hover { border-color: var(--border); color: var(--text); }
+
+  /* Commands and cog data */
+  .cog { margin-bottom: 20px; }
+  .cog h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; margin: 0 0 8px; }
+  td code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  td.desc { white-space: normal; color: var(--muted); min-width: 220px; }
+  td.perm { font-size: 12px; color: var(--muted); }
   td.cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
   td.cell.null { color: var(--muted); font-style: italic; }
   .name { font-family: system-ui, sans-serif; color: var(--accent); }
   tr.default td { color: var(--muted); font-style: italic; }
-  tr.default td:first-child::before { content: 'default'; font: 600 10px system-ui, sans-serif; font-style: normal; text-transform: uppercase; letter-spacing: .04em; background: var(--border); color: var(--muted); border-radius: 4px; padding: 1px 5px; margin-right: 8px; }
+  tr.default td:first-child::before { content: 'default'; font: 600 10px system-ui, sans-serif; text-transform: uppercase; letter-spacing: .04em; background: var(--border); color: var(--muted); border-radius: 4px; padding: 1px 5px; margin-right: 8px; }
   .legend { font-size: 13px; color: var(--muted); margin: -4px 0 12px; }
   .pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--muted); }
-  .chips { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-  .chip { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; }
-  .chip.active { background: var(--active); border-color: var(--accent); font-weight: 600; }
+
+  /* Cog data */
+  .data-actions { display: flex; align-items: center; gap: 8px; margin: -8px 0 18px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; }
+  .tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; color: var(--muted); cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: -1px; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab.empty { opacity: .55; }
+  .tab .count { font-size: 11px; font-weight: 600; background: var(--border); color: var(--muted); border-radius: 999px; padding: 0 7px; }
+  .tab.active .count { background: var(--active); color: var(--accent); }
+  .data-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .data-title h2 { margin: 0; }
+  .data-tools { display: flex; align-items: center; gap: 12px; }
+  .filter.small { margin: 0; width: 220px; padding: 6px 10px; font-size: 14px; }
+  .raw-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .settings-list { display: grid; grid-template-columns: minmax(140px, max-content) 1fr; margin: 0; }
+  .settings-list dt, .settings-list dd { padding: 11px 16px; border-bottom: 1px solid var(--border); margin: 0; }
+  .settings-list dt { color: var(--muted); font-size: 14px; }
+  .settings-list dd { font-size: 14px; overflow-wrap: anywhere; }
+  .settings-list dt:nth-last-child(2), .settings-list dd:last-child { border-bottom: 0; }
+  .settings-list.default dd { color: var(--muted); font-style: italic; }
+  .data-table td.cell { font: 14px system-ui, sans-serif; max-width: 360px; white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+  .data-table td.cell.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .data-table th.num { text-align: right; }
+  .data-table td.clamp { cursor: pointer; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .data-table td.clamp.open { display: table-cell; -webkit-line-clamp: unset; }
+  .nil { color: var(--muted); }
+  .time { white-space: nowrap; border-bottom: 1px dotted var(--muted); cursor: help; }
+  .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 1px solid var(--border); }
+  .chips-inline { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  .fields { display: flex; flex-direction: column; gap: 2px; }
+  .field-name { color: var(--muted); }
+  .pill { font-size: 12px; background: var(--border); border-radius: 999px; padding: 1px 8px; }
+  .id { font: 12px ui-monospace, monospace; color: var(--muted); }
+
+  /* Settings */
+  .setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .setting:last-child { border-bottom: 0; }
+  .setting .what b { display: block; font-size: 14px; font-weight: 500; }
+  .setting .what small { color: var(--muted); font-size: 12px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+
+  /* Feed */
+  .feed { list-style: none; margin: 0; padding: 0; }
+  .feed li { display: flex; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .feed li:last-child { border-bottom: 0; }
+  .feed .when { color: var(--muted); font-size: 12px; white-space: nowrap; margin-left: auto; padding-left: 10px; }
+  .feed .what { min-width: 0; }
+  .feed .what small { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+  .feed .empty { color: var(--muted); justify-content: center; }
+
+  /* Honeypot catches */
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .section-head h2 { margin: 0; }
+  .section-head a { font-size: 13px; color: var(--accent); text-decoration: none; }
+  .section-head a:hover { text-decoration: underline; }
+  .catches { display: grid; gap: 10px; }
+  .catch { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 12px 16px; display: grid; grid-template-columns: 40px 1fr; gap: 12px; }
+  .catch.banned { border-left-color: var(--red); }
+  .catch.kicked, .catch.timed-out, .catch.quarantined { border-left-color: var(--amber); }
+  .catch > img, .catch > .ph { width: 40px; height: 40px; border-radius: 50%; background: var(--border); }
+  .catch .line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .catch .line b { font-size: 14px; }
+  .catch .line .tag { color: var(--muted); font-size: 12px; }
+  .catch .line .when { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .catch .where { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .catch blockquote { margin: 8px 0 0; padding: 8px 12px; border-radius: 6px; background: var(--bg); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: hidden; position: relative; }
+  .catch blockquote.long::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2em; background: linear-gradient(transparent, var(--bg)); }
+  .catch blockquote.open { max-height: none; }
+  .catch blockquote.open::after { display: none; }
+  .catch blockquote.empty { color: var(--muted); font-style: italic; }
+  .catch .more { background: none; border: 0; padding: 0; margin-top: 4px; color: var(--accent); font-size: 12px; cursor: pointer; }
+  .catch .flags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .empty-card { background: var(--panel); border: 1px dashed var(--border); border-radius: 10px; padding: 22px; text-align: center; color: var(--muted); font-size: 14px; }
+
+  /* Quick switcher */
+  .palette-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 50; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+  .palette { width: 100%; max-width: 560px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  .palette input { width: 100%; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; font-size: 16px; padding: 14px 16px; outline: none; }
+  .palette ul { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow-y: auto; }
+  .palette li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+  .palette li.sel { background: var(--active); }
+  .palette li small { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .palette .none { color: var(--muted); padding: 14px; justify-content: center; cursor: default; }
 
   /* Phones: the sidebar slides in from a menu button */
   .scrim { display: none; }
+  @media (max-width: 860px) {
+    .two { grid-template-columns: 1fr; }
+  }
   @media (max-width: 800px) {
-    .sidebar { position: fixed; left: 0; top: 0; z-index: 20; transform: translateX(-100%); transition: transform .2s; }
+    .sidebar { position: fixed; left: 0; top: 0; z-index: 40; transform: translateX(-100%); transition: transform .2s; }
     .app.open .sidebar { transform: none; }
-    .app.open .scrim { display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, .4); z-index: 10; }
-    .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--side); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
-    .topbar button { background: none; border: 0; color: var(--text); padding: 6px; margin-left: -6px; cursor: pointer; }
-    .topbar button svg { width: 22px; height: 22px; display: block; }
-    .topbar .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .app.open .scrim { display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, .4); z-index: 30; }
+    .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--side); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+    .topbar .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .page { padding: 20px 16px 40px; }
+    .setting { flex-direction: column; align-items: stretch; gap: 8px; }
+    select.input { width: 100%; }
   }
 </style>
 </head>
@@ -165,7 +293,7 @@
 <section id="signin" hidden>
   <div class="signin-card">
     <h1>Dashboard</h1>
-    <p>Sign in to see the servers you manage.</p>
+    <p>Sign in to manage the servers you run with the bot.</p>
     <a class="button" href="/login">Sign in with Discord</a>
   </div>
 </section>
@@ -179,193 +307,658 @@
         <div class="bmeta"><span class="dot" id="status-dot"></span><span id="bot-meta"></span></div>
       </div>
     </div>
+    <button class="search-btn" id="open-palette" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      Jump to… <kbd>Ctrl K</kbd>
+    </button>
     <nav id="nav-bot">
-      <a class="nav-item" id="nav-overview" href="/">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>
-        <span class="label">Overview</span>
-      </a>
+      <div class="nav-label">Bot</div>
+      <a class="nav-item" data-page="home" href="/"><span class="ico" data-icon="grid"></span><span class="label">Overview</span></a>
+      <a class="nav-item" data-page="system" href="/system" id="nav-system" hidden><span class="ico" data-icon="cpu"></span><span class="label">System</span></a>
       <div class="nav-label">Servers</div>
       <div id="nav-servers"></div>
     </nav>
     <nav id="nav-guild" hidden>
       <a class="nav-back" href="/">← All servers</a>
       <div class="nav-server" id="nav-server"></div>
-      <a class="nav-item" data-section="" href="#">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>
-        <span class="label">Overview</span>
-      </a>
-      <a class="nav-item" data-section="commands" href="#">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg></span>
-        <span class="label">Commands</span><span class="count" id="count-commands"></span>
-      </a>
-      <a class="nav-item" data-section="cogs" href="#">
-        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></span>
-        <span class="label">Cogs</span><span class="count" id="count-cogs"></span>
-      </a>
+      <a class="nav-item" data-section="" href="#"><span class="ico" data-icon="grid"></span><span class="label">Overview</span></a>
+      <a class="nav-item" data-section="settings" href="#"><span class="ico" data-icon="sliders"></span><span class="label">Settings</span></a>
+      <a class="nav-item" data-section="commands" href="#"><span class="ico" data-icon="terminal"></span><span class="label">Commands</span><span class="count" id="count-commands"></span></a>
+      <a class="nav-item" data-section="cogs" href="#"><span class="ico" data-icon="cog"></span><span class="label">Cogs</span><span class="count" id="count-cogs"></span></a>
+      <a class="nav-item" data-section="leaderboards" href="#"><span class="ico" data-icon="trophy"></span><span class="label">Leaderboards</span></a>
+      <a class="nav-item" data-section="audit" href="#"><span class="ico" data-icon="history"></span><span class="label">Audit log</span></a>
     </nav>
     <div class="me">
       <img id="user-avatar" alt="">
       <div class="who"><b id="user-name"></b><small id="user-role"></small></div>
-      <a href="/logout">Sign out</a>
+      <button class="icon-btn" id="theme" type="button" aria-label="Switch theme" title="Switch theme"></button>
+      <a class="icon-btn" href="/logout" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg></a>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
 
   <div class="content">
     <div class="topbar">
-      <button id="menu" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <button class="icon-btn" id="menu" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <span class="title" id="topbar-title">Dashboard</span>
+      <button class="icon-btn" id="open-palette-mobile" aria-label="Jump to"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
     </div>
 
-    <main class="page" id="overview-view">
-      <div class="page-head">
-        <div>
-          <h1>Overview</h1>
-          <div class="sub">Everything the bot is doing in the servers you manage</div>
-        </div>
-      </div>
+    <!-- Bot overview -->
+    <main class="page" id="view-home" hidden>
+      <div class="page-head"><div class="grow"><h1>Overview</h1><div class="sub">The servers you manage with the bot</div></div><span class="updated" id="home-updated"></span></div>
       <section class="tiles">
         <div class="tile"><div class="label">Servers</div><div class="value" id="servers">–</div></div>
         <div class="tile"><div class="label">Members</div><div class="value" id="members">–</div></div>
         <div class="tile"><div class="label">Channels</div><div class="value" id="channels">–</div></div>
         <div class="tile"><div class="label">Uptime</div><div class="value" id="uptime">–</div></div>
       </section>
-      <h2>Servers</h2>
-      <div class="table">
-        <table>
-          <thead><tr><th>Server</th><th class="num">Members</th><th class="num">Channels</th><th class="num">Cogs on</th></tr></thead>
-          <tbody id="guilds"></tbody>
-        </table>
-      </div>
+      <section>
+        <h2>Servers</h2>
+        <input class="filter" id="guild-filter" type="search" placeholder="Find a server" aria-label="Find a server">
+        <div class="table">
+          <table>
+            <thead><tr id="guild-head"></tr></thead>
+            <tbody id="guilds"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
 
-    <main class="page" id="server-view" hidden>
+    <!-- Bot owner: system -->
+    <main class="page" id="view-system" hidden>
+      <div class="page-head"><div class="grow"><h1>System</h1><div class="sub">The bot's host, for its owners</div></div><span class="updated" id="system-updated"></span></div>
+      <p class="error" id="system-error" hidden></p>
+      <section class="tiles" id="system-tiles"></section>
+      <section><h2>Host</h2><div class="table"><table><tbody id="system-host"></tbody></table></div></section>
+      <section><h2>Every server</h2><div class="table"><table><thead><tr><th>Server</th><th>Owner</th><th class="num">Members</th><th>Bot joined</th></tr></thead><tbody id="system-guilds"></tbody></table></div></section>
+    </main>
+
+    <!-- A server -->
+    <main class="page" id="view-server" hidden>
       <div class="page-head" id="server-head"></div>
       <p class="error" id="server-error" hidden></p>
 
-      <section id="section-overview" hidden>
+      <div id="section-overview" hidden>
+        <div id="raid-banner"></div>
         <section class="tiles">
-          <div class="tile"><div class="label">Members</div><div class="value" id="s-members">–</div></div>
+          <div class="tile"><div class="label">Members</div><div class="value" id="s-members">–</div><div class="hint" id="s-members-hint"></div></div>
           <div class="tile"><div class="label">Channels</div><div class="value" id="s-channels">–</div></div>
           <div class="tile"><div class="label">Roles</div><div class="value" id="s-roles">–</div></div>
           <div class="tile"><div class="label">Boosts</div><div class="value" id="s-boosts">–</div></div>
         </section>
-        <section class="facts">
-          <div class="fact"><div class="label">Owner</div><div class="value" id="s-owner">–</div></div>
-          <div class="fact"><div class="label">Created</div><div class="value" id="s-created">–</div></div>
-          <div class="fact"><div class="label">Cogs on</div><div class="value" id="s-cogs">–</div></div>
+        <section>
+          <h2>Security</h2>
+          <div class="tiles" id="security-tiles"></div>
         </section>
-        <h2>Go to</h2>
-        <div class="cards" id="s-links"></div>
-      </section>
+        <section>
+          <div class="section-head"><h2>Recent honeypot catches</h2><a id="catches-all" href="#">See the full log →</a></div>
+          <div class="catches" id="catches"></div>
+        </section>
+        <section>
+          <div class="section-head"><h2>Recent incidents</h2><a id="incidents-all" href="#">See every incident →</a></div>
+          <div class="panel"><ul class="feed" id="feed-incidents"></ul></div>
+        </section>
+        <section>
+          <h2>About</h2>
+          <div class="tiles">
+            <div class="tile"><div class="label">Owner</div><div class="value" style="font-size:16px" id="s-owner">–</div></div>
+            <div class="tile"><div class="label">Created</div><div class="value" style="font-size:16px" id="s-created">–</div></div>
+            <div class="tile"><div class="label">Cogs on</div><div class="value" style="font-size:16px" id="s-cogs">–</div><div class="meter"><div id="s-cogs-meter" style="width:0"></div></div></div>
+          </div>
+        </section>
+      </div>
 
-      <section id="section-commands" hidden>
+      <div id="section-settings" hidden>
+        <p class="note" id="settings-note" hidden>Only the server's owner and admins can change settings.</p>
+        <div id="settings-body"></div>
+      </div>
+
+      <div id="section-commands" hidden>
         <input class="filter" id="filter" type="search" placeholder="Filter commands" aria-label="Filter commands">
         <div id="cogs"></div>
-      </section>
+      </div>
 
-      <section id="section-cogs" hidden>
+      <div id="section-cogs" hidden>
         <p class="note" id="cog-note" hidden>Only the server's owner and admins can turn cogs on and off.</p>
         <div class="chips" id="cog-chips"></div>
         <div class="cards" id="cog-cards"></div>
-      </section>
+      </div>
 
-      <section id="section-data" hidden>
-        <div class="chips" id="data-tables"></div>
+      <div id="section-data" hidden>
+        <div class="data-actions" id="data-actions"></div>
+        <div class="tabs" id="data-tables" role="tablist"></div>
         <div id="data-body"></div>
-      </section>
+      </div>
+
+      <div id="section-leaderboards" hidden>
+        <div class="two">
+          <div><h2>Levels</h2><div class="table"><table><thead><tr><th>Member</th><th class="num">Level</th><th class="num">XP</th><th class="num">Rep</th></tr></thead><tbody id="lb-levels"></tbody></table></div></div>
+          <div><h2>Economy</h2><div class="table"><table><thead><tr><th>Member</th><th class="num">Wallet</th><th class="num">Bank</th><th class="num">Total</th></tr></thead><tbody id="lb-economy"></tbody></table></div></div>
+        </div>
+      </div>
+
+      <div id="section-audit" hidden>
+        <p class="sub" style="margin-top:-10px">Changes made through this dashboard, newest first.</p>
+        <div class="panel"><ul class="feed" id="audit-feed"></ul></div>
+      </div>
     </main>
+  </div>
+</div>
+
+<div class="palette-back" id="palette" hidden>
+  <div class="palette" role="dialog" aria-label="Jump to">
+    <input id="palette-input" type="text" placeholder="Jump to a server or page…" autocomplete="off" aria-label="Jump to">
+    <ul id="palette-list" role="listbox"></ul>
   </div>
 </div>
 
 <script>
   const $ = id => document.getElementById(id);
-  const fmt = n => n.toLocaleString();
+  const fmt = n => (n ?? 0).toLocaleString();
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.append(text);
+    return e;
+  }
   function uptime(s) {
     const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
     return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
   }
-  function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text !== undefined) e.append(text);
-    return e;
+  function bytes(n) {
+    if (n == null) return '–';
+    const mb = n / 1048576;
+    return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
   }
-  function guildIcon(g, cls) {
-    if (g.icon) { const img = el('img', cls); img.src = g.icon; img.alt = ''; return img; }
-    return el('div', cls ? `${cls} ph` : 'ph', g.name.charAt(0));
+  function ago(seconds) {
+    const diff = Math.max(0, Date.now() / 1000 - seconds);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 86400 * 30) return `${Math.floor(diff / 86400)}d ago`;
+    return new Date(seconds * 1000).toLocaleDateString();
+  }
+  // Timestamps saved as text (ISO, or "YYYY-MM-DD HH:MM:SS" in UTC)
+  function parseWhen(text) {
+    if (!text) return null;
+    const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text : text.replace(' ', 'T') + 'Z');
+    return Number.isNaN(t) ? null : t / 1000;
+  }
+  function avatar(src, name, cls) {
+    if (src) { const img = el('img', cls); img.src = src; img.alt = ''; img.loading = 'lazy'; return img; }
+    return el('div', cls ? `${cls} ph` : 'ph', (name || '?').charAt(0));
+  }
+  async function api(path, options) {
+    const res = await fetch(path, options);
+    if (res.status === 401) { showSignIn(); throw new Error('signed out'); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong'), { status: res.status });
+    return data;
   }
 
-  const serverMatch = location.pathname.match(/^\/servers\/(\d+)(?:\/(commands|cogs)(?:\/([^/]+))?)?\/?$/);
+  // Icons, drawn once into every [data-icon]
+  const ICONS = {
+    grid: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+    cpu: '<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
+    sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+    terminal: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
+    cog: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+    trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>',
+  };
+  const svg = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+  for (const e of document.querySelectorAll('[data-icon]')) e.innerHTML = svg(e.dataset.icon);
+
+  // Theme: follows the system until picked, then remembered
+  function currentTheme() {
+    return document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  }
+  function drawThemeButton() { $('theme').innerHTML = svg(currentTheme() === 'dark' ? 'sun' : 'moon'); }
+  $('theme').addEventListener('click', () => {
+    const next = currentTheme() === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('theme', next); } catch (e) {}
+    drawThemeButton();
+  });
+  drawThemeButton();
+
+  let toastTimer;
+  function toast(text, bad) {
+    document.querySelector('.toast')?.remove();
+    const t = el('div', bad ? 'toast bad' : 'toast', text);
+    t.setAttribute('role', 'status');
+    document.body.append(t);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.remove(), 4000);
+  }
+
+  // Where we are
+  const path = location.pathname;
+  const serverMatch = path.match(/^\/servers\/(\d+)(?:\/(commands|cogs|settings|leaderboards|audit)(?:\/([^/]+))?)?\/?$/);
   const serverId = serverMatch && serverMatch[1];
   const section = (serverMatch && serverMatch[2]) || '';
-  // A cog's data page: /servers/<id>/cogs/<cog>
   const dataCog = section === 'cogs' && serverMatch[3] ? decodeURIComponent(serverMatch[3]) : null;
   const view = dataCog ? 'data' : section || 'overview';
-  const VIEWS = ['overview', 'commands', 'cogs', 'data'];
+  const botPage = serverId ? null : path === '/system' ? 'system' : 'home';
   const serverPath = sub => `/servers/${serverId}${sub ? '/' + sub : ''}`;
-  let server = null;
+  const SECTIONS = ['overview', 'settings', 'commands', 'cogs', 'data', 'leaderboards', 'audit'];
+  const TITLES = { overview: 'Overview', settings: 'Settings', commands: 'Commands', cogs: 'Cogs', leaderboards: 'Leaderboards', audit: 'Audit log' };
+  const SUBTITLES = {
+    settings: 'The channels the bot uses here',
+    commands: 'Every command people can use here, by cog (only cogs that are on)',
+    cogs: 'The parts of the bot, and whether each is on here',
+    data: 'What this cog keeps for this server (read-only)',
+    leaderboards: 'The most active and the richest members',
+    audit: 'Who changed what through the dashboard',
+  };
+
+  let me = null, overview = null, server = null;
   let cogShow = 'all';
+
+  function showSignIn() {
+    $('app').hidden = true;
+    $('signin').hidden = false;
+  }
 
   // Phone menu
   const app = $('app');
   $('menu').addEventListener('click', () => app.classList.add('open'));
   $('scrim').addEventListener('click', () => app.classList.remove('open'));
 
-  function renderNav(guilds) {
-    $('nav-overview').classList.toggle('active', !serverId);
+  /* ---------- Shared chrome ---------- */
+
+  function renderChrome(o) {
+    $('signin').hidden = true;
+    $('app').hidden = false;
+    $('status-dot').classList.remove('down');
+    $('bot-avatar').src = o.bot.avatar;
+    $('bot-name').textContent = o.bot.name;
+    $('bot-meta').textContent = `Online · v${o.bot.version}`;
+    $('user-avatar').src = o.user.avatar;
+    $('user-name').textContent = o.user.name;
+    $('user-role').textContent = o.user.owner ? 'Bot owner' : 'Server manager';
+    $('nav-system').hidden = !o.user.owner;
+    for (const a of document.querySelectorAll('#nav-bot .nav-item')) a.classList.toggle('active', a.dataset.page === botPage);
     const list = $('nav-servers');
-    if (!guilds.length) {
-      list.replaceChildren(el('div', 'nav-empty', 'No servers yet'));
-      return;
-    }
-    list.replaceChildren(...guilds.map(g => {
+    if (!o.guilds.length) list.replaceChildren(el('div', 'nav-empty', 'No servers yet'));
+    else list.replaceChildren(...o.guilds.map(g => {
       const a = el('a', g.id === serverId ? 'nav-item active' : 'nav-item');
       a.href = `/servers/${g.id}`;
       const ico = el('span', 'ico');
-      if (g.icon) { const img = el('img'); img.src = g.icon; img.alt = ''; img.width = 24; img.height = 24; ico.append(img); }
-      else ico.append(g.name.charAt(0));
+      ico.append(g.icon ? avatar(g.icon, g.name) : g.name.charAt(0));
       a.append(ico, el('span', 'label', g.name));
       return a;
     }));
   }
 
-  function renderOverview(o) {
+  /* ---------- Bot overview ---------- */
+
+  let guildSort = { key: 'members', dir: -1 };
+  const GUILD_COLUMNS = [['name', 'Server', ''], ['members', 'Members', 'num'], ['channels', 'Channels', 'num'], ['cogs_enabled', 'Cogs on', 'num']];
+  function renderHome() {
+    const o = overview;
     $('servers').textContent = fmt(o.totals.servers);
     $('members').textContent = fmt(o.totals.members);
     $('channels').textContent = fmt(o.totals.channels);
     $('uptime').textContent = uptime(o.bot.uptime_secs);
+    $('home-updated').textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+    $('guild-head').replaceChildren(...GUILD_COLUMNS.map(([key, label, cls]) => {
+      const th = el('th', `sortable ${cls}`, label);
+      th.setAttribute('aria-sort', guildSort.key === key ? (guildSort.dir > 0 ? 'ascending' : 'descending') : 'none');
+      if (guildSort.key === key) th.append(el('span', 'arrow', guildSort.dir > 0 ? '▲' : '▼'));
+      th.addEventListener('click', () => {
+        guildSort = { key, dir: guildSort.key === key ? -guildSort.dir : key === 'name' ? 1 : -1 };
+        renderHome();
+      });
+      return th;
+    }));
+    const q = $('guild-filter').value.trim().toLowerCase();
+    const rows = o.guilds
+      .filter(g => !q || g.name.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const x = a[guildSort.key], y = b[guildSort.key];
+        return (typeof x === 'string' ? x.localeCompare(y) : x - y) * guildSort.dir;
+      });
     const body = $('guilds');
-    if (!o.guilds.length) {
-      const td = el('td', null, 'You don’t manage any servers the bot is in.');
+    if (!rows.length) {
+      const td = el('td', 'empty', o.guilds.length ? 'No servers match.' : 'You don’t manage any servers the bot is in.');
       td.colSpan = 4;
       const tr = el('tr'); tr.append(td);
       body.replaceChildren(tr);
       return;
     }
-    body.replaceChildren(...o.guilds.map(g => {
+    body.replaceChildren(...rows.map(g => {
       const tr = el('tr', 'clickable');
       tr.addEventListener('click', e => { if (!e.target.closest('a')) location.href = `/servers/${g.id}`; });
       const name = el('td');
-      const wrap = el('div', 'guild');
+      const wrap = el('div', 'who-cell');
       const link = el('a', null, g.name); link.href = `/servers/${g.id}`;
-      wrap.append(guildIcon(g), link);
+      wrap.append(avatar(g.icon, g.name), link);
       name.append(wrap);
       tr.append(name, el('td', 'num', fmt(g.members)), el('td', 'num', fmt(g.channels)), el('td', 'num', `${g.cogs_enabled} / ${o.totals.cogs}`));
       return tr;
     }));
   }
+  $('guild-filter').addEventListener('input', () => overview && renderHome());
 
+  /* ---------- System (bot owners) ---------- */
+
+  async function loadSystem() {
+    let s;
+    try { s = await api('/api/system'); }
+    catch (e) {
+      if (e.message === 'signed out') return;
+      $('system-error').textContent = e.message;
+      $('system-error').hidden = false;
+      return;
+    }
+    $('system-updated').textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+    const tile = (label, value, hint, percent) => {
+      const t = el('div', 'tile');
+      t.append(el('div', 'label', label), el('div', 'value', value));
+      if (hint) t.append(el('div', 'hint', hint));
+      if (percent != null) {
+        const meter = el('div', 'meter'), bar = el('div');
+        bar.style.width = `${Math.min(100, percent).toFixed(1)}%`;
+        meter.append(bar); t.append(meter);
+      }
+      return t;
+    };
+    const mem = s.memory;
+    $('system-tiles').replaceChildren(
+      tile('CPU', s.cpu_percent == null ? '–' : `${s.cpu_percent.toFixed(1)}%`, 'Whole system', s.cpu_percent),
+      tile('Memory', mem ? `${(mem.used / mem.total * 100).toFixed(0)}%` : '–', mem ? `${bytes(mem.used)} of ${bytes(mem.total)}` : null, mem ? mem.used / mem.total * 100 : null),
+      tile('Bot memory', bytes(s.bot_memory)),
+      tile('Uptime', uptime(s.uptime_secs), `Version ${s.version}`),
+    );
+    const rows = [
+      ['Host', s.host || '–'], ['System', `${s.os} ${s.arch}${s.kernel ? ` · kernel ${s.kernel}` : ''}`],
+      ['Shards', fmt(s.shards)], ['Commands', fmt(s.commands)], ['Users the bot knows', fmt(s.users_cached)],
+      ['Database', `${fmt(s.database.files)} files · ${bytes(s.database.bytes)}`],
+    ];
+    $('system-host').replaceChildren(...rows.map(([k, v]) => { const tr = el('tr'); tr.append(el('td', 'muted', k), el('td', null, v)); return tr; }));
+    $('system-guilds').replaceChildren(...s.guilds.map(g => {
+      const tr = el('tr', 'clickable');
+      tr.addEventListener('click', () => { location.href = `/servers/${g.id}`; });
+      const name = el('td'), wrap = el('div', 'who-cell');
+      wrap.append(avatar(g.icon, g.name), g.name); name.append(wrap);
+      tr.append(name, el('td', 'muted', g.owner), el('td', 'num', fmt(g.members)), el('td', 'muted', ago(g.joined)));
+      return tr;
+    }));
+  }
+
+  /* ---------- A server ---------- */
+
+  const enabledCommands = () => server.cogs.filter(c => c.enabled).reduce((n, c) => n + c.commands.length, 0);
+
+  function setupGuildNav() {
+    $('nav-bot').hidden = true;
+    $('nav-guild').hidden = false;
+    for (const a of document.querySelectorAll('#nav-guild .nav-item')) {
+      a.href = serverPath(a.dataset.section);
+      a.classList.toggle('active', a.dataset.section === section);
+    }
+    for (const key of SECTIONS) $(`section-${key}`).hidden = key !== view;
+  }
+
+  function drawServerHead() {
+    const g = server.guild;
+    const page = dataCog ? `${dataCog} data` : TITLES[view];
+    document.title = `${page} · ${g.name}`;
+    $('topbar-title').textContent = `${g.name} · ${page}`;
+    $('nav-server').replaceChildren(avatar(g.icon, g.name), el('b', null, g.name));
+    $('count-commands').textContent = enabledCommands();
+    $('count-cogs').textContent = server.cogs.length;
+    const text = el('div', 'grow');
+    text.append(el('h1', null, section ? page : g.name), el('div', 'sub', section ? `${g.name} · ${SUBTITLES[view]}` : `${fmt(g.members)} members`));
+    const head = [avatar(g.icon, g.name), text];
+    if (view === 'overview') head.push(el('span', 'updated', ''));
+    $('server-head').replaceChildren(...head);
+  }
+
+  async function loadServer() {
+    try { server = await api(`/api/servers/${serverId}`); }
+    catch (e) {
+      if (e.message === 'signed out') return;
+      $('server-error').textContent = e.message;
+      $('server-error').hidden = false;
+      for (const key of SECTIONS) $(`section-${key}`).hidden = true;
+      return;
+    }
+    drawServerHead();
+    if (dataCog) {
+      const params = new URLSearchParams(location.search);
+      loadData(params.get('table'), Number(params.get('page')) || 1);
+    } else if (view === 'commands') {
+      const cog = new URLSearchParams(location.search).get('cog');
+      if (cog) $('filter').value = cog;
+      renderCommands();
+    } else if (view === 'cogs') renderCogs();
+    else if (view === 'settings') loadSettings();
+    else if (view === 'leaderboards') loadLeaderboards();
+    else if (view === 'audit') loadAudit();
+    else { renderServerOverview(); loadActivity(); }
+  }
+
+  /* Overview */
+  function renderServerOverview() {
+    const g = server.guild;
+    $('s-members').textContent = fmt(g.members);
+    $('s-channels').textContent = fmt(g.channels);
+    $('s-roles').textContent = fmt(g.roles);
+    $('s-boosts').textContent = g.boost_tier ? `${fmt(g.boosts)} · L${g.boost_tier}` : fmt(g.boosts);
+    $('s-owner').textContent = g.owner_name || g.owner_id;
+    $('s-created').textContent = new Date(g.created * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    const on = server.cogs.filter(c => c.enabled).length;
+    $('s-cogs').textContent = `${on} of ${server.cogs.length}`;
+    $('s-cogs-meter').style.width = `${on / server.cogs.length * 100}%`;
+  }
+
+  function named(names, id, fallback) {
+    return (id && names[id]) || fallback || id || 'Someone';
+  }
+
+  async function loadActivity() {
+    let a;
+    try { a = await api(`/api/servers/${serverId}/activity`); } catch (e) { return; }
+    const s = a.security, names = a.names || {};
+    const updated = document.querySelector('#server-head .updated');
+    if (updated) updated.textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+    $('raid-banner').replaceChildren(...(s.raid ? [(() => {
+      const b = el('div', 'banner red');
+      b.append(el('b', null, 'Raid in progress'), ` · started ${ago(s.raid.started_at)}. Raid protection is handling new joins.`);
+      return b;
+    })()] : []));
+    const tile = (label, value, hint, link, cls) => {
+      const t = el(link ? 'a' : 'div', `tile ${cls || ''}`);
+      if (link) { t.href = link; t.style.textDecoration = 'none'; }
+      t.append(el('div', 'label', label), el('div', 'value', fmt(value)));
+      if (hint) t.append(el('div', 'hint', hint));
+      return t;
+    };
+    const cogLink = cog => serverPath(`cogs/${encodeURIComponent(cog)}`);
+    $('security-tiles').replaceChildren(
+      tile('Honeypot catches', s.honeypot.catches, `${fmt(s.honeypot.channels)} trap channel${s.honeypot.channels === 1 ? '' : 's'} · ${fmt(s.honeypot.bans)} bans`, cogLink('HoneyPot')),
+      tile('Incidents', s.incidents.total, 'Evidence reports', cogLink('Incidents')),
+      tile('Quarantined', s.quarantined, 'Waiting for review', cogLink('Quarantine'), s.quarantined ? 'warn' : ''),
+      tile('Open tickets', s.open_tickets, null, cogLink('Tickets'), s.open_tickets ? 'warn' : ''),
+      tile('Locked channels', s.lockdowns, null, cogLink('Lockdown'), s.lockdowns ? 'alert' : ''),
+      tile('Ranked members', s.members_ranked, `${fmt(s.economy_accounts)} economy accounts`, serverPath('leaderboards')),
+    );
+    const feed = (list, items, empty, draw) => {
+      if (!items.length) { const li = el('li', 'empty', empty); list.replaceChildren(li); return; }
+      list.replaceChildren(...items.map(draw));
+    };
+    $('catches-all').href = `${cogLink('HoneyPot')}?table=${encodeURIComponent('honeypot.db:activity_logs')}`;
+    $('incidents-all').href = cogLink('Incidents');
+    renderCatches(groupCatches(s.honeypot.recent), names, a.avatars || {});
+    feed($('feed-incidents'), s.incidents.recent, 'No incidents.', i => {
+      const li = el('li'), what = el('div', 'what');
+      what.append(el('b', null, named(names, i.user_id, i.username)), ` ${i.action}`);
+      what.append(el('small', null, `#${i.id} · by ${named(names, i.moderator_id)}${i.reason ? ` · ${i.reason}` : ''}`));
+      const when = parseWhen(i.at);
+      li.append(what, el('span', 'when', when ? ago(when) : ''));
+      return li;
+    });
+  }
+
+  /* Honeypot catches */
+
+  // How each logged outcome is shown, and the card's colour
+  const OUTCOMES = {
+    user_banned: ['Banned', 'red', 'banned'],
+    user_kicked: ['Kicked', 'amber', 'kicked'],
+    user_timed_out: ['Timed out', 'amber', 'timed-out'],
+    user_quarantined: ['Quarantined', 'amber', 'quarantined'],
+  };
+  const PATTERNS = { urls: 'Links', mentions: 'Mentions', invite_links: 'Invite links', spam_caps: 'Caps spam' };
+
+  // One catch writes several log rows: the message, known-offender matches and the
+  // punishment. They're joined back up by member, within a couple of minutes.
+  function groupCatches(rows) {
+    const parse = text => { try { return JSON.parse(text) || {}; } catch (e) { return {}; } };
+    const events = rows
+      // channel_id is saved as a number too big for JavaScript, so it's read from the text
+      .map(r => ({ ...r, when: parseWhen(r.at), details: parse(r.details), channel: (/"channel_id":\s*(\d+)/.exec(r.details || '') || [])[1] || null }))
+      .sort((a, b) => (a.when || 0) - (b.when || 0));
+    const catches = [];
+    for (const e of events) {
+      let c = e.action === 'message_in_honeypot' ? null
+        : catches.findLast(c => c.user_id === e.user_id && Math.abs((e.when || 0) - (c.when || 0)) < 120);
+      if (!c) {
+        c = { user_id: e.user_id, username: e.username, when: e.when, content: null, channel_id: null, patterns: [], outcome: null, minutes: null, sources: [] };
+        catches.push(c);
+      }
+      if (e.action === 'message_in_honeypot') {
+        c.content = e.details.content ?? null;
+        c.channel_id = e.channel;
+        c.patterns = Object.keys(e.details.patterns_detected || {});
+      } else if (e.action === 'known_malicious') {
+        c.sources = e.details.sources || [];
+      } else if (OUTCOMES[e.action]) {
+        c.outcome = e.action;
+        c.minutes = e.details.duration_minutes ?? null;
+        if (c.content == null && typeof e.details.content === 'string') c.content = e.details.content;
+      }
+    }
+    return catches.reverse().slice(0, 8);
+  }
+
+  function renderCatches(catches, names, avatars) {
+    const box = $('catches');
+    if (!catches.length) {
+      box.replaceChildren(el('div', 'empty-card', 'Nothing caught yet. When someone posts in a honeypot channel, it shows up here.'));
+      return;
+    }
+    box.replaceChildren(...catches.map(c => {
+      const [label, colour, cls] = OUTCOMES[c.outcome] || ['Not punished', 'off', ''];
+      const card = el('article', `catch ${cls}`);
+      const name = named(names, c.user_id, c.username).replace(/^@/, '');
+      const body = el('div');
+      const line = el('div', 'line');
+      line.append(el('b', null, name));
+      if (c.username && c.username !== name) line.append(el('span', 'tag', c.username));
+      line.append(el('span', `badge ${colour}`, c.outcome === 'user_timed_out' && c.minutes ? `${label} ${c.minutes}m` : label));
+      if (c.sources.length) {
+        const known = el('span', 'badge red', 'Known offender');
+        known.title = c.sources.join('\n');
+        line.append(known);
+      }
+      const when = el('span', 'when', c.when ? ago(c.when) : '');
+      if (c.when) when.title = new Date(c.when * 1000).toLocaleString();
+      line.append(when);
+      body.append(line);
+      const where = [c.channel_id ? `in ${named(names, c.channel_id, 'a deleted channel')}` : null, c.user_id ? `ID ${c.user_id}` : null].filter(Boolean);
+      if (where.length) body.append(el('div', 'where', where.join(' · ')));
+      const quote = el('blockquote', c.content ? null : 'empty', c.content || (c.content === '' ? 'No text (an attachment or sticker)' : 'Message not recorded'));
+      body.append(quote);
+      if (c.content && (c.content.length > 280 || c.content.split('\n').length > 5)) {
+        quote.classList.add('long');
+        const more = el('button', 'more', 'Show all');
+        more.addEventListener('click', () => {
+          const open = quote.classList.toggle('open');
+          more.textContent = open ? 'Show less' : 'Show all';
+        });
+        body.append(more);
+      }
+      if (c.patterns.length) {
+        const flags = el('div', 'flags');
+        flags.append(...c.patterns.map(p => el('span', 'badge amber', PATTERNS[p] || p.replace(/_/g, ' '))));
+        body.append(flags);
+      }
+      card.append(avatar(avatars[c.user_id], name, null), body);
+      return card;
+    }));
+  }
+
+  /* Settings */
+  async function loadSettings() {
+    let d;
+    try { d = await api(`/api/servers/${serverId}/settings`); }
+    catch (e) { $('settings-body').replaceChildren(el('p', 'error', e.message)); return; }
+    $('settings-note').hidden = d.can_edit;
+    const groups = [...new Set(d.settings.map(s => s.group))];
+    const blocks = groups.map(group => {
+      const block = el('div', 'block');
+      const panel = el('div', 'panel');
+      for (const s of d.settings.filter(s => s.group === group)) {
+        const row = el('div', 'setting');
+        const what = el('div', 'what');
+        what.append(el('b', null, s.label), el('small', null, s.key));
+        const select = el('select', 'input');
+        select.setAttribute('aria-label', s.label);
+        select.disabled = !d.can_edit;
+        select.append(new Option('Not set', ''));
+        let category = undefined, parent = select;
+        for (const c of d.channels) {
+          if (c.category !== category) {
+            category = c.category;
+            parent = category ? Object.assign(document.createElement('optgroup'), { label: category }) : select;
+            if (parent !== select) select.append(parent);
+          }
+          parent.append(new Option(`#${c.name}`, c.id));
+        }
+        // A channel that's gone still shows, so it's clear something is set
+        if (s.channel_id && !d.channels.some(c => c.id === s.channel_id)) select.append(new Option(`Deleted channel (${s.channel_id})`, s.channel_id));
+        select.value = s.channel_id || '';
+        let saved = select.value;
+        select.addEventListener('change', async () => {
+          select.disabled = true;
+          try {
+            await api(`/api/servers/${serverId}/settings`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: s.key, channel_id: select.value || null }),
+            });
+            saved = select.value;
+            toast(select.value ? `${s.label} set to ${select.selectedOptions[0].text}.` : `${s.label} cleared.`);
+          } catch (e) {
+            select.value = saved;
+            if (e.message !== 'signed out') toast(e.message, true);
+          }
+          select.disabled = false;
+        });
+        row.append(what, select);
+        panel.append(row);
+      }
+      block.append(el('h2', null, group), panel);
+      return block;
+    });
+    $('settings-body').replaceChildren(...blocks);
+  }
+
+  /* Commands */
   function renderCommands() {
     const q = $('filter').value.trim().toLowerCase();
-    // Only cogs that are on: the others' commands can't be used here
     const parts = server.cogs.filter(cog => cog.enabled).map(cog => {
       const commands = cog.commands.filter(c => !q || cog.name.toLowerCase().includes(q)
         || c.usage.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
       if (!commands.length) return null;
-      const section = el('section', 'cog');
-      section.id = `cog-${cog.name}`;
-      const h = el('h3', null, cog.name);
+      const block = el('section', 'cog');
+      block.append(el('h3', null, cog.name));
       const table = el('table');
       const head = el('tr');
       head.append(el('th', null, 'Command'), el('th', null, 'What it does'), el('th', null, 'Needs'));
@@ -379,15 +972,15 @@
       }
       table.append(thead, body);
       const wrap = el('div', 'table'); wrap.append(table);
-      section.append(h, wrap);
-      return section;
+      block.append(wrap);
+      return block;
     }).filter(Boolean);
     const empty = server.cogs.some(c => c.enabled) ? 'No commands match.' : 'No cogs are on in this server, so it has no commands.';
     $('cogs').replaceChildren(...(parts.length ? parts : [el('p', 'sub', empty)]));
   }
+  $('filter').addEventListener('input', () => server && renderCommands());
 
-  const enabledCommands = () => server.cogs.filter(c => c.enabled).reduce((n, c) => n + c.commands.length, 0);
-
+  /* Cogs */
   function renderCogs() {
     const on = server.cogs.filter(c => c.enabled).length;
     const chips = [['all', `All (${server.cogs.length})`], ['on', `On (${on})`], ['off', `Off (${server.cogs.length - on})`]];
@@ -396,8 +989,8 @@
       b.addEventListener('click', () => { cogShow = key; renderCogs(); });
       return b;
     }));
-    const shown = server.cogs.filter(c => cogShow === 'all' || (cogShow === 'on') === c.enabled);
     $('cog-note').hidden = server.can_toggle;
+    const shown = server.cogs.filter(c => cogShow === 'all' || (cogShow === 'on') === c.enabled);
     $('cog-cards').replaceChildren(...shown.map(cog => {
       const card = el('div', cog.enabled ? 'card' : 'card disabled');
       const top = el('div', 'top');
@@ -413,7 +1006,6 @@
       }
       top.append(el('b', null, cog.name), control);
       const n = cog.commands.length;
-      const sub = el('div', 'sub', `${n} command${n === 1 ? '' : 's'}`);
       const actions = el('div', 'actions');
       // Info only for cogs with data here; Cmd only for cogs that are on, as the others' commands can't be used
       if (cog.has_data) {
@@ -426,244 +1018,484 @@
         cmd.href = `${serverPath('commands')}?cog=${encodeURIComponent(cog.name)}`;
         actions.append(cmd);
       }
-      card.append(top, sub);
+      card.append(top, el('div', 'sub', `${n} command${n === 1 ? '' : 's'}`));
       if (actions.childElementCount) card.append(actions);
       return card;
     }));
   }
 
-  let toastTimer;
-  function toast(text, bad) {
-    document.querySelector('.toast')?.remove();
-    const t = el('div', bad ? 'toast bad' : 'toast', text);
-    t.setAttribute('role', 'status');
-    document.body.append(t);
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.remove(), 4000);
-  }
-
   async function toggleCog(cog, button) {
     const enabled = !cog.enabled;
     // Flipped straight away; put back if the bot says no
-    const flip = on => {
-      cog.enabled = on;
-      $('count-commands').textContent = enabledCommands();
-      renderCogs();
-    };
+    const flip = value => { cog.enabled = value; $('count-commands').textContent = enabledCommands(); renderCogs(); };
     button.disabled = true;
     flip(enabled);
     try {
-      const res = await fetch(`/api/servers/${serverId}/cogs/${encodeURIComponent(cog.name)}`, {
+      await api(`/api/servers/${serverId}/cogs/${encodeURIComponent(cog.name)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled }),
       });
-      if (!res.ok) {
-        if (res.status === 401) return location.reload();
-        const data = await res.json().catch(() => ({}));
-        flip(!enabled);
-        toast(data.error || 'That couldn\u2019t be changed.', true);
-        return;
-      }
       toast(`${cog.name} is now ${enabled ? 'on' : 'off'}. Discord can take a minute to update the slash commands.`);
     } catch (e) {
       flip(!enabled);
-      toast('Can\u2019t reach the bot.', true);
+      if (e.message !== 'signed out') toast(e.message, true);
     }
   }
 
-  function renderServerOverview() {
-    const g = server.guild;
-    $('s-members').textContent = fmt(g.members);
-    $('s-channels').textContent = fmt(g.channels);
-    $('s-roles').textContent = fmt(g.roles);
-    $('s-boosts').textContent = g.boost_tier ? `${fmt(g.boosts)} · Level ${g.boost_tier}` : fmt(g.boosts);
-    $('s-owner').replaceChildren(g.owner_name ? g.owner_name : el('code', null, g.owner_id));
-    $('s-created').textContent = new Date(g.created * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    const on = server.cogs.filter(c => c.enabled).length;
-    $('s-cogs').textContent = `${on} of ${server.cogs.length}`;
-    const commands = enabledCommands();
-    const links = [
-      ['commands', 'Commands', `${commands} commands people can use here`],
-      ['cogs', 'Cogs', `${on} on, ${server.cogs.length - on} off`],
-    ];
-    $('s-links').replaceChildren(...links.map(([sub, title, text]) => {
-      const a = el('a', 'card'); a.href = serverPath(sub);
-      a.append(el('b', null, title), el('div', 'sub', text));
-      return a;
-    }));
+  /* Cog data */
+
+  // Words shown in capitals in column names
+  const WORDS = { id: 'ID', ids: 'IDs', xp: 'XP', dm: 'DM', url: 'URL', tiktok: 'TikTok', youtube: 'YouTube' };
+  // Columns whose plain name reads better said differently
+  const COLUMN_NAMES = {
+    min_xp: 'Base XP', xp_cooldown_secs: 'XP cooldown', engagement_window_mins: 'Reply window', rate: 'XP per level',
+    joins: 'Joins that count as a raid', seconds: 'Within', quiet_minutes: 'Raid ends after', max_count: 'Moves after',
+    count: 'Messages since', key: 'Setting', value: 'Channel', cog_name: 'Cog', guild_id: 'Server',
+    levelup_channel_id: 'Level-up channel', new_account_days: 'New accounts under', ban_count: 'Bans',
+  };
+  function columnName(c) {
+    if (COLUMN_NAMES[c]) return COLUMN_NAMES[c];
+    const words = c.replace(/_(ids)$/, 's').replace(/_(id|secs|seconds|mins|minutes|days)$/, '').split('_')
+      .map(w => WORDS[w] || w);
+    const text = words.join(' ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
-  function setupGuildNav() {
-    $('nav-bot').hidden = true;
-    $('nav-guild').hidden = false;
-    for (const a of document.querySelectorAll('#nav-guild .nav-item')) {
-      a.href = serverPath(a.dataset.section);
-      a.classList.toggle('active', a.dataset.section === section);
+  // Actions the honeypot logs, as people would say them
+  const ACTIONS = {
+    message_in_honeypot: 'Posted in the honeypot', known_malicious: 'Known offender', user_banned: 'Banned',
+    user_kicked: 'Kicked', user_timed_out: 'Timed out', user_quarantined: 'Quarantined',
+    set_honeypot: 'Set up a honeypot channel', remove_honeypot: 'Removed a honeypot channel',
+    toggle_auto_ban: 'Turned auto-punish on or off', set_message: 'Changed the warning message',
+    set_punishment: 'Changed the punishment', whitelist_user: 'Whitelisted someone', unwhitelist_user: 'Removed someone from the whitelist',
+    set_account_age: 'Changed the minimum account age', set_notification_channel: 'Set the alert channel',
+    toggle_dm_notifications: 'Turned alert DMs on or off', add_admin: 'Added an admin to alert', remove_admin: 'Removed an admin from alerts',
+    apply_template: 'Applied a template', clear_logs: 'Cleared the activity log', export_logs: 'Exported the activity log',
+    reset_ban_count: 'Reset the ban count',
+  };
+  // Anything else saved like "some_action" reads as "Some action"
+  const humanize = text => { const t = text.replace(/[_.:]+/g, ' ').trim(); return t.charAt(0).toUpperCase() + t.slice(1); };
+
+  const isIdText = v => typeof v === 'string' && /^\d{17,20}$/.test(v);
+  const looksTimed = c => /(^|_)(at|timestamp|since|created|updated|born|expires|joined|first_message|last_activity|last_decay|last_work|last_daily|last_xp|last_rep_given|added|used_at|removed|started)($|_)/.test(c);
+  function asTime(c, v) {
+    if (!looksTimed(c)) return null;
+    if (typeof v === 'number') {
+      if (v > 1e12 && v < 1e14) return v / 1000;
+      if (v > 1e8 && v < 1e11) return v;
+      return null;
     }
-    for (const key of VIEWS) $(`section-${key}`).hidden = key !== view;
+    if (typeof v === 'string' && /^\d{4}-\d\d-\d\d/.test(v)) return parseWhen(v);
+    return null;
+  }
+  function duration(seconds) {
+    if (seconds === 0) return 'None';
+    const units = [[86400, 'day'], [3600, 'hour'], [60, 'min'], [1, 'sec']];
+    for (const [size, name] of units) {
+      if (seconds >= size && seconds % size === 0) { const n = seconds / size; return `${n} ${name}${n === 1 || name === 'min' || name === 'sec' ? '' : 's'}`; }
+    }
+    return `${seconds} sec`;
+  }
+  // JSON saved as text; IDs inside are too big for JavaScript numbers, so they're read as text
+  function parseStored(text) {
+    if (typeof text !== 'string' || !/^\s*[[{]/.test(text)) return undefined;
+    try { return JSON.parse(text.replace(/(?<![\w."])(\d{16,})(?![\w."])/g, '"$1"')); } catch (e) { return undefined; }
   }
 
-  function cellText(v) {
-    if (v === null) return 'null';
-    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-    return v;
+  // Shows a value as what it means. Returns DOM nodes, and the plain text for searching.
+  function formatCell(col, type, v, ctx) {
+    const label = ctx.labels[col] && v != null && ctx.labels[col][String(v)];
+    if (label) return [label];
+    if (col === 'action' && typeof v === 'string' && v) return [ACTIONS[v] || humanize(v)];
+    if (v === null || v === '') return [el('span', 'nil', '—')];
+    if (typeof v === 'boolean') {
+      const on = col === 'enabled' || /^auto_|lock_|raise_|check_/.test(col);
+      return [el('span', v ? 'badge on' : 'badge off', on ? (v ? 'On' : 'Off') : (v ? 'Yes' : 'No'))];
+    }
+    const time = asTime(col, v);
+    if (time) {
+      const span = el('span', 'time', ago(time));
+      span.title = new Date(time * 1000).toLocaleString();
+      return [span];
+    }
+    if (typeof v === 'number') {
+      if (/colou?r/.test(col)) {
+        const hex = `#${v.toString(16).padStart(6, '0')}`;
+        const swatch = el('span', 'swatch'); swatch.style.background = hex;
+        return [swatch, hex];
+      }
+      if (/(_|^)(secs|seconds|delay_secs)$|^seconds$/.test(col)) return [duration(v)];
+      if (/(_|^)(mins|minutes)$/.test(col)) return [duration(v * 60)];
+      if (/_days$/.test(col)) return [`${fmt(v)} day${v === 1 ? '' : 's'}`];
+      if (/_id$/.test(col) && v === 0) return [el('span', 'nil', col === 'role_id' ? 'Everyone' : '—')];
+      return [fmt(v)];
+    }
+    if (isIdText(v)) return [nameChip(v, ctx)];
+    const stored = parseStored(v);
+    if (stored !== undefined) return renderStored(stored, ctx);
+    // Text: IDs the bot knows become names
+    const parts = [];
+    let last = 0;
+    for (const m of v.matchAll(/\b\d{17,20}\b/g)) {
+      if (!ctx.names[m[0]]) continue;
+      parts.push(v.slice(last, m.index), nameChip(m[0], ctx));
+      last = m.index + m[0].length;
+    }
+    parts.push(v.slice(last));
+    return parts;
+  }
+  // JSON saved in a column: lists as chips, objects as "Field: value", each value shown by
+  // meaning like a column of its own (so IDs become names)
+  function renderStored(value, ctx) {
+    if (Array.isArray(value)) {
+      if (!value.length) return [el('span', 'nil', 'None')];
+      const wrap = el('span', 'chips-inline');
+      wrap.append(...value.map(x => {
+        if (isIdText(String(x))) return nameChip(String(x), ctx);
+        if (x && typeof x === 'object') { const pill = el('span', 'pill'); pill.append(...renderStored(x, ctx)); return pill; }
+        return el('span', 'pill', String(x));
+      }));
+      return [wrap];
+    }
+    const entries = Object.entries(value).filter(([, x]) => x !== false && x !== null);
+    if (!entries.length) return [el('span', 'nil', 'None')];
+    // Only flags, like {"urls": true, "mentions": true}: a row of chips
+    if (entries.every(([, x]) => x === true)) {
+      const wrap = el('span', 'chips-inline');
+      wrap.append(...entries.map(([k]) => el('span', 'pill', PATTERNS[k] || columnName(k))));
+      return [wrap];
+    }
+    const list = el('span', 'fields');
+    for (const [k, x] of entries) {
+      const field = el('span', 'field');
+      // Flags saved as {"urls": true}
+      if (x === true) { field.append(el('span', 'pill', PATTERNS[k] || columnName(k))); list.append(field); continue; }
+      field.append(el('span', 'field-name', `${columnName(k)}: `));
+      if (x && typeof x === 'object') field.append(...renderStored(x, ctx));
+      else field.append(...formatCell(k, '', typeof x === 'number' && String(x).length >= 16 ? String(x) : x, ctx));
+      list.append(field);
+    }
+    return [list];
   }
 
+  function nameChip(id, ctx) {
+    const name = ctx.names[id];
+    const chip = el('span', name ? 'name' : 'id', name || id);
+    chip.title = id;
+    return chip;
+  }
+  const plain = nodes => nodes.map(n => typeof n === 'string' ? n : n.textContent).join('');
+
+  let dataState = null;
   async function loadData(table, page) {
     const q = new URLSearchParams();
     if (table) q.set('table', table);
     if (page > 1) q.set('page', page);
-    const res = await fetch(`/api/servers/${serverId}/cogs/${encodeURIComponent(dataCog)}/data?${q}`);
-    const d = await res.json();
-    if (!res.ok) {
-      $('data-body').replaceChildren(el('p', 'error', d.error || 'The data couldn\u2019t be loaded.'));
-      return;
-    }
+    let d;
+    try { d = await api(`/api/servers/${serverId}/cogs/${encodeURIComponent(dataCog)}/data?${q}`); }
+    catch (e) { $('data-body').replaceChildren(el('p', 'error', e.message)); return; }
     // Keep the address in step, so a refresh stays on the same table and page
     const url = new URLSearchParams();
     if (d.table) url.set('table', d.table);
     if (d.data && d.data.page > 1) url.set('page', d.data.page);
     history.replaceState(null, '', `${location.pathname}${url.toString() ? '?' + url : ''}`);
+    dataState = { d, sort: null, search: '', raw: dataState ? dataState.raw : false };
+    drawDataActions(d);
+    drawDataTabs(d);
+    drawDataBody();
+  }
 
-    $('data-tables').replaceChildren(...d.tables.map(t => {
-      const b = el('button', t.id === d.table ? 'chip active' : 'chip', `${t.name} (${fmt(t.rows)})`);
+  function drawDataActions(d) {
+    const bar = $('data-actions');
+    const back = el('a', 'btn', '← Cogs'); back.href = serverPath('cogs');
+    const parts = [back, el('span', d.enabled ? 'badge on' : 'badge off', d.enabled ? 'On' : 'Off')];
+    const cog = server && server.cogs.find(c => c.name === d.cog);
+    if (d.enabled && cog && cog.commands.length) {
+      const cmd = el('a', 'btn', `Commands (${cog.commands.length})`);
+      cmd.href = `${serverPath('commands')}?cog=${encodeURIComponent(d.cog)}`;
+      parts.push(cmd);
+    }
+    bar.replaceChildren(...parts);
+  }
+
+  function drawDataTabs(d) {
+    // Tables with rows first, keeping their order otherwise
+    const tabs = [...d.tables].sort((a, b) => (b.rows > 0) - (a.rows > 0));
+    $('data-tables').replaceChildren(...tabs.map(t => {
+      const b = el('button', `tab${t.id === d.table ? ' active' : ''}${t.rows ? '' : ' empty'}`);
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(t.id === d.table));
+      b.append(t.name, el('span', 'count', fmt(t.rows)));
       b.addEventListener('click', () => loadData(t.id, 1));
       return b;
     }));
-    const body = $('data-body');
-    if (!d.data) {
-      body.replaceChildren(el('p', 'sub', 'This cog keeps nothing for this server.'));
-      return;
-    }
-    if (!d.data.rows.length) {
-      body.replaceChildren(el('p', 'sub', 'This table has no rows for this server.'));
-      return;
-    }
-    const tableEl = el('table');
-    const head = el('tr');
-    head.append(...d.data.columns.map(c => el('th', null, c)));
-    const thead = el('thead'); thead.append(head);
-    const tbody = el('tbody');
-    // Discord IDs the bot knows are shown by name, with the ID on hover
-    const names = d.names || {};
-    const named = text => {
-      const parts = [];
-      let last = 0;
-      for (const m of text.matchAll(/\b\d{17,20}\b/g)) {
-        const name = names[m[0]];
-        if (!name) continue;
-        parts.push(text.slice(last, m.index));
-        const span = el('span', 'name', name);
-        span.title = m[0];
-        parts.push(span);
-        last = m.index + m[0].length;
-      }
-      parts.push(text.slice(last));
-      return parts;
-    };
-    const defaults = new Set(d.data.defaults || []);
-    d.data.rows.forEach((row, index) => {
-      const tr = el('tr', defaults.has(index) ? 'default' : null);
-      tr.append(...row.map(v => {
-        const text = cellText(v);
-        const td = el('td', v === null ? 'cell null' : 'cell');
-        td.append(...(v === null ? [text] : named(text)));
-        td.title = text;
-        return td;
-      }));
-      tbody.append(tr);
-    });
-    tableEl.append(thead, tbody);
-    const wrap = el('div', 'table'); wrap.append(tableEl);
-    const { page: p, pages, total } = d.data;
-    const pager = el('div', 'pager', `${fmt(total)} row${total === 1 ? '' : 's'} · page ${p} of ${pages}`);
-    const prev = el('button', 'btn', 'Previous'); prev.disabled = p <= 1;
-    const next = el('button', 'btn', 'Next'); next.disabled = p >= pages;
-    prev.addEventListener('click', () => loadData(d.table, p - 1));
-    next.addEventListener('click', () => loadData(d.table, p + 1));
-    if (pages > 1) pager.append(prev, next);
-    const parts = defaults.size ? [el('p', 'legend', 'Rows marked default aren\u2019t saved for this server; they\u2019re what the cog uses until they\u2019re set.'), wrap, pager] : [wrap, pager];
-    body.replaceChildren(...parts);
   }
 
-  async function loadServer() {
-    const res = await fetch(`/api/servers/${serverId}`);
-    const data = await res.json();
-    if (!res.ok) {
-      $('server-error').textContent = data.error || 'That server couldn\u2019t be loaded.';
-      $('server-error').hidden = false;
-      for (const key of VIEWS) $(`section-${key}`).hidden = true;
+  function drawDataBody() {
+    const { d } = dataState;
+    const body = $('data-body');
+    const info = d.tables.find(t => t.id === d.table);
+    const head = el('div', 'data-title');
+    const titles = el('div');
+    titles.append(el('h2', null, info ? info.name : 'Data'));
+    if (info && info.description) titles.append(el('div', 'sub', info.description));
+    head.append(titles);
+    if (!d.data) { body.replaceChildren(head, el('div', 'empty-card', 'This cog keeps nothing for this server yet.')); return; }
+    if (!d.data.rows.length) { body.replaceChildren(head, el('div', 'empty-card', 'Nothing here for this server yet.')); return; }
+
+    const tools = el('div', 'data-tools');
+    const many = d.data.rows.length > 1 || d.data.pages > 1;
+    if (many) {
+      const search = el('input', 'filter small');
+      search.type = 'search'; search.placeholder = 'Search this page'; search.setAttribute('aria-label', 'Search this page');
+      search.value = dataState.search;
+      search.addEventListener('input', () => { dataState.search = search.value; drawRows(); });
+      tools.append(search);
+    }
+    const rawLabel = el('label', 'raw-toggle');
+    const raw = el('input'); raw.type = 'checkbox'; raw.checked = dataState.raw;
+    raw.addEventListener('change', () => { dataState.raw = raw.checked; drawDataBody(); });
+    rawLabel.append(raw, 'Raw values');
+    tools.append(rawLabel);
+    head.append(tools);
+
+    const ctx = { names: d.names || {}, labels: dataState.raw ? {} : (d.labels || {}) };
+    const defaults = new Set(d.data.defaults || []);
+    const columns = d.data.columns, types = d.data.types || [];
+    const show = (col, i, v) => dataState.raw ? [v === null ? el('span', 'nil', 'null') : String(v)] : formatCell(col, types[i], v, ctx);
+    const parts = [head];
+    if (defaults.size) parts.push(el('p', 'legend', 'Greyed values aren’t saved for this server; they’re what the cog uses until they’re set.'));
+
+    // A single row of settings reads better as a list than a one-row table
+    if (!many && columns.length > 1) {
+      const row = d.data.rows[0];
+      const list = el('dl', `settings-list${defaults.has(0) ? ' default' : ''}`);
+      columns.forEach((c, i) => {
+        const dt = el('dt', null, dataState.raw ? c : columnName(c));
+        const dd = el('dd'); dd.append(...show(c, i, row[i]));
+        list.append(dt, dd);
+      });
+      const panel = el('div', 'panel'); panel.append(list);
+      parts.push(panel);
+      body.replaceChildren(...parts);
       return;
     }
-    server = data;
-    const g = data.guild;
-    const page = dataCog ? `${dataCog} data` : { '': 'Overview', commands: 'Commands', cogs: 'Cogs' }[section];
-    document.title = `${page} · ${g.name}`;
-    $('topbar-title').textContent = `${g.name} · ${page}`;
-    const name = el('b', null, g.name);
-    $('nav-server').replaceChildren(guildIcon(g), name);
-    $('count-commands').textContent = enabledCommands();
-    $('count-cogs').textContent = data.cogs.length;
-    const text = el('div');
-    const subs = { overview: `${fmt(g.members)} members`, commands: 'Every command people can use in this server, by cog (only cogs that are on)', cogs: 'The parts of the bot, and whether each is on here', data: 'What this cog keeps for this server (read-only)' };
-    text.append(el('h1', null, section ? page : g.name), el('div', 'sub', section ? g.name + ' · ' + subs[view] : subs.overview));
-    $('server-head').replaceChildren(guildIcon(g), text);
-    if (dataCog) {
-      const params = new URLSearchParams(location.search);
-      loadData(params.get('table'), Number(params.get('page')) || 1);
-    } else if (section === 'commands') {
-      const cog = new URLSearchParams(location.search).get('cog');
-      if (cog) $('filter').value = cog;
-      renderCommands();
-    } else if (section === 'cogs') {
-      renderCogs();
-    } else {
-      renderServerOverview();
+
+    const table = el('table', 'data-table');
+    const thead = el('thead'), headRow = el('tr');
+    columns.forEach((c, i) => {
+      const numeric = d.data.rows.every(r => typeof r[i] === 'number' && !asTime(c, r[i]) && !/colou?r/.test(c));
+      const th = el('th', `sortable${numeric ? ' num' : ''}`, dataState.raw ? c : columnName(c));
+      th.title = c;
+      if (dataState.sort && dataState.sort.i === i) th.append(el('span', 'arrow', dataState.sort.dir > 0 ? '▲' : '▼'));
+      th.addEventListener('click', () => {
+        dataState.sort = { i, dir: dataState.sort && dataState.sort.i === i ? -dataState.sort.dir : 1 };
+        drawDataBody();
+      });
+      headRow.append(th);
+    });
+    thead.append(headRow);
+    const tbody = el('tbody'); tbody.id = 'data-rows';
+    table.append(thead, tbody);
+    const wrap = el('div', 'table'); wrap.append(table);
+    parts.push(wrap);
+
+    const { page: p, pages, total } = d.data;
+    const pager = el('div', 'pager');
+    pager.append(el('span', null, `${fmt(total)} row${total === 1 ? '' : 's'}${pages > 1 ? ` · page ${p} of ${pages}` : ''}`));
+    if (pages > 1) {
+      const prev = el('button', 'btn', 'Previous'); prev.disabled = p <= 1;
+      const next = el('button', 'btn', 'Next'); next.disabled = p >= pages;
+      prev.addEventListener('click', () => loadData(d.table, p - 1));
+      next.addEventListener('click', () => loadData(d.table, p + 1));
+      pager.append(prev, next);
     }
+    parts.push(pager);
+    body.replaceChildren(...parts);
+
+    function drawRows() {
+      const rows = d.data.rows.map((row, index) => {
+        const cells = row.map((v, i) => show(columns[i], i, v));
+        return { row, index, cells, text: cells.map(plain).join(' ').toLowerCase() };
+      });
+      const q = dataState.search.trim().toLowerCase();
+      let shown = q ? rows.filter(r => r.text.includes(q)) : rows;
+      if (dataState.sort) {
+        const { i, dir } = dataState.sort;
+        const key = r => { const v = r.row[i]; return v === null ? '' : typeof v === 'number' || typeof v === 'boolean' ? Number(v) : plain(r.cells[i]).toLowerCase(); };
+        shown = [...shown].sort((a, b) => {
+          const x = key(a), y = key(b);
+          return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * dir;
+        });
+      }
+      if (!shown.length) {
+        const td = el('td', 'empty', 'Nothing on this page matches.'); td.colSpan = columns.length;
+        const tr = el('tr'); tr.append(td);
+        tbody.replaceChildren(tr);
+        return;
+      }
+      tbody.replaceChildren(...shown.map(r => {
+        const tr = el('tr', defaults.has(r.index) ? 'default' : null);
+        tr.append(...r.cells.map((nodes, i) => {
+          const td = el('td', `cell${typeof r.row[i] === 'number' && !asTime(columns[i], r.row[i]) && !/colou?r/.test(columns[i]) ? ' num' : ''}`);
+          td.append(...nodes);
+          const text = plain(nodes);
+          // Long text is cut to two lines; click to see it all
+          if (text.length > 80) {
+            td.classList.add('clamp');
+            td.title = 'Click to show all';
+            td.addEventListener('click', () => td.classList.toggle('open'));
+          }
+          return td;
+        }));
+        return tr;
+      }));
+    }
+    drawRows();
   }
-  $('filter').addEventListener('input', () => server && renderCommands());
+
+  /* Leaderboards */
+  async function loadLeaderboards() {
+    let d;
+    try { d = await api(`/api/servers/${serverId}/leaderboards`); } catch (e) { return; }
+    const names = d.names || {}, avatars = d.avatars || {};
+    const medal = i => ['gold', 'silver', 'bronze'][i] || '';
+    const fill = (body, rows, empty, cells) => {
+      if (!rows.length) { const td = el('td', 'empty', empty); td.colSpan = 4; const tr = el('tr'); tr.append(td); body.replaceChildren(tr); return; }
+      body.replaceChildren(...rows.map((r, i) => {
+        const tr = el('tr');
+        const who = el('td'), wrap = el('div', 'who-cell');
+        const name = named(names, r.user_id, `Unknown (${r.user_id})`);
+        wrap.append(el('span', `rank ${medal(i)}`, `${i + 1}`), avatar(avatars[r.user_id], name.replace(/^@/, '')), name.replace(/^@/, ''));
+        who.append(wrap);
+        tr.append(who, ...cells(r));
+        return tr;
+      }));
+    };
+    fill($('lb-levels'), d.levels, 'Nobody has earned XP yet.', r => [el('td', 'num', fmt(r.level)), el('td', 'num', fmt(r.xp)), el('td', 'num', fmt(r.rep))]);
+    fill($('lb-economy'), d.economy, 'Nobody has joined the economy yet.', r => [el('td', 'num', fmt(r.wallet)), el('td', 'num', fmt(r.bank)), el('td', 'num', fmt(r.total))]);
+  }
+
+  /* Audit */
+  async function loadAudit() {
+    let d;
+    try { d = await api(`/api/servers/${serverId}/activity`); } catch (e) { return; }
+    const list = $('audit-feed');
+    if (!d.audit.length) { list.replaceChildren(el('li', 'empty', 'Nothing has been changed through the dashboard yet.')); return; }
+    list.replaceChildren(...d.audit.map(a => {
+      const li = el('li'), what = el('div', 'what');
+      what.append(el('b', null, a.user_name), ` · ${a.action}`);
+      const when = el('span', 'when', ago(a.at));
+      when.title = new Date(a.at * 1000).toLocaleString();
+      li.append(what, when);
+      return li;
+    }));
+  }
+
+  /* ---------- Quick switcher (Ctrl+K) ---------- */
+
+  let paletteItems = [], paletteSel = 0;
+  function paletteEntries() {
+    const entries = [{ label: 'Overview', hint: 'Bot', href: '/' }];
+    if (me && me.owner) entries.push({ label: 'System', hint: 'Bot', href: '/system' });
+    for (const g of (overview ? overview.guilds : [])) {
+      entries.push({ label: g.name, hint: 'Server', href: `/servers/${g.id}`, icon: g.icon });
+      for (const [sub, title] of [['settings', 'Settings'], ['commands', 'Commands'], ['cogs', 'Cogs'], ['leaderboards', 'Leaderboards'], ['audit', 'Audit log']]) {
+        entries.push({ label: `${g.name} › ${title}`, hint: title, href: `/servers/${g.id}/${sub}`, icon: g.icon, minor: true });
+      }
+    }
+    if (server) for (const c of server.cogs.filter(c => c.has_data)) {
+      entries.push({ label: `${server.guild.name} › ${c.name} data`, hint: 'Cog data', href: serverPath(`cogs/${encodeURIComponent(c.name)}`), icon: server.guild.icon, minor: true });
+    }
+    return entries;
+  }
+  function drawPalette() {
+    const q = $('palette-input').value.trim().toLowerCase();
+    const all = paletteEntries();
+    // With nothing typed, only the main entries; typing searches everything
+    paletteItems = (q ? all.filter(e => e.label.toLowerCase().includes(q)) : all.filter(e => !e.minor)).slice(0, 40);
+    paletteSel = Math.min(paletteSel, Math.max(0, paletteItems.length - 1));
+    const list = $('palette-list');
+    if (!paletteItems.length) { list.replaceChildren(el('li', 'none', 'Nothing matches.')); return; }
+    list.replaceChildren(...paletteItems.map((item, i) => {
+      const li = el('li', i === paletteSel ? 'sel' : null);
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', String(i === paletteSel));
+      const ico = el('span', 'ico');
+      ico.append(item.icon ? avatar(item.icon, item.label) : item.label.charAt(0));
+      li.append(ico, item.label, el('small', null, item.hint));
+      li.addEventListener('click', () => { location.href = item.href; });
+      li.addEventListener('mousemove', () => { if (paletteSel !== i) { paletteSel = i; drawPalette(); } });
+      return li;
+    }));
+    list.querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
+  }
+  function openPalette() {
+    if ($('app').hidden) return;
+    app.classList.remove('open');
+    $('palette').hidden = false;
+    $('palette-input').value = '';
+    paletteSel = 0;
+    drawPalette();
+    $('palette-input').focus();
+  }
+  const closePalette = () => { $('palette').hidden = true; };
+  $('open-palette').addEventListener('click', openPalette);
+  $('open-palette-mobile').addEventListener('click', openPalette);
+  $('palette').addEventListener('click', e => { if (e.target === $('palette')) closePalette(); });
+  $('palette-input').addEventListener('input', () => { paletteSel = 0; drawPalette(); });
+  $('palette-input').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { paletteSel = Math.min(paletteSel + 1, paletteItems.length - 1); drawPalette(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { paletteSel = Math.max(paletteSel - 1, 0); drawPalette(); e.preventDefault(); }
+    else if (e.key === 'Enter' && paletteItems[paletteSel]) location.href = paletteItems[paletteSel].href;
+    else if (e.key === 'Escape') closePalette();
+  });
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('palette').hidden ? openPalette() : closePalette(); }
+    else if (e.key === 'Escape' && !$('palette').hidden) closePalette();
+  });
+
+  /* ---------- Start ---------- */
 
   async function refresh() {
-    let o;
     try {
-      const res = await fetch('/api/overview');
-      if (res.status === 401) {
-        $('app').hidden = true;
-        $('signin').hidden = false;
-        return false;
-      }
-      o = await res.json();
+      overview = await api('/api/overview');
     } catch (e) {
-      $('status-dot').classList.add('down');
-      $('bot-meta').textContent = 'Can’t reach the bot';
+      if (e.message !== 'signed out') {
+        $('status-dot').classList.add('down');
+        $('bot-meta').textContent = 'Can’t reach the bot';
+      }
       return false;
     }
-    $('signin').hidden = true;
-    $('app').hidden = false;
-    $('status-dot').classList.remove('down');
-    $('bot-avatar').src = o.bot.avatar;
-    $('bot-name').textContent = o.bot.name;
-    $('bot-meta').textContent = `Online · v${o.bot.version}`;
-    $('user-avatar').src = o.user.avatar;
-    $('user-name').textContent = o.user.name;
-    $('user-role').textContent = o.user.owner ? 'Bot owner' : 'Server manager';
-    if (!serverId) {
-      document.title = `${o.bot.name} Dashboard`;
+    me = overview.user;
+    renderChrome(overview);
+    if (botPage === 'home') {
+      document.title = `${overview.bot.name} Dashboard`;
       $('topbar-title').textContent = 'Overview';
-    }
-    if (!serverId) {
-      renderNav(o.guilds);
-      renderOverview(o);
+      renderHome();
     }
     return true;
   }
 
-  $('overview-view').hidden = !!serverId;
-  $('server-view').hidden = !serverId;
+  $('view-home').hidden = botPage !== 'home';
+  $('view-system').hidden = botPage !== 'system';
+  $('view-server').hidden = !serverId;
   if (serverId) setupGuildNav();
-  refresh().then(ok => { if (ok && serverId) loadServer().catch(() => {}); });
+  if (botPage === 'system') { document.title = 'System · Dashboard'; $('topbar-title').textContent = 'System'; }
+
+  refresh().then(ok => {
+    if (!ok) return;
+    if (serverId) loadServer();
+    if (botPage === 'system') loadSystem();
+  });
+  // Live: the bot's numbers every 10 seconds; a server's security and the host every 30
   setInterval(refresh, 10000);
+  setInterval(() => {
+    if (document.hidden) return;
+    if (serverId && view === 'overview' && server) loadActivity();
+    if (botPage === 'system') loadSystem();
+  }, 30000);
 </script>
 </body>
 </html>

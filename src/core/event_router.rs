@@ -77,6 +77,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     if let Err(e) = data.staff_policy.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale staff policy records: {e}"));
     }
+    if let Err(e) = data.dashboard_log.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale dashboard actions: {e}"));
+    }
     if let Err(e) = data.reaction_roles.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale reaction roles: {e}"));
     }

@@ -293,7 +293,7 @@ async fn staff(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Total and available memory in bytes, from /proc/meminfo (Linux only).
-fn system_memory() -> Option<(u64, u64)> {
+pub(crate) fn system_memory() -> Option<(u64, u64)> {
     let info = std::fs::read_to_string("/proc/meminfo").ok()?;
     let field = |name: &str| {
         info.lines().find(|l| l.starts_with(name))?.split_whitespace().nth(1)?.parse::<u64>().ok().map(|kb| kb * 1024)
@@ -302,7 +302,7 @@ fn system_memory() -> Option<(u64, u64)> {
 }
 
 /// The bot's own memory use in bytes, from /proc/self/status (Linux only).
-fn bot_memory() -> Option<u64> {
+pub(crate) fn bot_memory() -> Option<u64> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
     let kb: u64 = status.lines().find(|l| l.starts_with("VmRSS:"))?.split_whitespace().nth(1)?.parse().ok()?;
     Some(kb * 1024)
@@ -319,7 +319,7 @@ fn cpu_times() -> Option<(u64, u64)> {
 }
 
 /// System CPU use as a percentage, measured over a short moment.
-async fn cpu_percent() -> Option<f64> {
+pub(crate) async fn cpu_percent() -> Option<f64> {
     let (busy1, total1) = cpu_times()?;
     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     let (busy2, total2) = cpu_times()?;
@@ -339,7 +339,7 @@ fn bar(percent: f64) -> String {
 }
 
 /// The SQLite files in `database/`: how many, and their total size.
-fn database_files() -> (usize, u64) {
+pub(crate) fn database_files() -> (usize, u64) {
     let Ok(entries) = std::fs::read_dir("database") else { return (0, 0) };
     entries
         .filter_map(Result::ok)
@@ -349,7 +349,7 @@ fn database_files() -> (usize, u64) {
 }
 
 /// Every command, counting each subcommand rather than the groups holding them.
-fn count_commands(commands: &[Command]) -> usize {
+pub(crate) fn count_commands(commands: &[Command]) -> usize {
     commands.iter().map(|c| if c.subcommands.is_empty() { 1 } else { count_commands(&c.subcommands) }).sum()
 }
 

@@ -138,19 +138,69 @@ fn defaults(cog: &str, file: &str, table: &str) -> Option<Defaults> {
     })
 }
 
+/// A plain name and a line about what a table holds, for the info page.
+fn describe(file: &str, table: &str) -> Option<(&'static str, &'static str)> {
+    Some(match (file, table) {
+        ("afk.db", "afk") => ("AFK members", "Who's away, why, and since when"),
+        ("applications.db", "settings") => ("Settings", "Where applications go for review"),
+        ("applications.db", "positions") => ("Positions", "Roles members can apply for, and the questions asked"),
+        ("applications.db", "applications") => ("Applications", "Applications members have sent"),
+        ("applications.db", "panels") => ("Panels", "The messages members apply from"),
+        ("cog_config.db", "cog_config") => ("Cogs and games", "Which cogs and games are on in this server"),
+        ("cooldowns.db", "command_cooldowns") => ("Cooldowns", "How long members wait between uses of a command"),
+        ("cooldowns.db", "last_used") => ("Recent uses", "When members last used a command with a cooldown"),
+        ("counting.db", "counting") => ("Counting", "The counting channel, its count and best"),
+        ("economy.db", "accounts") => ("Accounts", "Members' wallets and banks"),
+        ("economy.db", "daily_rates") => ("Daily rewards", "How much /eco daily pays, by role"),
+        ("economy.db", "held_bets") => ("Bets in play", "Money held while a game is being played"),
+        ("guessing.db", "guessing") => ("Guessing", "The guessing channel, its number and stats"),
+        ("server_setup.db", "settings") => ("Channels", "Channels picked with /server-setup"),
+        ("honeypot.db", "guilds") => ("Settings", "Alerts and the ban count"),
+        ("honeypot.db", "honeypot_channels") => ("Trap channels", "Channels that catch bots, and what happens to them"),
+        ("honeypot.db", "activity_logs") => ("Activity log", "Everything the honeypot has caught"),
+        ("honeypot.db", "audit_log") => ("Staff changes", "Changes staff made to the honeypot"),
+        ("incidents.db", "incidents") => ("Incidents", "Evidence reports for bans, kicks and timeouts"),
+        ("levels.db", "settings") => ("Settings", "How members earn XP"),
+        ("levels.db", "members") => ("Members", "Members' XP and reputation"),
+        ("live_status.db", "streamers") => ("Streamer", "The Twitch streamer followed, and how the live card looks"),
+        ("lockdown.db", "lockdowns") => ("Locked channels", "Channels locked with /lockdown, and when they unlock"),
+        ("pets.db", "pets") => ("Pets", "Members' pets and their needs"),
+        ("quarantine.db", "settings") => ("Settings", "The quarantine role and channels"),
+        ("quarantine.db", "quarantined") => ("Quarantined members", "Members waiting for staff to review them"),
+        ("raid_protection.db", "settings") => ("Settings", "What counts as a raid, and what's done about it"),
+        ("raid_protection.db", "raids") => ("Raid in progress", "A raid happening now, and what was changed"),
+        ("reaction_roles.db", "reaction_roles") => ("Reaction roles", "Emojis on messages, and the roles they give"),
+        ("rules.db", "sections") => ("Rules", "The rules, section by section"),
+        ("rules.db", "posts") => ("Posted rules", "Where the rules are posted"),
+        ("staff_policy.db", "settings") => ("Settings", "The demoted role, log channel and staff roles"),
+        ("staff_policy.db", "removed_roles") => ("Demoted staff", "Roles taken from staff, kept to give back"),
+        ("sticky.db", "stickies") => ("Sticky messages", "Messages kept at the bottom of their channel"),
+        ("sticky.db", "settings") => ("Settings", "How long stickies wait before moving down"),
+        ("suggestions.db", "setup") => ("Settings", "The suggestion channels"),
+        ("suggestions.db", "suggestions") => ("Open suggestions", "Suggestions waiting for a decision"),
+        ("suspicious_accounts.db", "settings") => ("Settings", "The alert threshold and what happens at it"),
+        ("suspicious_accounts.db", "activity") => ("Member activity", "What each member did that counts toward their score"),
+        ("tickets.db", "ticket_setup") => ("Settings", "Where tickets are made, and who handles them"),
+        ("tickets.db", "tickets") => ("Open tickets", "Tickets that are still open"),
+        _ => return None,
+    })
+}
+
 /// One of a cog's tables, with how many rows the server has in it (counting defaults).
 pub struct Table {
     /// "file:table", as the info page asks for it
     pub id: String,
     pub name: String,
+    pub description: Option<&'static str>,
+    /// The file the table is in, e.g. "honeypot.db"
+    pub file: &'static str,
     pub rows: usize,
-    file: &'static str,
-    table: String,
+    pub table: String,
     filter: Option<&'static str>,
     defaults: Option<Defaults>,
 }
 
-fn open(file: &str) -> rusqlite::Result<Connection> {
+pub(crate) fn open(file: &str) -> rusqlite::Result<Connection> {
     let path = format!("{}/{file}", crate::database::connection::DIR);
     Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
 }
@@ -200,10 +250,16 @@ pub fn tables(cog: &str, guild_id: u64) -> Vec<Table> {
                 }
             };
             let stem = source.file.trim_end_matches(".db");
-            let label = if several_files && stem != name { format!("{stem} · {name}") } else { name.clone() };
+            let described = describe(source.file, &name);
+            let label = match described {
+                Some((title, _)) => title.to_string(),
+                None if several_files && stem != name => format!("{stem} · {name}"),
+                None => name.clone(),
+            };
             tables.push(Table {
                 id: format!("{}:{name}", source.file),
                 name: label,
+                description: described.map(|(_, description)| description),
                 rows: saved + missing,
                 file: source.file,
                 table: name,
@@ -263,6 +319,12 @@ pub fn page(table: &Table, guild_id: u64, page: usize) -> rusqlite::Result<Value
     let shown: Vec<(usize, String)> =
         stmt.column_names().iter().enumerate().filter(|(_, c)| **c != "guild_id").map(|(i, c)| (i, c.to_string())).collect();
     let columns: Vec<&String> = shown.iter().map(|(_, c)| c).collect();
+    // Declared types, so the page can tell numbers, text and yes/no apart
+    let declared: std::collections::HashMap<String, String> = conn
+        .prepare("SELECT name, upper(type) FROM pragma_table_info(?1)")?
+        .query_map([&table.table], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    let types: Vec<&str> = columns.iter().map(|c| declared.get(c.as_str()).map_or("", String::as_str)).collect();
     let mut rows: Vec<Value> = stmt
         .query_map([guild_id as i64], |row| {
             let cells = shown.iter().map(|&(i, ref name)| match row.get_ref(i) {
@@ -275,7 +337,7 @@ pub fn page(table: &Table, guild_id: u64, page: usize) -> rusqlite::Result<Value
         .collect::<rusqlite::Result<_>>()?;
 
     let Some(defaults) = &table.defaults else {
-        return Ok(json!({ "columns": columns, "rows": rows, "defaults": [], "page": page, "pages": pages, "total": table.rows }));
+        return Ok(json!({ "columns": columns, "types": types, "rows": rows, "defaults": [], "page": page, "pages": pages, "total": table.rows }));
     };
     let default_row = |values: &[(&str, Value)], key: Option<(&str, &str)>| -> Value {
         let cells = columns.iter().map(|c| match key {
@@ -301,7 +363,7 @@ pub fn page(table: &Table, guild_id: u64, page: usize) -> rusqlite::Result<Value
     let end = (start + PAGE_SIZE).min(rows.len());
     let defaults: Vec<usize> = (start..end).filter(|&i| i >= saved).map(|i| i - start).collect();
     let rows: Vec<Value> = rows.into_iter().skip(start).take(PAGE_SIZE).collect();
-    Ok(json!({ "columns": columns, "rows": rows, "defaults": defaults, "page": page, "pages": pages, "total": table.rows }))
+    Ok(json!({ "columns": columns, "types": types, "rows": rows, "defaults": defaults, "page": page, "pages": pages, "total": table.rows }))
 }
 
 #[cfg(test)]
