@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS settings (
     quiet_minutes INTEGER NOT NULL,
     lock_channels BOOLEAN NOT NULL,
     raise_verification BOOLEAN NOT NULL,
-    -- What happens to accounts that join during a raid: 'none', 'timeout', 'kick' or 'ban'
+    -- What happens to accounts that join during a raid: 'none', 'timeout', 'kick', 'ban' or 'quarantine'
     joiner_action TEXT NOT NULL,
     timeout_minutes INTEGER NOT NULL,
     alert_channel INTEGER

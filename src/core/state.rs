@@ -18,6 +18,7 @@ pub struct State {
     pub counting: Mutex<games::counting::Store>,
     pub economy: Mutex<economy::store::Store>,
     pub guessing: Mutex<games::guessing::Store>,
+    pub quarantine: Mutex<crate::database::repositories::quarantine::Store>,
     pub raid_protection: Mutex<crate::database::repositories::raid_protection::Store>,
     pub incidents: Mutex<crate::database::repositories::incidents::Store>,
     pub honeypot: Mutex<honeypot::store::Store>,

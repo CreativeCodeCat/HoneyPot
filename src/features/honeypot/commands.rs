@@ -9,7 +9,7 @@ use crate::features::{format_time, title_case, truncate, Context, Error};
 use crate::log;
 
 const NO_HONEYPOT: &str = "❌ No honeypot is configured for this server.";
-const PUNISHMENTS: &[&str] = &["ban", "kick", "timeout"];
+const PUNISHMENTS: &[&str] = &["ban", "kick", "timeout", "quarantine"];
 
 struct Template {
     name: &'static str,
@@ -782,7 +782,7 @@ pub async fn setpunishment(
     #[description = "Honeypot channel (defaults to this one)"]
     #[channel_types("Text")]
     channel: Option<serenity::GuildChannel>,
-    #[description = "ban, kick or timeout"]
+    #[description = "ban, kick, timeout or quarantine"]
     #[autocomplete = "autocomplete_punishment"]
     punishment: Option<String>,
     #[description = "Timeout length in minutes"] duration: Option<i64>,
@@ -792,12 +792,12 @@ pub async fn setpunishment(
     let duration = duration.unwrap_or(0);
 
     let Some(punishment) = punishment.map(|p| p.to_lowercase()) else {
-        ctx.say("❌ Please specify a punishment type: ban, kick, or timeout")
+        ctx.say("❌ Please specify a punishment type: ban, kick, timeout, or quarantine")
             .await?;
         return Ok(());
     };
     if !PUNISHMENTS.contains(&punishment.as_str()) {
-        ctx.say("❌ Invalid punishment type. Use: ban, kick, or timeout")
+        ctx.say("❌ Invalid punishment type. Use: ban, kick, timeout, or quarantine")
             .await?;
         return Ok(());
     }

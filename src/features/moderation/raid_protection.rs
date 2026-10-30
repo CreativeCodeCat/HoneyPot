@@ -42,6 +42,8 @@ pub enum JoinerChoice {
     Kick,
     #[name = "Ban"]
     Ban,
+    #[name = "Quarantine"]
+    Quarantine,
 }
 
 impl From<JoinerChoice> for JoinerAction {
@@ -51,6 +53,7 @@ impl From<JoinerChoice> for JoinerAction {
             JoinerChoice::Timeout => Self::Timeout,
             JoinerChoice::Kick => Self::Kick,
             JoinerChoice::Ban => Self::Ban,
+            JoinerChoice::Quarantine => Self::Quarantine,
         }
     }
 }
@@ -61,6 +64,7 @@ fn describe_action(settings: &Settings) -> String {
         JoinerAction::Timeout => format!("time out for {} minutes", settings.timeout_minutes),
         JoinerAction::Kick => "kick".to_string(),
         JoinerAction::Ban => "ban".to_string(),
+        JoinerAction::Quarantine => "quarantine".to_string(),
     }
 }
 
@@ -82,7 +86,7 @@ async fn alert(ctx: &serenity::Context, data: &Data, guild_id: serenity::GuildId
 }
 
 /// Times out, kicks or bans an account that joined during a raid.
-async fn act_on_joiner(ctx: &serenity::Context, guild_id: serenity::GuildId, user_id: serenity::UserId, settings: &Settings) {
+async fn act_on_joiner(ctx: &serenity::Context, data: &Data, guild_id: serenity::GuildId, user_id: serenity::UserId, settings: &Settings) {
     let reason = format!("{AUDIT_REASON}: joined during a raid");
     let result = match settings.joiner_action {
         JoinerAction::Nothing => return,
@@ -93,6 +97,12 @@ async fn act_on_joiner(ctx: &serenity::Context, guild_id: serenity::GuildId, use
         }
         JoinerAction::Kick => guild_id.kick_with_reason(ctx, user_id, &reason).await,
         JoinerAction::Ban => guild_id.ban_with_reason(ctx, user_id, 0, &reason).await,
+        JoinerAction::Quarantine => {
+            if let Err(e) = super::quarantine::isolate_or_timeout(ctx, data, guild_id, user_id, "Joined during a raid", "Raid protection").await {
+                log::warning(format!("Raid protection couldn't quarantine {user_id} in guild {guild_id}: {e}"));
+            }
+            return;
+        }
     };
     if let Err(e) = result {
         log::warning(format!("Raid protection couldn't {} {user_id} in guild {guild_id}: {e}", settings.joiner_action.key()));
@@ -137,7 +147,7 @@ async fn start_raid(
             if let Err(e) = data.raid_protection.lock().unwrap().joined(guild_id.get(), 1, now, true) {
                 log::error(format!("Error counting a raid join in guild {guild_id}: {e}"));
             }
-            return act_on_joiner(ctx, guild_id, member, settings).await;
+            return act_on_joiner(ctx, data, guild_id, member, settings).await;
         }
         Err(e) => return log::error(format!("Error starting raid mode in guild {guild_id}: {e}")),
     }
@@ -191,7 +201,7 @@ async fn start_raid(
         log::error(format!("Error counting raid joins in guild {guild_id}: {e}"));
     }
     for user_id in joiners {
-        act_on_joiner(ctx, guild_id, user_id, settings).await;
+        act_on_joiner(ctx, data, guild_id, user_id, settings).await;
     }
 }
 
@@ -254,7 +264,7 @@ pub async fn on_member_join(ctx: &serenity::Context, data: &Data, member: &seren
         if let Err(e) = data.raid_protection.lock().unwrap().joined(guild_id.get(), 1, Utc::now().timestamp(), raid_speed) {
             log::error(format!("Error counting a raid join in guild {guild_id}: {e}"));
         }
-        act_on_joiner(ctx, guild_id, member.user.id, &settings).await;
+        act_on_joiner(ctx, data, guild_id, member.user.id, &settings).await;
     } else if raid_speed {
         start_raid(ctx, data, guild_id, &settings, recent, member.user.id).await;
     }

@@ -14,6 +14,7 @@ pub enum JoinerAction {
     Timeout,
     Kick,
     Ban,
+    Quarantine,
 }
 
 impl JoinerAction {
@@ -23,6 +24,7 @@ impl JoinerAction {
             Self::Timeout => "timeout",
             Self::Kick => "kick",
             Self::Ban => "ban",
+            Self::Quarantine => "quarantine",
         }
     }
 
@@ -31,6 +33,7 @@ impl JoinerAction {
             "timeout" => Self::Timeout,
             "kick" => Self::Kick,
             "ban" => Self::Ban,
+            "quarantine" => Self::Quarantine,
             _ => Self::Nothing,
         }
     }

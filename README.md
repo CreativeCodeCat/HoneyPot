@@ -8,7 +8,7 @@ A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenit
 - **Multi-server support**: Works across multiple Discord servers
 - **Multiple honeypot channels**: Set up multiple honeypot channels per server
 - **Message content analysis**: Detects URLs, Discord invites, mentions, excessive caps, and repeated characters
-- **Configurable punishments**: Ban, kick, or timeout with customizable duration
+- **Configurable punishments**: Ban, kick, timeout with customizable duration, or quarantine
 - **Template system**: 6 pre-configured templates (strict, lenient, stealth, moderate, newbie, investigation)
 - **Account age checks**: Filter users based on account age
 - **Whitelist system**: Exempt specific users and roles from detection
@@ -76,7 +76,7 @@ All commands are slash commands (`/`). Most commands require administrator permi
   - Templates: `strict`, `lenient`, `stealth`, `moderate`, `newbie`, `investigation`
 
 **Configuration:**
-- `/setpunishment [channel] [punishment] [duration]` - Set punishment type (ban/kick/timeout); duration is in minutes, for timeouts
+- `/setpunishment [channel] [punishment] [duration]` - Set punishment type (ban/kick/timeout/quarantine); duration is in minutes, for timeouts. Quarantine needs `/quarantine setup`, and falls back to a 24-hour timeout until its done
 - `/setaccountage [channel] [days]` - Set minimum account age requirement
 - `/setadminchannel <channel>` - Set channel for admin notifications
 - `/toggleadminnotifications` - Toggle admin DM notifications
@@ -125,7 +125,7 @@ The RaidProtection cog (`/enablecog raidprotection`) watches how fast members jo
 - 🚨 Staff get an alert, in the chosen channel, else the join & leave log, else the server's system channel
 - 🔒 Text channels are locked the same way `/lock` does, so `/unlock` works on them too. The alert channel and honeypot channels stay open (raiders who post in a honeypot still get caught). Raid locks also lift themselves after 24 hours, as a safety net
 - 🛡️ The verification level is raised to High: new members must wait 10 minutes on the server before they can talk (and need a verified email and an account at least 5 minutes old)
-- 👢 Every account that joins until it's over (including the ones that set it off) is timed out, kicked (default) or banned. Bots are never touched
+- 👢 Every account that joins until it's over (including the ones that set it off) is timed out, kicked (default), banned or quarantined. Bots are never touched
 
 Raid mode ends by itself once there have been no raid-speed joins for 10 minutes (adjustable), or with `/raid end`. Channels it locked are unlocked and the verification level is put back. If the Incidents cog is on, every account it acts on gets an incident report.
 
@@ -134,6 +134,24 @@ Raid mode ends by itself once there have been no raid-speed joins for 10 minutes
 - `/raid end` - End raid mode now
 
 These need **Manage Server**. The bot needs **Manage Channels**, **Manage Server**, and **Moderate Members**, **Kick Members** or **Ban Members** for the joiner action.
+
+### Quarantine
+
+The Quarantine cog (`/enablecog quarantine`) isolates suspicious members until staff review them. A quarantined member's roles are taken away and saved, and they get a **Quarantined** role that can only see a quarantine channel, where they can talk to staff. Leaving and rejoining doesn't get them out.
+
+Members are quarantined:
+
+- **By the honeypot**, when a honeypot's punishment is `quarantine` (`/setpunishment`)
+- **During a raid**, when Raid Protection's joiner action is Quarantine (`/raid setup joiners: Quarantine`)
+- **On joining with a new account**, younger than the age set with `/quarantine setup new_account_days`
+
+Each quarantine posts a review card in the review channel with the member, their account age, why they were quarantined and the roles taken, plus **Release**, **Kick** and **Ban** buttons (each needs the matching permission). Release gives their roles back. If quarantine isn't set up (or the cog is off), the honeypot and raid protection time the member out for 24 hours instead, so nobody gets through untouched.
+
+- `/quarantine setup <review_channel> [new_account_days]` - Create the Quarantined role and the quarantine channel, hide every other channel from the role, and choose where review cards go. Run it again any time; it reuses what's there. Channels made later are hidden from the role automatically
+- `/quarantine list` - See who's in quarantine
+- `/quarantine release <user>` - Release a member and give their roles back
+
+Staff commands need **Moderate Members** (setup also needs **Manage Server**, **Manage Roles** and **Manage Channels**). The bot needs **Manage Roles** and **Manage Channels**, and its role must be above the roles it takes away; roles it can't take are listed on the review card.
 
 ### Moderation Commands
 
@@ -397,7 +415,7 @@ The bot includes 6 pre-configured templates for quick honeypot setup:
 3. **Monitoring**: The bot monitors all messages in honeypot channels
 4. **Pattern Detection**: Analyzes messages for URLs, invites, mentions, caps, and repeated characters
 5. **Account Verification**: Checks account age if configured
-6. **Action**: Applies configured punishment (ban/kick/timeout) or logs only
+6. **Action**: Applies configured punishment (ban/kick/timeout/quarantine) or logs only
 7. **Notification**: Sends alerts to admins via DM or channel
 8. **Cross-Server Intelligence**: Tracks offenders across all servers
 9. **Storage**: All activity stored in SQLite database (`database/honeypot.db`)

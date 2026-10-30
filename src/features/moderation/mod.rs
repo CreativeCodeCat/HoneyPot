@@ -2,6 +2,7 @@
 
 pub mod automod;
 pub mod lockdown;
+pub mod quarantine;
 pub mod raid_protection;
 pub mod staff_policy;
 

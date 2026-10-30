@@ -341,7 +341,17 @@ async fn punish(
                     ));
                 })
         }
-        "ban" | "kick" | "timeout" => {
+        "quarantine" if bot_permissions.manage_roles() => {
+            match crate::features::quarantine::isolate_or_timeout(ctx, data, guild_id, author.id, PUNISH_REASON, "Honeypot").await {
+                Ok(()) => {
+                    log_punishment("user_quarantined", json!({}));
+                    log::info(format!("[HONEYPOT] Quarantined {username} for sending message in honeypot channel"));
+                }
+                Err(e) => log::error(format!("[HONEYPOT] Error quarantining {username}: {e}")),
+            }
+            Ok(())
+        }
+        "ban" | "kick" | "timeout" | "quarantine" => {
             log::warning(format!(
                 "[HONEYPOT] Bot lacks {} permissions",
                 config.punishment_type

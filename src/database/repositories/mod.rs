@@ -16,6 +16,7 @@ pub mod guessing;
 pub mod incidents;
 pub mod lockdown;
 pub mod profiles;
+pub mod quarantine;
 pub mod raid_protection;
 pub mod rules;
 pub mod server_setup;
