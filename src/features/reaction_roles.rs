@@ -12,6 +12,8 @@ pub use crate::database::repositories::reaction_roles::*;
 
 pub const COG_NAME: &str = "reactionroles";
 const COLOUR: u32 = 0x2b2d31;
+/// Seconds the alert telling a member they got or lost a role stays up
+const ALERT_SECS: u64 = 5;
 
 /// Gives or takes the role for a reaction on a reaction role message.
 pub async fn on_reaction(ctx: &serenity::Context, data: &Data, reaction: &serenity::Reaction, added: bool) {
@@ -35,9 +37,33 @@ pub async fn on_reaction(ctx: &serenity::Context, data: &Data, reaction: &sereni
     } else {
         ctx.http.remove_member_role(guild_id, user_id, role_id, reason).await
     };
-    if let Err(e) = result {
-        log::warning(format!("Could not {} reaction role {role_id} for {user_id} in guild {guild_id}: {e}", if added { "give" } else { "take" }));
-    }
+    let text = match &result {
+        Ok(()) if added => format!("✅ <@{user_id}>, you now have <@&{role_id}>."),
+        Ok(()) => format!("✅ <@{user_id}>, <@&{role_id}> has been taken away."),
+        Err(e) => {
+            log::warning(format!("Could not {} reaction role {role_id} for {user_id} in guild {guild_id}: {e}", if added { "give" } else { "take" }));
+            format!("❌ <@{user_id}>, I couldn't {} <@&{role_id}>. Ask staff to check my permissions.", if added { "give you" } else { "take away" })
+        }
+    };
+    alert(ctx, reaction.channel_id, user_id, text).await;
+}
+
+/// Tells the member what happened in the channel, deleting it after `ALERT_SECS`.
+async fn alert(ctx: &serenity::Context, channel: serenity::ChannelId, user_id: serenity::UserId, text: String) {
+    // Only the member is pinged, never the role
+    let message = serenity::CreateMessage::new()
+        .content(text)
+        .allowed_mentions(serenity::CreateAllowedMentions::new().users([user_id]));
+    let sent = match channel.send_message(&ctx.http, message).await {
+        Ok(sent) => sent,
+        Err(e) => return log::warning(format!("Could not post a reaction role alert in channel {channel}: {e}")),
+    };
+    let http = ctx.http.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(ALERT_SECS)).await;
+        // Already gone if someone deleted it
+        let _ = sent.delete(&http).await;
+    });
 }
 
 /// Forgets the reaction roles on a deleted message.

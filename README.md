@@ -382,7 +382,7 @@ Staff pick emojis for a message that's already in a channel: reacting with one g
 - `/reaction-roles remove <message> <emoji>` - Stop the emoji giving a role, and take the bot's reaction off
 - `/reaction-roles list` - List the server's reaction roles, by message
 
-Deleting the message removes its reaction roles.
+The bot tells the member in the channel when it gives or takes a role (or couldn't), and deletes that message after 5 seconds. Deleting the message removes its reaction roles.
 
 ### Rules Commands
 
