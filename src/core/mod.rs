@@ -3,6 +3,7 @@
 
 pub mod command_router;
 pub mod event_router;
+pub mod framework;
 pub mod gateway;
 pub mod permissions;
 

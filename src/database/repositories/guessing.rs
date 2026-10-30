@@ -1,6 +1,6 @@
 //! Number guessing game channels and their secret numbers.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rand::Rng;
 use rusqlite::{params, Connection, OptionalExtension};
 

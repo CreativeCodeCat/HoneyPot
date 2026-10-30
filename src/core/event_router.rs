@@ -4,7 +4,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
+
+use super::framework::{Command, Framework};
 
 use crate::features::developer;
 use crate::features::{
@@ -80,7 +82,7 @@ async fn post_ready_log(ctx: &serenity::Context, data: &Data, description: Strin
 
 /// On startup: announces the bot in ready log channels, then syncs the global commands and
 /// every server's enabled-cog commands, reporting how many were registered.
-async fn startup_report(ctx: &serenity::Context, data: &Data, commands: &[poise::Command<Data, Error>]) {
+async fn startup_report(ctx: &serenity::Context, data: &Data, commands: &[Command]) {
     let guild_ids = ctx.cache.guilds();
     let (members, channels) = guild_ids
         .iter()
@@ -116,7 +118,7 @@ async fn startup_report(ctx: &serenity::Context, data: &Data, commands: &[poise:
 pub async fn event_handler(
     ctx: &serenity::Context,
     event: &serenity::FullEvent,
-    framework: poise::FrameworkContext<'_, Data, Error>,
+    framework: &Framework,
     data: &Data,
 ) -> Result<(), Error> {
     logging::on_event(ctx, data, event).await;
@@ -129,7 +131,7 @@ pub async fn event_handler(
             developer::enforce_blacklist(ctx, data, guild).await;
             // Guilds the bot was already in are synced on startup by `startup_report`
             if *is_new == Some(true) {
-                if let Err(e) = cog_manager::sync_guild_commands(&ctx.http, &framework.options().commands, data, guild.id).await {
+                if let Err(e) = cog_manager::sync_guild_commands(&ctx.http, &framework.commands, data, guild.id).await {
                     log::error(format!("Error syncing commands for guild {}: {e}", guild.id));
                 }
             }
@@ -154,11 +156,15 @@ pub async fn event_handler(
                 log::warning(format!("Left guild: {name} (ID: {})", incomplete.id));
             }
         }
+        serenity::FullEvent::Ready { data_about_bot } => {
+            log::info(format!("{} has connected to Discord!", data_about_bot.user.name));
+            log::blue(format!("Connected to {} guilds", data_about_bot.guilds.len()));
+        }
         serenity::FullEvent::CacheReady { .. } => {
             cleanup_stale_data(ctx, data);
             presence::apply(ctx);
             if !TASKS_STARTED.swap(true, Ordering::SeqCst) {
-                startup_report(ctx, data, &framework.options().commands).await;
+                startup_report(ctx, data, &framework.commands).await;
                 tokio::spawn(stats::update_stats_loop(ctx.clone(), data.clone()));
                 tokio::spawn(honeypot::weekly_summary_loop(ctx.clone(), data.clone()));
                 tokio::spawn(tickets::auto_close_loop(ctx.clone(), data.clone()));
@@ -170,7 +176,7 @@ pub async fn event_handler(
             // First, so a message deleted by the commands, counting or guessing channel still
             // takes its author out of AFK
             afk::on_message(ctx, data, new_message).await;
-            if server_setup::on_message(ctx, data, new_message, &framework.options().commands).await {
+            if server_setup::on_message(ctx, data, new_message).await {
                 return Ok(());
             }
             honeypot::on_message(ctx, data, new_message).await;

@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use regex::Regex;
 use serde_json::{json, Map, Value};
 

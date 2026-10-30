@@ -1,12 +1,12 @@
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, CreateReply};
 use super::{Context, Error};
 
 /// Check bot latency and uptime
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     ephemeral,
     category = "General"
 )]
@@ -37,7 +37,7 @@ pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
             false,
         );
 
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -47,9 +47,8 @@ const MAX_CLEANUP: usize = 1000;
 const BULK_DELETE_MAX_AGE_DAYS: i64 = 14;
 
 /// Delete recent messages in this channel
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "General",
@@ -113,7 +112,7 @@ pub async fn cleanup(
         text = format!("{text}\nMessages older than {BULK_DELETE_MAX_AGE_DAYS} days can't be bulk deleted, so they were left.");
     }
     let embed = serenity::CreateEmbed::new().colour(0x3498db).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -123,7 +122,7 @@ const RESET_NOTE_TIME: std::time::Duration = std::time::Duration::from_secs(5);
 const RESET_CONFIRM_TIME: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Recreate a channel with the same settings and permissions, then delete the old one
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     ephemeral,
@@ -167,7 +166,7 @@ pub async fn resetchannel(
          Anything set up to use the old channel (logs, suggestions, tickets, honeypots...) will need setting up again.",
         old.id
     );
-    let reply = ctx.send(poise::CreateReply::default().content(warning).components(buttons(false))).await?;
+    let reply = ctx.send(CreateReply::default().content(warning).components(buttons(false))).await?;
     let (confirm, cancel) = (confirm_id.clone(), cancel_id.clone());
     let author = ctx.author().id;
     let press = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
@@ -182,7 +181,7 @@ pub async fn resetchannel(
         None => false,
     };
     if !confirmed {
-        reply.edit(ctx, poise::CreateReply::default().content("Reset cancelled.").components(buttons(true))).await?;
+        reply.edit(ctx, CreateReply::default().content("Reset cancelled.").components(buttons(true))).await?;
         return Ok(());
     }
 
@@ -232,7 +231,7 @@ pub async fn resetchannel(
 
     let done = format!("🧹 <#{}> has been reset.", new.id);
     if old.id != ctx.channel_id() {
-        reply.edit(ctx, poise::CreateReply::default().content(done).components(buttons(true))).await?;
+        reply.edit(ctx, CreateReply::default().content(done).components(buttons(true))).await?;
     }
     if matches!(new.kind, Text | News) {
         let note = serenity::CreateEmbed::new().colour(0x3498db).description(format!("🧹 This channel was reset by <@{author}>."));

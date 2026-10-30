@@ -4,7 +4,7 @@
 
 pub mod card;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
 use super::logging::{embed, log_channel, with_user};
 use super::Data;

@@ -9,7 +9,7 @@ mod transcript;
 use std::time::Duration;
 
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use serenity::{
     ButtonStyle, CreateActionRow, CreateButton, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage,
 };

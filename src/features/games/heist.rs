@@ -14,9 +14,10 @@ use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rand::Rng;
 
+use crate::core::framework::{command, CreateReply};
 use super::super::economy::money;
 use super::super::economy::store::EcoError;
 use super::super::pets::{self, animal};
@@ -138,12 +139,12 @@ fn chapter(line: &str, caught: &[&Crew], survivors: &[&Crew]) -> Option<String> 
 }
 
 async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Start or join a heist
-#[poise::command(slash_command, prefix_command, guild_only, category = "Games")]
+#[command(slash_command, guild_only, category = "Games")]
 pub async fn heist(
     ctx: Context<'_>,
     #[description = "How much of your wallet to bet"]
@@ -176,7 +177,7 @@ pub async fn heist(
         text = format!("{text}\n{line}");
     }
     let embed = serenity::CreateEmbed::new().colour(GOLD).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
 
     if starting {
         let (data, http, channel_id) = (data.clone(), ctx.serenity_context().http.clone(), ctx.channel_id());

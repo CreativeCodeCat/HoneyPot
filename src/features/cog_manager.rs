@@ -1,10 +1,11 @@
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, Command, CreateReply};
 use super::{normalize_cog_name, Context, Data, Error, COGS, COG_MANAGER};
 
 /// Slash and context menu registrations for the commands that pass `keep`, given
 /// their cog and name. Commands without a cog count as CogManager, so they're always available.
-pub fn application_commands(commands: &[poise::Command<Data, Error>], keep: impl Fn(&str, &str) -> bool) -> Vec<serenity::CreateCommand> {
+pub fn application_commands(commands: &[Command], keep: impl Fn(&str, &str) -> bool) -> Vec<serenity::CreateCommand> {
     commands
         .iter()
         .filter(|command| keep(&command.category.as_deref().map_or(COG_MANAGER.to_string(), normalize_cog_name), &command.name))
@@ -20,7 +21,7 @@ fn is_global(cog: &str) -> bool {
 }
 
 /// Registers the CogManager and Developer commands globally; every other cog's commands are per guild.
-pub async fn sync_global_commands(http: &serenity::Http, commands: &[poise::Command<Data, Error>]) -> serenity::Result<usize> {
+pub async fn sync_global_commands(http: &serenity::Http, commands: &[Command]) -> serenity::Result<usize> {
     let global = application_commands(commands, |cog, _| is_global(cog));
     let count = global.len();
     serenity::Command::set_global_commands(http, global).await?;
@@ -30,7 +31,7 @@ pub async fn sync_global_commands(http: &serenity::Http, commands: &[poise::Comm
 /// Gives a guild the commands of the cogs (and games) it has enabled, removing the rest.
 pub async fn sync_guild_commands(
     http: &serenity::Http,
-    commands: &[poise::Command<Data, Error>],
+    commands: &[Command],
     data: &Data,
     guild_id: serenity::GuildId,
 ) -> serenity::Result<usize> {
@@ -50,7 +51,7 @@ pub async fn sync_guild_commands(
 /// Re-syncs the current guild's commands after a cog (or game) is enabled or disabled.
 pub(crate) async fn resync(ctx: Context<'_>) -> String {
     let guild_id = ctx.guild_id().unwrap();
-    match sync_guild_commands(ctx.http(), &ctx.framework().options().commands, ctx.data(), guild_id).await {
+    match sync_guild_commands(ctx.http(), &ctx.framework().commands, ctx.data(), guild_id).await {
         Ok(_) => String::new(),
         Err(e) => {
             crate::log::error(format!("Error syncing commands for guild {guild_id}: {e}"));
@@ -81,9 +82,8 @@ fn resolve_cog(input: &str) -> Option<String> {
 }
 
 /// Enable a cog for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "CogManager",
@@ -118,9 +118,8 @@ pub async fn enablecog(
 }
 
 /// Disable a cog for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "CogManager",
@@ -159,9 +158,8 @@ pub async fn disablecog(
 }
 
 /// Check the status of all cogs for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "CogManager",
@@ -190,7 +188,7 @@ pub async fn cogstatus(ctx: Context<'_>) -> Result<(), Error> {
         .title("Cog Status")
         .description(status_msg)
         .colour(0x3498db);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -212,7 +210,7 @@ mod tests {
     /// names 1-32 lowercase characters, descriptions 1-100, at most 25 options or choices.
     #[test]
     fn commands_fit_discords_limits() {
-        fn check(command: &poise::Command<Data, Error>, path: &str, problems: &mut Vec<String>) {
+        fn check(command: &Command, path: &str, problems: &mut Vec<String>) {
             let path = format!("{path}/{}", command.name);
             let description = command.description.as_deref().unwrap_or_default();
             if command.context_menu_name.is_none() {
@@ -229,19 +227,24 @@ mod tests {
             // A right-click menu's one option is the user or message clicked, with no description
             for parameter in command.parameters.iter().filter(|_| command.context_menu_name.is_none()) {
                 let name = format!("{path} {}", parameter.name);
-                let length = parameter.description.as_deref().unwrap_or_default().chars().count();
+                let length = parameter.description.chars().count();
                 if !(1..=100).contains(&length) {
                     problems.push(format!("{name}: description is {length} characters"));
                 }
                 if !(1..=32).contains(&parameter.name.chars().count()) || parameter.name.chars().any(|c| c.is_uppercase() || c.is_whitespace()) {
                     problems.push(format!("{name}: bad name"));
                 }
-                if parameter.choices.len() > 25 {
+                let option = (parameter.create)(serenity::CreateCommandOption::new(serenity::CommandOptionType::String, "x", "x"));
+                let choices: Vec<String> = serde_json::to_value(option).unwrap()["choices"]
+                    .as_array()
+                    .map(|c| c.iter().filter_map(|c| c["name"].as_str().map(String::from)).collect())
+                    .unwrap_or_default();
+                if choices.len() > 25 {
                     problems.push(format!("{name}: more than 25 choices"));
                 }
-                for choice in &parameter.choices {
-                    if !(1..=100).contains(&choice.name.chars().count()) {
-                        problems.push(format!("{name}: choice {:?} is too long", choice.name));
+                for choice in &choices {
+                    if !(1..=100).contains(&choice.chars().count()) {
+                        problems.push(format!("{name}: choice {choice:?} is too long"));
                     }
                 }
             }

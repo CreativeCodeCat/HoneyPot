@@ -4,9 +4,10 @@
 //! Accept and Deny buttons. The applicant is told the result by DM, and accepting gives them
 //! the position's role.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
-use super::{truncate, Data, Error};
+use crate::core::framework::{command, CreateReply, execute_modal, create_modal, find_modal_text, Modal, TextField};
+use super::{Context, truncate, Data, Error};
 use crate::log;
 
 pub use crate::database::repositories::applications::*;
@@ -26,32 +27,57 @@ const BLUE: u32 = 0x5865f2;
 const GREEN: u32 = 0x57f287;
 const RED: u32 = 0xed4245;
 
-type AppContext<'a> = poise::ApplicationContext<'a, Data, Error>;
 
 /// The pop-up for writing a position's questions.
-#[derive(Debug, poise::Modal)]
-#[name = "Application Questions"]
+#[derive(Debug)]
 struct QuestionsForm {
-    #[name = "Question 1"]
-    #[placeholder = "Why do you want this position?"]
-    #[max_length = 45]
     q1: String,
-    #[name = "Question 2 (optional)"]
-    #[placeholder = "How old are you?"]
-    #[max_length = 45]
     q2: Option<String>,
-    #[name = "Question 3 (optional)"]
-    #[placeholder = "How many hours a week can you help?"]
-    #[max_length = 45]
     q3: Option<String>,
-    #[name = "Question 4 (optional)"]
-    #[placeholder = "Do you have any past experience?"]
-    #[max_length = 45]
     q4: Option<String>,
-    #[name = "Question 5 (optional)"]
-    #[placeholder = "What can you bring to the team?"]
-    #[max_length = 45]
     q5: Option<String>,
+}
+
+impl Modal for QuestionsForm {
+    fn create(defaults: Option<Self>, custom_id: String) -> serenity::CreateInteractionResponse {
+        let values = match defaults {
+            Some(form) => [Some(form.q1), form.q2, form.q3, form.q4, form.q5],
+            None => Default::default(),
+        };
+        let placeholders = [
+            "Why do you want this position?",
+            "How old are you?",
+            "How many hours a week can you help?",
+            "Do you have any past experience?",
+            "What can you bring to the team?",
+        ];
+        let labels = ["Question 1", "Question 2 (optional)", "Question 3 (optional)", "Question 4 (optional)", "Question 5 (optional)"];
+        let ids = ["q1", "q2", "q3", "q4", "q5"];
+        let fields = values
+            .into_iter()
+            .enumerate()
+            .map(|(i, value)| TextField {
+                id: ids[i],
+                label: labels[i],
+                placeholder: placeholders[i],
+                max_length: MAX_QUESTION_LEN as u16,
+                paragraph: false,
+                required: i == 0,
+                value,
+            })
+            .collect();
+        create_modal(custom_id, "Application Questions", fields)
+    }
+
+    fn parse(mut data: serenity::ModalInteractionData) -> Result<Self, &'static str> {
+        Ok(Self {
+            q1: find_modal_text(&mut data, "q1").ok_or("the first question is missing")?,
+            q2: find_modal_text(&mut data, "q2"),
+            q3: find_modal_text(&mut data, "q3"),
+            q4: find_modal_text(&mut data, "q4"),
+            q5: find_modal_text(&mut data, "q5"),
+        })
+    }
 }
 
 impl QuestionsForm {
@@ -70,24 +96,24 @@ impl QuestionsForm {
     }
 }
 
-fn guild_id(ctx: AppContext<'_>) -> u64 {
+fn guild_id(ctx: Context<'_>) -> u64 {
     ctx.guild_id().unwrap().get()
 }
 
-async fn say_private(ctx: AppContext<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Suggests the server's positions.
-async fn autocomplete_position(ctx: AppContext<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_position(ctx: Context<'_>, partial: &str) -> Vec<String> {
     let partial = partial.to_lowercase();
     let positions = ctx.data().applications.lock().unwrap().positions(guild_id(ctx)).unwrap_or_default();
     positions.into_iter().map(|p| p.name).filter(|name| name.to_lowercase().contains(&partial)).take(25).collect()
 }
 
 /// Set up applications: the review channel and the positions members can apply for
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Applications",
@@ -96,14 +122,14 @@ async fn autocomplete_position(ctx: AppContext<'_>, partial: &str) -> Vec<String
     subcommands("channel", "add", "edit", "remove", "list", "panel"),
     subcommand_required
 )]
-pub async fn application(_ctx: AppContext<'_>) -> Result<(), Error> {
+pub async fn application(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 /// Set the channel applications are posted in for review
-#[poise::command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
 async fn channel(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "Where applications are posted, with Accept and Deny buttons"]
     #[channel_types("Text")]
     channel: serenity::GuildChannel,
@@ -113,9 +139,9 @@ async fn channel(
 }
 
 /// Add a position members can apply for, writing its questions in a pop-up
-#[poise::command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
 async fn add(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "The position, like Moderator or Developer"]
     #[max_length = 50]
     name: String,
@@ -124,7 +150,7 @@ async fn add(
     if ctx.data().applications.lock().unwrap().position(guild_id(ctx), &name)?.is_some() {
         return say_private(ctx, format!("❌ There's already a **{}** position. Change it with `/application edit`.", name.trim())).await;
     }
-    let Some(form) = poise::execute_modal(ctx, None::<QuestionsForm>, None).await? else { return Ok(()) };
+    let Some(form) = execute_modal(ctx, None::<QuestionsForm>, None).await? else { return Ok(()) };
     let questions = form.questions();
     ctx.data().applications.lock().unwrap().save_position(guild_id(ctx), &name, role.as_ref().map(|r| r.id.get()), &questions)?;
     refresh_panels(ctx).await;
@@ -133,9 +159,9 @@ async fn add(
 }
 
 /// Change a position's questions, and optionally its role
-#[poise::command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
 async fn edit(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "The position to change"]
     #[autocomplete = "autocomplete_position"]
     position: String,
@@ -144,7 +170,7 @@ async fn edit(
     let Some(current) = ctx.data().applications.lock().unwrap().position(guild_id(ctx), &position)? else {
         return say_private(ctx, "❌ There's no position with that name.").await;
     };
-    let Some(form) = poise::execute_modal(ctx, Some(QuestionsForm::from_questions(&current.questions)), None).await? else { return Ok(()) };
+    let Some(form) = execute_modal(ctx, Some(QuestionsForm::from_questions(&current.questions)), None).await? else { return Ok(()) };
     let role_id = role.map(|r| r.id.get()).or(current.role_id);
     ctx.data().applications.lock().unwrap().save_position(guild_id(ctx), &current.name, role_id, &form.questions())?;
     refresh_panels(ctx).await;
@@ -152,9 +178,9 @@ async fn edit(
 }
 
 /// Remove a position
-#[poise::command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
 async fn remove(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "The position to remove"]
     #[autocomplete = "autocomplete_position"]
     position: String,
@@ -168,8 +194,8 @@ async fn remove(
 }
 
 /// List the positions and their questions
-#[poise::command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
-async fn list(ctx: AppContext<'_>) -> Result<(), Error> {
+#[command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
+async fn list(ctx: Context<'_>) -> Result<(), Error> {
     let (positions, channel) = {
         let store = ctx.data().applications.lock().unwrap();
         (store.positions(guild_id(ctx))?, store.channel(guild_id(ctx))?)
@@ -288,9 +314,9 @@ async fn finish_application(
 }
 
 /// Apply for a position, answering its questions in a pop-up
-#[poise::command(slash_command, guild_only, category = "Applications")]
+#[command(slash_command, guild_only, category = "Applications")]
 pub async fn apply(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "The position to apply for"]
     #[autocomplete = "autocomplete_position"]
     position: String,
@@ -303,7 +329,7 @@ pub async fn apply(
     };
     let modal_id = format!("{}apply", ctx.id());
     ctx.interaction.create_response(ctx, application_form(&position, &modal_id)).await?;
-    ctx.has_sent_initial_response.store(true, std::sync::atomic::Ordering::SeqCst);
+    ctx.mark_responded();
     finish_application(ctx.serenity_context(), ctx.data(), guild, ctx.author(), &position, channel, modal_id).await
 }
 
@@ -340,7 +366,7 @@ fn panel_content(positions: &[Position]) -> (serenity::CreateEmbed, Vec<serenity
 }
 
 /// Updates every posted panel to the guild's current positions, forgetting deleted ones.
-async fn refresh_panels(ctx: AppContext<'_>) {
+async fn refresh_panels(ctx: Context<'_>) {
     let guild = guild_id(ctx);
     let (positions, panels) = {
         let store = ctx.data().applications.lock().unwrap();
@@ -361,9 +387,9 @@ async fn refresh_panels(ctx: AppContext<'_>) {
 }
 
 /// Post the panel with an Apply button for each position, replacing the old one
-#[poise::command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, required_permissions = "MANAGE_GUILD")]
 async fn panel(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "Where to post the panel"]
     #[channel_types("Text", "News")]
     channel: serenity::GuildChannel,

@@ -1,7 +1,8 @@
 //! `/info server|channel|user|staff|bot`, plus the "User Info" user context menu.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, Command, CreateReply};
 use crate::pagination::{chunk_lines, field_pages, paginate};
 use super::{Context, Error};
 
@@ -48,7 +49,7 @@ fn channel_kind(kind: serenity::ChannelType) -> &'static str {
 }
 
 /// Show information about the server, a channel, a user, the staff or the bot
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Info",
@@ -60,7 +61,7 @@ pub async fn info(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Show information about this server
-#[poise::command(slash_command, guild_only)]
+#[command(slash_command, guild_only)]
 async fn server(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
     let guild_id = ctx.guild_id().unwrap();
@@ -147,7 +148,7 @@ async fn server(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Show information about a channel
-#[poise::command(slash_command, guild_only, ephemeral)]
+#[command(slash_command, guild_only, ephemeral)]
 async fn channel(
     ctx: Context<'_>,
     #[description = "The channel (default: this one)"] channel: Option<serenity::GuildChannel>,
@@ -179,7 +180,7 @@ async fn channel(
     if let Some(guild) = ctx.guild() {
         embed = embed.author(serenity::CreateEmbedAuthor::new(&guild.name).icon_url(guild.icon_url().unwrap_or_default()));
     }
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -230,12 +231,12 @@ async fn show_user(ctx: Context<'_>, user: serenity::User) -> Result<(), Error> 
     if let Some(guild) = ctx.guild() {
         embed = embed.footer(serenity::CreateEmbedFooter::new(&guild.name).icon_url(guild.icon_url().unwrap_or_default()));
     }
-    ctx.send(poise::CreateReply::default().embed(embed.timestamp(serenity::Timestamp::now()))).await?;
+    ctx.send(CreateReply::default().embed(embed.timestamp(serenity::Timestamp::now()))).await?;
     Ok(())
 }
 
 /// Show information about a user
-#[poise::command(slash_command, guild_only)]
+#[command(slash_command, guild_only)]
 async fn user(
     ctx: Context<'_>,
     #[description = "The user (default: you)"] user: Option<serenity::User>,
@@ -244,13 +245,13 @@ async fn user(
 }
 
 /// Show information about this user
-#[poise::command(context_menu_command = "User Info", guild_only, category = "Info")]
+#[command(context_menu_command = "User Info", guild_only, category = "Info")]
 pub async fn user_info_menu(ctx: Context<'_>, user: serenity::User) -> Result<(), Error> {
     show_user(ctx, user).await
 }
 
 /// List the server's staff: the owner, admins and moderators
-#[poise::command(slash_command, guild_only, ephemeral)]
+#[command(slash_command, guild_only, ephemeral)]
 async fn staff(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let guild_id = ctx.guild_id().unwrap();
@@ -348,12 +349,12 @@ fn database_files() -> (usize, u64) {
 }
 
 /// Every command, counting each subcommand rather than the groups holding them.
-fn count_commands(commands: &[poise::Command<super::Data, Error>]) -> usize {
+fn count_commands(commands: &[Command]) -> usize {
     commands.iter().map(|c| if c.subcommands.is_empty() { 1 } else { count_commands(&c.subcommands) }).sum()
 }
 
 /// Show information about the bot: its stats, database, host, memory and CPU
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn bot(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
     let me = ctx.cache().current_user().clone();
@@ -369,7 +370,7 @@ async fn bot(ctx: Context<'_>) -> Result<(), Error> {
         let members: u64 = guilds.iter().filter_map(|id| ctx.cache().guild(*id).map(|g| g.member_count)).sum();
         (guilds.len(), members)
     };
-    let commands = count_commands(&ctx.framework().options().commands);
+    let commands = count_commands(&ctx.framework().commands);
     let (db_count, db_size) = database_files();
     let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease").map_or("Unknown".to_string(), |r| r.trim().to_string());
     let cpu = cpu_percent().await;
@@ -389,7 +390,7 @@ async fn bot(ctx: Context<'_>) -> Result<(), Error> {
         page("🤖 Client")
             .field("Username", me.tag(), true)
             .field("Version", env!("CARGO_PKG_VERSION"), true)
-            .field("Library", "[serenity](https://github.com/serenity-rs/serenity) + [poise](https://github.com/serenity-rs/poise)", true)
+            .field("Library", "[serenity](https://github.com/serenity-rs/serenity)", true)
             .field("Ping", format!("🟢 Online, {ping} ms"), true)
             .field("Owner", owner.unwrap_or_else(|| "Unknown".into()), true)
             .field("Started", format!("<t:{started}:F> (<t:{started}:R>)"), false),

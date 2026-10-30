@@ -6,8 +6,9 @@ pub use crate::database::repositories::leveling as store;
 
 
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, CreateReply};
 use super::{Context, Data, Error};
 use crate::log;
 use crate::shared::models::CardUser;
@@ -104,9 +105,8 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Me
 }
 
 /// Set up how XP and levels work in this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     rename = "rank-setup",
     guild_only,
     ephemeral,
@@ -169,7 +169,7 @@ pub async fn rank_setup(
             .map(|id| format!("<#{id}>"))
             .unwrap_or_else(|| "System channel".to_string())
     ));
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -224,7 +224,7 @@ async fn card_data(
 }
 
 /// Show a member's level, XP and reputation
-#[poise::command(slash_command, prefix_command, guild_only, category = "Levels")]
+#[command(slash_command, guild_only, category = "Levels")]
 pub async fn rank(
     ctx: Context<'_>,
     #[description = "The member to check (defaults to you)"] user: Option<serenity::User>,
@@ -247,7 +247,7 @@ pub async fn rank(
     match tokio::task::spawn_blocking(move || card::render(&card)).await {
         Ok(Some(png)) => {
             let file = serenity::CreateAttachment::bytes(png, "rank.png");
-            ctx.send(poise::CreateReply::default().attachment(file)).await?;
+            ctx.send(CreateReply::default().attachment(file)).await?;
             return Ok(());
         }
         _ => log::warning("[LEVELS] Could not render rank card, sending an embed instead"),
@@ -265,7 +265,7 @@ pub async fn rank(
             format!("{} `{} / {} XP`\nTotal XP: {}", progress_bar(progress, needed), number(progress), number(needed), number(member.xp)),
             false,
         );
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -273,7 +273,7 @@ pub async fn rank(
 const LEADERBOARD_SIZE: i64 = 100;
 
 /// Show the top members by XP
-#[poise::command(slash_command, prefix_command, guild_only, category = "Levels")]
+#[command(slash_command, guild_only, category = "Levels")]
 pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
     let (settings, top) = {
         let levels = ctx.data().levels.lock().unwrap();
@@ -307,12 +307,12 @@ pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Give reputation to a member (once every 2 hours)
-#[poise::command(slash_command, prefix_command, guild_only, category = "Levels")]
+#[command(slash_command, guild_only, category = "Levels")]
 pub async fn reputation(
     ctx: Context<'_>,
     #[description = "The member you want to give reputation to"] user: serenity::User,
 ) -> Result<(), Error> {
-    let reply_private = |text: String| ctx.send(poise::CreateReply::default().content(text).ephemeral(true));
+    let reply_private = |text: String| ctx.send(CreateReply::default().content(text).ephemeral(true));
 
     if user.id == ctx.author().id {
         reply_private("❌ You can't give reputation to yourself.".to_string()).await?;
@@ -341,7 +341,7 @@ pub async fn reputation(
                 user.id,
                 number(total)
             ));
-            ctx.send(poise::CreateReply::default().embed(embed)).await?;
+            ctx.send(CreateReply::default().embed(embed)).await?;
         }
         Err(next) => {
             reply_private(format!("❌ You can give reputation once every 2 hours. Try again <t:{next}:R>.")).await?;

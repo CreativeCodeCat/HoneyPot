@@ -5,8 +5,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, Choice, CreateReply};
 use crate::features::{truncate, Context, Data, Error};
 use crate::log;
 
@@ -50,7 +51,7 @@ pub async fn enforce_blacklist(ctx: &serenity::Context, data: &Data, guild: &ser
 }
 
 /// What `/blacklist add` blacklists
-#[derive(Debug, Clone, Copy, PartialEq, Eq, poise::ChoiceParameter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Choice)]
 pub enum BlacklistType {
     Server,
     #[name = "Server owner"]
@@ -87,7 +88,7 @@ async fn autocomplete_server(ctx: Context<'_>, partial: &str) -> Vec<serenity::A
 }
 
 /// Make the bot leave a server (bot owner only)
-#[poise::command(
+#[command(
     slash_command,
     owners_only,
     ephemeral,
@@ -105,7 +106,7 @@ pub async fn leave(
 }
 
 /// Manage the servers and users the bot won't serve (bot owner only)
-#[poise::command(
+#[command(
     slash_command,
     owners_only,
     ephemeral,
@@ -120,7 +121,7 @@ pub async fn blacklist(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Leave a server and blacklist it or its owner
-#[poise::command(slash_command, rename = "add", owners_only, ephemeral)]
+#[command(slash_command, rename = "add", owners_only, ephemeral)]
 async fn blacklist_add(
     ctx: Context<'_>,
     #[description = "The server to leave"]
@@ -159,7 +160,7 @@ async fn leave_server(ctx: Context<'_>, server: String, blacklist: BlacklistChoi
     };
     let embed = |colour: u32, text: String| serenity::CreateEmbed::new().colour(colour).description(text);
     // Servers owned by a bot owner are never left or blacklisted, and bot owners can't be locked out
-    if ctx.framework().options().owners.contains(&owner_id) {
+    if ctx.framework().owners.contains(&owner_id) {
         match blacklist {
             BlacklistChoice::Owner => {
                 ctx.say("❌ That server's owner is a bot owner, so they can't be blacklisted.").await?;
@@ -188,7 +189,7 @@ async fn leave_server(ctx: Context<'_>, server: String, blacklist: BlacklistChoi
     };
     let reply = ctx
         .send(
-            poise::CreateReply::default()
+            CreateReply::default()
                 .embed(embed(0xed4245, format!("Are you sure you want me to leave **{name}** (`{guild_id}`)?{blacklist_text}")))
                 .components(buttons(true)),
         )
@@ -233,7 +234,7 @@ async fn leave_server(ctx: Context<'_>, server: String, blacklist: BlacklistChoi
         _ => embed(0x95a5a6, format!("Cancelled. I'm still in **{name}** (`{guild_id}`).")),
     };
     // Already gone if it was in the server being left
-    let _ = reply.edit(ctx, poise::CreateReply::default().embed(result).components(buttons(false))).await;
+    let _ = reply.edit(ctx, CreateReply::default().embed(result).components(buttons(false))).await;
     Ok(())
 }
 
@@ -257,7 +258,7 @@ async fn autocomplete_blacklisted(ctx: Context<'_>, partial: &str) -> Vec<sereni
 }
 
 /// Take a server or user off the blacklist
-#[poise::command(slash_command, rename = "remove", owners_only, ephemeral)]
+#[command(slash_command, rename = "remove", owners_only, ephemeral)]
 async fn blacklist_remove(
     ctx: Context<'_>,
     #[description = "The server or user to take off the blacklist"]
@@ -278,7 +279,7 @@ async fn blacklist_remove(
 }
 
 /// List the blacklisted servers and users
-#[poise::command(slash_command, rename = "list", owners_only, ephemeral)]
+#[command(slash_command, rename = "list", owners_only, ephemeral)]
 async fn blacklist_list(ctx: Context<'_>) -> Result<(), Error> {
     let entries = ctx.data().blacklist.lock().unwrap().list()?;
     if entries.is_empty() {
@@ -300,7 +301,7 @@ async fn blacklist_list(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Turn maintenance mode on or off: while it's on, only the bot owner can use commands (bot owner only)
-#[poise::command(
+#[command(
     slash_command,
     rename = "maintenance",
     owners_only,
@@ -327,7 +328,7 @@ pub async fn maintenance_mode(ctx: Context<'_>) -> Result<(), Error> {
         ("Maintenance mode **disabled**", "👷 The bot is out of maintenance mode, and everyone can use its commands again.")
     };
     let embed = serenity::CreateEmbed::new().colour(0x2ecc71).title(title).description(text).timestamp(serenity::Timestamp::now());
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 

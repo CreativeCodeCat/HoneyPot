@@ -3,8 +3,9 @@
 
 use std::time::Duration;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::CreateReply;
 use crate::features::{Context, Error};
 
 /// How long the buttons keep working after the last press
@@ -45,7 +46,7 @@ pub fn field_pages(
 /// Each page's footer is replaced with "Page x / n".
 pub async fn paginate(ctx: Context<'_>, pages: Vec<serenity::CreateEmbed>) -> Result<(), Error> {
     if pages.len() <= 1 {
-        let mut reply = poise::CreateReply::default();
+        let mut reply = CreateReply::default();
         if let Some(page) = pages.into_iter().next() {
             reply = reply.embed(page);
         }
@@ -70,7 +71,7 @@ pub async fn paginate(ctx: Context<'_>, pages: Vec<serenity::CreateEmbed>) -> Re
     };
 
     let mut page = 0;
-    let reply = ctx.send(poise::CreateReply::default().embed(page_embed(page)).components(buttons(true))).await?;
+    let reply = ctx.send(CreateReply::default().embed(page_embed(page)).components(buttons(true))).await?;
 
     loop {
         let ids = [prev_id.clone(), next_id.clone(), delete_id.clone()];
@@ -97,7 +98,7 @@ pub async fn paginate(ctx: Context<'_>, pages: Vec<serenity::CreateEmbed>) -> Re
     }
 
     // Already gone if someone deleted it
-    let _ = reply.edit(ctx, poise::CreateReply::default().embed(page_embed(page)).components(buttons(false))).await;
+    let _ = reply.edit(ctx, CreateReply::default().embed(page_embed(page)).components(buttons(false))).await;
     Ok(())
 }
 

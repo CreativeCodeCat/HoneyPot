@@ -5,8 +5,9 @@
 use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, CreateReply};
 use super::{Context, Data, Error};
 use crate::log;
 
@@ -78,12 +79,12 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
 }
 
 async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Keep a message at the bottom of a channel
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     ephemeral,
@@ -98,7 +99,7 @@ pub async fn sticky(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Stick a message to the bottom of this channel
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
 async fn stick(
     ctx: Context<'_>,
     #[description = "The message to keep at the bottom (use \\n for new lines)"]
@@ -121,7 +122,7 @@ async fn stick(
 }
 
 /// Remove this channel's sticky message
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
 async fn unstick(ctx: Context<'_>) -> Result<(), Error> {
     let channel = ctx.channel_id();
     let Some(sticky) = ctx.data().sticky.lock().unwrap().get(channel.get())? else {
@@ -134,7 +135,7 @@ async fn unstick(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Set how long every sticky waits before moving down once it's due
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
 async fn delay(
     ctx: Context<'_>,
     #[description = "Seconds to wait (default 5, 0 to move straight away)"]
@@ -153,7 +154,7 @@ async fn delay(
 }
 
 /// List this server's sticky messages
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_MESSAGES")]
 async fn list(ctx: Context<'_>) -> Result<(), Error> {
     let stickies = ctx.data().sticky.lock().unwrap().list(ctx.guild_id().unwrap().get())?;
     if stickies.is_empty() {

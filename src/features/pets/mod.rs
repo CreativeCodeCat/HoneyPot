@@ -9,10 +9,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rand::Rng;
 use unicode_normalization::UnicodeNormalization;
 
+use crate::core::framework::{command, Choice, CreateReply};
 use super::economy::money;
 use super::economy::store::{EcoError, Pocket};
 use super::{Context, Data, Error};
@@ -127,13 +128,13 @@ fn guild_id(ctx: Context<'_>) -> u64 {
 }
 
 async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
 async fn say_embed(ctx: Context<'_>, colour: u32, text: impl Into<String>) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new().colour(colour).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -196,9 +197,8 @@ fn save(ctx: Context<'_>, pets: &[&Pet]) -> Result<(), Error> {
 }
 
 /// Pet commands
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     category = "Pets",
     subcommands("buy", "status", "feed", "play", "hug", "playdate", "battle", "release"),
@@ -217,14 +217,14 @@ async fn autocomplete_animal(_ctx: Context<'_>, partial: &str) -> Vec<serenity::
         .collect()
 }
 
-#[derive(Clone, Copy, poise::ChoiceParameter)]
+#[derive(Clone, Copy, Choice)]
 enum Gender {
     Male,
     Female,
 }
 
 /// Buy a pet
-#[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
+#[command(slash_command, guild_only, category = "Pets")]
 async fn buy(
     ctx: Context<'_>,
     #[description = "Kind of pet"]
@@ -270,7 +270,7 @@ async fn buy(
 }
 
 /// Check on your pet, or someone else's
-#[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
+#[command(slash_command, guild_only, category = "Pets")]
 async fn status(
     ctx: Context<'_>,
     #[description = "Whose pet to check (defaults to yours)"] user: Option<serenity::User>,
@@ -319,7 +319,7 @@ async fn status(
     match tokio::task::spawn_blocking(move || card::render(&card)).await {
         Ok(Some(png)) => {
             let file = serenity::CreateAttachment::bytes(png, "pet.png");
-            ctx.send(poise::CreateReply::default().attachment(file)).await?;
+            ctx.send(CreateReply::default().attachment(file)).await?;
             return Ok(());
         }
         _ => log::warning("[PETS] Could not render pet card, sending an embed instead"),
@@ -349,12 +349,12 @@ async fn status(
         .field("\u{200b}", "\u{200b}", true)
         .field("Mood", mood, false)
         .field("Food lasts", format!("about {}", format_age(hours_left)), false);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// Buy treats for your pet (each lasts 24 hours)
-#[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
+#[command(slash_command, guild_only, category = "Pets")]
 async fn feed(
     ctx: Context<'_>,
     #[description = "How many treats to give"]
@@ -391,7 +391,7 @@ async fn feed(
 }
 
 /// Let your pet go and play
-#[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
+#[command(slash_command, guild_only, category = "Pets")]
 async fn play(ctx: Context<'_>) -> Result<(), Error> {
     static LAST: AtomicUsize = AtomicUsize::new(usize::MAX);
     let Some(mut pet) = own_pet(ctx).await? else { return Ok(()) };
@@ -405,7 +405,7 @@ async fn play(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Send your pet to hug someone
-#[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
+#[command(slash_command, guild_only, category = "Pets")]
 async fn hug(ctx: Context<'_>, #[description = "Who to hug"] user: serenity::User) -> Result<(), Error> {
     let Some(mut pet) = own_pet(ctx).await? else { return Ok(()) };
     if user.id == ctx.author().id {
@@ -435,7 +435,7 @@ async fn hug(ctx: Context<'_>, #[description = "Who to hug"] user: serenity::Use
 }
 
 /// Arrange a playdate with someone else's pet
-#[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
+#[command(slash_command, guild_only, category = "Pets")]
 async fn playdate(ctx: Context<'_>, #[description = "Whose pet to play with"] user: serenity::User) -> Result<(), Error> {
     static LAST: AtomicUsize = AtomicUsize::new(usize::MAX);
     let Some(mut host) = own_pet(ctx).await? else { return Ok(()) };
@@ -457,7 +457,7 @@ async fn playdate(ctx: Context<'_>, #[description = "Whose pet to play with"] us
 }
 
 /// Challenge someone's pet to a battle
-#[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
+#[command(slash_command, guild_only, category = "Pets")]
 async fn battle(ctx: Context<'_>, #[description = "Who to challenge"] user: serenity::User) -> Result<(), Error> {
     let Some(challenger) = own_pet(ctx).await? else { return Ok(()) };
     let Some(opponent) = other_pet(ctx, &user).await? else { return Ok(()) };
@@ -486,7 +486,7 @@ async fn battle(ctx: Context<'_>, #[description = "Who to challenge"] user: sere
         Utc::now().timestamp() + BATTLE_ACCEPT_TIME.as_secs() as i64
     ));
     let reply = ctx
-        .send(poise::CreateReply::default().content(format!("<@{}>", user.id)).embed(challenge.clone()).components(buttons(false)))
+        .send(CreateReply::default().content(format!("<@{}>", user.id)).embed(challenge.clone()).components(buttons(false)))
         .await?;
 
     let deadline = Instant::now() + BATTLE_ACCEPT_TIME;
@@ -510,7 +510,7 @@ async fn battle(ctx: Context<'_>, #[description = "Who to challenge"] user: sere
     };
 
     let finish = |text: String, colour: u32| {
-        poise::CreateReply::default().content("").embed(serenity::CreateEmbed::new().colour(colour).description(text)).components(buttons(true))
+        CreateReply::default().content("").embed(serenity::CreateEmbed::new().colour(colour).description(text)).components(buttons(true))
     };
     match accepted {
         None | Some(false) => {
@@ -558,7 +558,7 @@ async fn battle(ctx: Context<'_>, #[description = "Who to challenge"] user: sere
 }
 
 /// Let your pet go
-#[poise::command(slash_command, prefix_command, guild_only, category = "Pets")]
+#[command(slash_command, guild_only, category = "Pets")]
 async fn release(ctx: Context<'_>) -> Result<(), Error> {
     let Some(pet) = own_pet(ctx).await? else { return Ok(()) };
     ctx.data().pets.lock().unwrap().remove(guild_id(ctx), ctx.author().id.get())?;

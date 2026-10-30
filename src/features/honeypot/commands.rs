@@ -1,6 +1,7 @@
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use serde_json::{json, Value};
 
+use crate::core::framework::{command, Command, CreateReply};
 use super::honeypot_embed;
 use super::store::ChannelConfig;
 use crate::pagination::{field_pages, paginate};
@@ -328,9 +329,8 @@ async fn autocomplete_punishment(
 }
 
 /// Set a channel as a honeypot for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -389,9 +389,8 @@ pub async fn sethoneypot(
 }
 
 /// Remove a honeypot channel for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -443,9 +442,8 @@ pub async fn removehoneypot(
 }
 
 /// Check the honeypot status for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot"
@@ -493,14 +491,13 @@ pub async fn honeypotstatus(ctx: Context<'_>) -> Result<(), Error> {
     }
     embed = embed.field("Total Bans", guild.ban_count.to_string(), false);
 
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// View recent honeypot activity logs
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -573,9 +570,8 @@ pub async fn honeypotlogs(
 }
 
 /// Clear honeypot activity logs for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -594,9 +590,8 @@ pub async fn clearhoneypotlogs(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Export honeypot logs to CSV
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -617,15 +612,14 @@ pub async fn exportlogs(ctx: Context<'_>) -> Result<(), Error> {
     audit(ctx, "export_logs", json!({ "log_count": rows.len() }));
 
     let file = serenity::CreateAttachment::bytes(bytes, format!("honeypot_export_{gid}.csv"));
-    ctx.send(poise::CreateReply::default().attachment(file))
+    ctx.send(CreateReply::default().attachment(file))
         .await?;
     Ok(())
 }
 
 /// Reset the ban counter for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -657,9 +651,8 @@ pub async fn resetbancount(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Toggle auto-ban for a honeypot channel
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -697,9 +690,8 @@ pub async fn toggleautoban(
 }
 
 /// Check the current ban count for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -734,9 +726,8 @@ pub async fn bancount(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Set a custom message for a honeypot channel
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -779,9 +770,8 @@ pub async fn setmessage(
 }
 
 /// Set punishment type for a honeypot channel
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -839,9 +829,8 @@ pub async fn setpunishment(
 }
 
 /// Whitelist a user from honeypot
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -888,9 +877,8 @@ pub async fn whitelistuser(
 }
 
 /// Remove user from honeypot whitelist
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -933,9 +921,8 @@ pub async fn unwhitelistuser(
 }
 
 /// Set minimum account age (in days) for honeypot
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -981,9 +968,8 @@ pub async fn setaccountage(
 }
 
 /// Set channel for honeypot notifications
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -1017,9 +1003,8 @@ pub async fn setadminchannel(
 }
 
 /// Toggle DM notifications for admins
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -1050,9 +1035,8 @@ pub async fn toggleadminnotifications(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Add an admin to receive notifications
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -1090,9 +1074,8 @@ pub async fn addadmin(
 }
 
 /// Remove an admin from notifications
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -1129,9 +1112,8 @@ pub async fn removeadmin(
 }
 
 /// View honeypot audit log
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -1182,9 +1164,8 @@ pub async fn auditlog(
 }
 
 /// Check if a user is in the offender list
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -1212,7 +1193,7 @@ pub async fn checkoffender(
                 .field("First Offense", offender.first_offense, false)
                 .field("Last Offense", offender.last_offense, false)
                 .field("Servers", offender.servers.len().to_string(), false);
-            ctx.send(poise::CreateReply::default().embed(embed)).await?;
+            ctx.send(CreateReply::default().embed(embed)).await?;
         }
         None => {
             ctx.say(format!(
@@ -1226,9 +1207,8 @@ pub async fn checkoffender(
 }
 
 /// Check a user's activity across all servers
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -1330,9 +1310,8 @@ pub async fn crossservercheck(
 }
 
 /// Apply a pre-configured honeypot template
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "HoneyPot",
@@ -1396,7 +1375,7 @@ pub async fn applytemplate(
     Ok(())
 }
 
-pub fn all() -> Vec<poise::Command<crate::features::Data, Error>> {
+pub fn all() -> Vec<Command> {
     vec![
         sethoneypot(),
         removehoneypot(),

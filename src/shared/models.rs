@@ -1,6 +1,6 @@
 //! Data types more than one feature uses.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
 /// A member as the image cards draw them: their names and avatar.
 #[derive(Clone, Debug, Default)]

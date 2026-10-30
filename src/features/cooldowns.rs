@@ -3,9 +3,10 @@
 //! setting fall back to `DEFAULTS` (per member), or no cooldown at all.
 
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
-use super::{Context, Data, Error};
+use crate::core::framework::{command, Command, CreateReply};
+use super::{Context, Error};
 
 pub use crate::database::repositories::cooldowns::*;
 
@@ -39,7 +40,7 @@ pub fn check(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Qualified names of every runnable command, subcommands included.
-fn command_names(commands: &[poise::Command<Data, Error>], out: &mut Vec<String>) {
+fn command_names(commands: &[Command], out: &mut Vec<String>) {
     for command in commands {
         if command.subcommands.is_empty() {
             out.push(command.qualified_name.clone());
@@ -51,7 +52,7 @@ fn command_names(commands: &[poise::Command<Data, Error>], out: &mut Vec<String>
 
 fn all_command_names(ctx: Context<'_>) -> Vec<String> {
     let mut names = Vec::new();
-    command_names(&ctx.framework().options().commands, &mut names);
+    command_names(&ctx.framework().commands, &mut names);
     names.extend(NON_COMMANDS.iter().map(|name| name.to_string()));
     names.sort();
     names
@@ -72,9 +73,8 @@ fn format_secs(secs: u64) -> String {
 }
 
 /// Manage command cooldowns for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     category = "CogManager",
     required_permissions = "ADMINISTRATOR",
@@ -85,7 +85,7 @@ pub async fn cooldown(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Set how many seconds must pass between uses of a command (0 removes it)
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, rename = "set", required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, rename = "set", required_permissions = "ADMINISTRATOR")]
 async fn cooldown_set(
     ctx: Context<'_>,
     #[description = "Command, e.g. \"ping\" or \"eco work\""]
@@ -110,7 +110,7 @@ async fn cooldown_set(
 }
 
 /// List the commands that have a cooldown on this server
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, rename = "list", required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, rename = "list", required_permissions = "ADMINISTRATOR")]
 async fn cooldown_list(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap().get();
     let lines: Vec<String> = {
@@ -126,7 +126,7 @@ async fn cooldown_list(ctx: Context<'_>) -> Result<(), Error> {
     };
     let description = if lines.is_empty() { "No commands have a cooldown.".to_string() } else { lines.join("\n") };
     let embed = serenity::CreateEmbed::new().title("Command Cooldowns").description(description).colour(0x3498db);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 

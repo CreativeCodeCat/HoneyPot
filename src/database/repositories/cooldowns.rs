@@ -1,9 +1,10 @@
 //! Per-server command cooldowns.
 
 use std::collections::HashMap;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rusqlite::{params, Connection, OptionalExtension};
 
+use crate::core::framework::Choice;
 use crate::database::{connection, migrations};
 use crate::features::games;
 
@@ -23,7 +24,7 @@ pub const DEFAULTS: &[(&str, u64)] = &[
 pub const EVERYONE: u64 = 0;
 
 /// Who a cooldown applies to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, poise::ChoiceParameter)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Choice)]
 pub enum Scope {
     /// Each member waits on their own
     #[default]

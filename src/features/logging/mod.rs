@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use serenity::audit_log::{ChannelAction, EmojiAction, MemberAction, MessageAction, RoleAction, ScheduledEventAction, StickerAction, ThreadAction};
 
 use super::Data;

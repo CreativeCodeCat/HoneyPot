@@ -11,9 +11,10 @@ use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rand::Rng;
 
+use crate::core::framework::{command, CreateReply};
 use super::super::economy::money;
 use super::super::economy::store::EcoError;
 use super::super::{Context, Error};
@@ -113,7 +114,7 @@ fn simulate(challenger: &str, opponent: &str) -> (Vec<String>, bool) {
 }
 
 async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
@@ -128,7 +129,7 @@ fn wager_error(e: EcoError, who: &str, wager: i64) -> String {
 }
 
 /// Challenge someone to a fight
-#[poise::command(slash_command, prefix_command, guild_only, category = "Games")]
+#[command(slash_command, guild_only, category = "Games")]
 pub async fn fight(
     ctx: Context<'_>,
     #[description = "Who to fight"] user: serenity::User,
@@ -191,7 +192,7 @@ pub async fn fight(
 
     let reply = if vs_bot {
         let text = format!("⚔️ <@{author}> is asking <@{}> for a fight{bet}! Challenge accepted... Things are about to heat up in the arena!", user.id);
-        ctx.send(poise::CreateReply::default().embed(embed(text, RED))).await?
+        ctx.send(CreateReply::default().embed(embed(text, RED))).await?
     } else {
         let text = format!(
             "⚔️ <@{author}> is asking <@{}> for a fight{bet}!\n<@{}>, do you accept? (expires <t:{}:R>)",
@@ -200,7 +201,7 @@ pub async fn fight(
             now + ACCEPT_TIME.as_secs() as i64
         );
         let reply = ctx
-            .send(poise::CreateReply::default().content(format!("<@{}>", user.id)).embed(embed(text, RED)).components(buttons(false)))
+            .send(CreateReply::default().content(format!("<@{}>", user.id)).embed(embed(text, RED)).components(buttons(false)))
             .await?;
 
         let deadline = Instant::now() + ACCEPT_TIME;
@@ -232,7 +233,7 @@ pub async fn fight(
             break Some(press.data.custom_id == accept_id);
         };
 
-        let finish = |text: String, colour| poise::CreateReply::default().content("").embed(embed(text, colour)).components(buttons(true));
+        let finish = |text: String, colour| CreateReply::default().content("").embed(embed(text, colour)).components(buttons(true));
         if accepted != Some(true) {
             refund(&[author])?;
             let why = if accepted.is_none() { "hasn't responded" } else { "declined" };
@@ -251,12 +252,12 @@ pub async fn fight(
         for line in moves.iter().take(CAPTIONS) {
             tokio::time::sleep(MOVE_DELAY).await;
             text = format!("{text}{line}\n");
-            reply.edit(ctx, poise::CreateReply::default().content("").embed(embed(text.clone(), RED))).await?;
+            reply.edit(ctx, CreateReply::default().content("").embed(embed(text.clone(), RED))).await?;
         }
         if moves.len() > CAPTIONS {
             tokio::time::sleep(MOVE_DELAY).await;
             text = format!("{text}*The dust cloud from the fight gets so thick it hides the rest of it...*\n");
-            reply.edit(ctx, poise::CreateReply::default().content("").embed(embed(text.clone(), RED))).await?;
+            reply.edit(ctx, CreateReply::default().content("").embed(embed(text.clone(), RED))).await?;
         }
         tokio::time::sleep(MOVE_DELAY).await;
 
@@ -286,7 +287,7 @@ pub async fn fight(
             }
         }
         text = format!("{text}\n{ending}");
-        reply.edit(ctx, poise::CreateReply::default().content("").embed(embed(text, GREEN))).await?;
+        reply.edit(ctx, CreateReply::default().content("").embed(embed(text, GREEN))).await?;
         Ok::<_, Error>(())
     }
     .await;

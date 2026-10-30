@@ -5,9 +5,10 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rand::Rng;
 
+use crate::core::framework::{command, CreateReply};
 use super::economy::money;
 use super::economy::store::{EcoError, Pocket};
 use super::{Context, Error};
@@ -238,7 +239,7 @@ fn frame(rows: &[String], header: usize) -> Vec<String> {
 }
 
 /// The terminal as code-block embeds, split between lines when it is too long for one.
-fn terminal(lines: &[String], colour: u32) -> poise::CreateReply {
+fn terminal(lines: &[String], colour: u32) -> CreateReply {
     let mut chunks = vec![String::new()];
     for line in lines {
         let chunk = chunks.last_mut().unwrap();
@@ -252,7 +253,7 @@ fn terminal(lines: &[String], colour: u32) -> poise::CreateReply {
     }
     chunks
         .into_iter()
-        .fold(poise::CreateReply::default(), |reply, chunk| {
+        .fold(CreateReply::default(), |reply, chunk| {
             reply.embed(
                 serenity::CreateEmbed::new()
                     .colour(colour)
@@ -398,17 +399,16 @@ fn vars(user: &str, guess: &str, answer: &str, payout: &str) -> Vars {
 }
 
 /// Try to hack the bot by guessing its password
-#[poise::command(slash_command, prefix_command, guild_only, category = "Games")]
+#[command(slash_command, guild_only, category = "Games")]
 pub async fn hack(
     ctx: Context<'_>,
     #[description = "The password to try"]
-    #[rest]
     password: String,
 ) -> Result<(), Error> {
     let guess = password.trim().to_string();
     if guess.is_empty() || guess.chars().count() > MAX_GUESS_LEN {
         let reply = format!("❌ Usage: `/hack <password>` (up to {MAX_GUESS_LEN} characters).");
-        ctx.send(poise::CreateReply::default().content(reply).ephemeral(true))
+        ctx.send(CreateReply::default().content(reply).ephemeral(true))
             .await?;
         return Ok(());
     }
@@ -423,7 +423,7 @@ pub async fn hack(
     )?;
     if let Err(ready) = cooldown {
         let reply = format!("❌ The mainframe is on alert. You can hack again <t:{ready}:R>.");
-        ctx.send(poise::CreateReply::default().content(reply).ephemeral(true))
+        ctx.send(CreateReply::default().content(reply).ephemeral(true))
             .await?;
         return Ok(());
     }

@@ -2,10 +2,11 @@
 
 use std::time::Duration;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use unicode_normalization::char::canonical_combining_class;
 use unicode_normalization::UnicodeNormalization;
 
+use crate::core::framework::command;
 use super::{Context, Data, Error};
 
 const COG_NAME: &str = "serverstats";
@@ -108,9 +109,8 @@ pub async fn update_guild_channels(
 }
 
 /// Update the server stats channels now
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "ServerStats",

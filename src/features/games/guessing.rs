@@ -3,8 +3,9 @@
 //! 🔽 reaction as a hint; whoever gets it wins money for their wallet, and the bot
 //! thinks of a new number. Anything else posted in the channel is deleted.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, CreateReply};
 use super::super::economy::money;
 use super::super::economy::store::{EcoError, Pocket};
 use super::super::{Context, Data, Error};
@@ -94,12 +95,12 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
 
 async fn reply(ctx: Context<'_>, colour: u32, text: impl Into<String>) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new().colour(colour).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// The number guessing game
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Games",
@@ -111,7 +112,7 @@ pub async fn guessing(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Choose the channel members guess in (picks a new number)
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn setup(
     ctx: Context<'_>,
     #[description = "Channel to guess in"]
@@ -130,7 +131,7 @@ async fn setup(
 }
 
 /// Stop the guessing game in this server
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     if ctx.data().guessing.lock().unwrap().stop(ctx.guild_id().unwrap().get())? {
         reply(ctx, GREEN, "✅ Guessing has been stopped. The stats are kept for when `/guessing setup` starts it again.").await
@@ -140,7 +141,7 @@ async fn stop(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// See how the guessing game is going
-#[poise::command(slash_command, guild_only, ephemeral)]
+#[command(slash_command, guild_only, ephemeral)]
 async fn stats(ctx: Context<'_>) -> Result<(), Error> {
     let Some(game) = ctx.data().guessing.lock().unwrap().get(ctx.guild_id().unwrap().get())? else {
         return reply(ctx, RED, "❌ Guessing isn't set up in this server.").await;

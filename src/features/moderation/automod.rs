@@ -3,13 +3,14 @@
 
 use std::time::Duration;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use serenity::automod::{Action, EventType, KeywordPresetType, Trigger};
 
+use crate::core::framework::{command, Choice, CreateReply};
 use crate::features::{title_case, Context, Error};
 
 /// Discord's built-in word lists
-#[derive(Debug, Clone, Copy, poise::ChoiceParameter)]
+#[derive(Debug, Clone, Copy, Choice)]
 pub enum WordList {
     #[name = "All"]
     All,
@@ -42,7 +43,7 @@ impl WordList {
 }
 
 /// Message formatting matched with a regex
-#[derive(Debug, Clone, Copy, poise::ChoiceParameter)]
+#[derive(Debug, Clone, Copy, Choice)]
 pub enum Pattern {
     All,
     Capitals,
@@ -223,7 +224,7 @@ async fn create(ctx: Context<'_>, slug: &str, rule: Rule, alert_channel: Option<
                 .title(if replacing.is_some() { "✅ AutoMod Rule Updated" } else { "✅ AutoMod Rule Created" })
                 .description(format!("Successfully set up '{rule_name}'"))
                 .colour(0x2ecc71);
-            ctx.send(poise::CreateReply::default().embed(embed)).await?;
+            ctx.send(CreateReply::default().embed(embed)).await?;
         }
         Err(serenity::Error::Http(serenity::HttpError::UnsuccessfulRequest(resp)))
             if resp.status_code.as_u16() == 403 =>
@@ -244,9 +245,8 @@ async fn create(ctx: Context<'_>, slug: &str, rule: Rule, alert_channel: Option<
 }
 
 /// Setup Discord AutoMod rules
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "AutoMod",
@@ -259,7 +259,7 @@ pub async fn automod(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Block one of Discord's built-in word lists in messages
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, rename = "word-list", required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, rename = "word-list", required_permissions = "ADMINISTRATOR")]
 async fn word_list(
     ctx: Context<'_>,
     #[description = "The word list to block"] list: WordList,
@@ -275,7 +275,7 @@ async fn word_list(
 }
 
 /// Block your own words in messages
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn words(
     ctx: Context<'_>,
     #[description = "Comma-separated words to block, * as a wildcard"]
@@ -302,7 +302,7 @@ async fn words(
 }
 
 /// Block words in member names; matching members can't chat until they change it
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, rename = "profile-names", required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, rename = "profile-names", required_permissions = "ADMINISTRATOR")]
 async fn profile_names(
     ctx: Context<'_>,
     #[description = "Comma-separated words to block, * as a wildcard"]
@@ -324,7 +324,7 @@ async fn profile_names(
 }
 
 /// Block message formatting like capitals, spoilers or invites
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn pattern(
     ctx: Context<'_>,
     #[description = "What to block"] pattern: Pattern,
@@ -344,7 +344,7 @@ async fn pattern(
 }
 
 /// Block messages with too many mentions
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, rename = "mention-spam", required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, rename = "mention-spam", required_permissions = "ADMINISTRATOR")]
 async fn mention_spam(
     ctx: Context<'_>,
     #[description = "Mentions allowed per message (default 10)"]
@@ -365,7 +365,7 @@ async fn mention_spam(
 }
 
 /// Block messages Discord thinks are spam
-#[poise::command(slash_command, prefix_command, guild_only, ephemeral, rename = "message-spam", required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, rename = "message-spam", required_permissions = "ADMINISTRATOR")]
 async fn message_spam(
     ctx: Context<'_>,
     #[description = "Channel to send alerts to (default: the server's system channel)"]

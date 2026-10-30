@@ -1,6 +1,6 @@
 //! Counting game channels and their current count.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::database::connection;

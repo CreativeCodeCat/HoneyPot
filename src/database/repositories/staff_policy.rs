@@ -1,6 +1,6 @@
 //! Staff policy settings: what happens to staff who moderate outside the bot.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::database::{connection, migrations};

@@ -3,9 +3,9 @@
 
 use std::time::Duration;
 
-use poise::serenity_prelude as serenity;
-use poise::ChoiceParameter;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, Choice, CreateReply};
 use super::{Context, Data, Error};
 
 pub use crate::database::repositories::server_setup::*;
@@ -16,7 +16,7 @@ const BLANK: u32 = 0x2b2d31;
 /// How long the confirmation posted in a newly set channel stays before it's deleted
 const CONFIRM_DELETE_AFTER: Duration = Duration::from_secs(5);
 
-#[derive(poise::ChoiceParameter, Clone, Copy)]
+#[derive(Choice, Clone, Copy)]
 pub enum LogType {
     Channel,
     Events,
@@ -44,32 +44,18 @@ pub enum LogType {
 const ANY_CHANNEL_COGS: &[&str] = &["CogManager", "Moderation", "StaffPolicy"];
 
 /// Members who can manage the server, so moderation commands work where they're needed.
-async fn is_staff(ctx: Context<'_>) -> bool {
-    if let poise::Context::Application(app) = ctx {
-        if let Some(perms) = app.interaction.member.as_ref().and_then(|m| m.permissions) {
-            return perms.administrator() || perms.manage_guild();
-        }
-    }
-    let Some(member) = ctx.author_member().await else { return false };
-    ctx.guild().is_some_and(|guild| {
-        let perms = guild.member_permissions(&member);
-        perms.administrator() || perms.manage_guild()
-    })
+/// Discord sends their permissions with the command.
+fn is_staff(ctx: Context<'_>) -> bool {
+    let perms = ctx.interaction.member.as_ref().and_then(|m| m.permissions).unwrap_or_default();
+    perms.administrator() || perms.manage_guild()
 }
 
-/// Whether a message calls one of the bot's prefix commands, like `!ping`.
-fn is_prefix_command(content: &str, commands: &[poise::Command<Data, Error>]) -> bool {
-    let Some(name) = content.strip_prefix('!').and_then(|rest| rest.split_whitespace().next()) else { return false };
-    let name = name.to_lowercase();
-    commands.iter().any(|c| c.prefix_action.is_some() && (c.name == name || c.aliases.contains(&name)))
-}
-
-/// Keeps the commands and games channels for commands only: deletes every message that
-/// isn't a prefix command, from admins too. Bots' messages (like command replies) stay.
+/// Keeps the commands and games channels for commands only: deletes every message, from
+/// admins too, as commands are slash commands. Bots' messages (like command replies) stay.
 /// Returns true if the message was deleted.
-pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Message, commands: &[poise::Command<Data, Error>]) -> bool {
+pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Message) -> bool {
     let Some(guild_id) = msg.guild_id else { return false };
-    if msg.author.bot || is_prefix_command(&msg.content, commands) {
+    if msg.author.bot {
         return false;
     }
     // The commands and games channels are only for using the bot's commands
@@ -127,7 +113,7 @@ pub async fn commands_channel_check(ctx: Context<'_>) -> Result<(), Error> {
         (setup.get(guild_id.get(), GAMES_CHANNEL)?, setup.get(guild_id.get(), "channel.commands")?)
     };
     // The games channel is only for games, so other commands are sent elsewhere
-    if games_channel == Some(ctx.channel_id().get()) && !is_staff(ctx).await {
+    if games_channel == Some(ctx.channel_id().get()) && !is_staff(ctx) {
         return Err(match commands_channel {
             Some(channel) => format!("🎮 This channel is only for games. Use `/{root}` in <#{channel}> instead."),
             None => format!("🎮 This channel is only for games. Use `/{root}` in another channel instead."),
@@ -135,7 +121,7 @@ pub async fn commands_channel_check(ctx: Context<'_>) -> Result<(), Error> {
         .into());
     }
     match commands_channel {
-        Some(channel) if channel != ctx.channel_id().get() && !is_staff(ctx).await => {
+        Some(channel) if channel != ctx.channel_id().get() && !is_staff(ctx) => {
             Err(format!("❌ Commands can only be used in <#{channel}>.").into())
         }
         _ => Ok(()),
@@ -152,7 +138,7 @@ fn embed(colour: u32, text: impl Into<String>) -> serenity::CreateEmbed {
 }
 
 async fn reply(ctx: Context<'_>, embed: serenity::CreateEmbed) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(true)).await?;
     Ok(())
 }
 
@@ -174,7 +160,7 @@ async fn set_channel(ctx: Context<'_>, key: &str, channel: &serenity::GuildChann
 }
 
 /// Setup or reset the channels the bot uses on this server
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     rename = "server-setup",
@@ -189,7 +175,7 @@ pub async fn server_setup(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Setup the server logs channels
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn logs(
     ctx: Context<'_>,
     #[description = "The type of log to setup"] r#type: LogType,
@@ -202,7 +188,7 @@ async fn logs(
 }
 
 /// Setup the server commands channel
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn commands(
     ctx: Context<'_>,
     #[description = "The channel to run server commands in"]
@@ -213,7 +199,7 @@ async fn commands(
 }
 
 /// Setup the channel games are played in
-#[poise::command(slash_command, guild_only, rename = "games", required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, rename = "games", required_permissions = "ADMINISTRATOR")]
 async fn games_channel(
     ctx: Context<'_>,
     #[description = "The channel to play games like /hack, /heist, /fight and /defuse in"]
@@ -224,7 +210,7 @@ async fn games_channel(
 }
 
 /// Setup the server announcements channel
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn announcements(
     ctx: Context<'_>,
     #[description = "The channel to post server announcements in"]
@@ -235,7 +221,7 @@ async fn announcements(
 }
 
 /// Reset all of the channels
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn reset(ctx: Context<'_>) -> Result<(), Error> {
     let removed = ctx.data().server_setup.lock().unwrap().reset(ctx.guild_id().unwrap().get())?;
     if removed == 0 {
@@ -245,7 +231,7 @@ async fn reset(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Get help with the server-setup commands, and see what's set
-#[poise::command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, required_permissions = "ADMINISTRATOR")]
 async fn help(ctx: Context<'_>) -> Result<(), Error> {
     let settings = ctx.data().server_setup.lock().unwrap().all(ctx.guild_id().unwrap().get())?;
     let current = if settings.is_empty() {
@@ -296,15 +282,5 @@ mod tests {
         assert_eq!(s.reset(1).unwrap(), 1);
         assert_eq!(s.get(1, "logs.message").unwrap(), None);
         assert_eq!(s.get(2, "channel.games").unwrap(), Some(20));
-    }
-
-    #[test]
-    fn only_real_prefix_commands_are_kept() {
-        let commands = crate::core::command_router::commands();
-        assert!(is_prefix_command("!ping", &commands));
-        assert!(is_prefix_command("!PING now", &commands));
-        assert!(!is_prefix_command("!notacommand", &commands));
-        assert!(!is_prefix_command("hello", &commands));
-
     }
 }

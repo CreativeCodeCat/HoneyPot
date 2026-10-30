@@ -13,7 +13,7 @@ pub async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
     if developer::is_user_blacklisted(ctx.data(), ctx.author().id) {
         return Err("🚫 You've been blacklisted from using this bot.".into());
     }
-    if developer::maintenance() && !ctx.framework().options().owners.contains(&ctx.author().id) {
+    if developer::maintenance() && !ctx.framework().owners.contains(&ctx.author().id) {
         return Err("🛠️ The bot is under maintenance right now. Please try again later.".into());
     }
     if let (Some(guild_id), Some(category)) = (ctx.guild_id(), command_category(ctx)) {

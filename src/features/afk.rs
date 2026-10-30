@@ -4,8 +4,9 @@
 
 use std::time::Duration;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::command;
 use super::{parse_iso, truncate, Context, Data, Error};
 use crate::log;
 
@@ -84,7 +85,7 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
 }
 
 /// Set yourself as AFK, or clear it if you already are
-#[poise::command(slash_command, guild_only, ephemeral, category = "AFK")]
+#[command(slash_command, guild_only, ephemeral, category = "AFK")]
 pub async fn afk(
     ctx: Context<'_>,
     #[description = "Why you're going AFK"]

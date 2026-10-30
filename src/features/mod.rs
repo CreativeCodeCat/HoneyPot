@@ -1,5 +1,5 @@
-//! Bot modules ("cogs"). Every command declares its cog through poise's `category`
-//! attribute, and a framework-wide check uses it to enforce the per-guild
+//! Bot modules ("cogs"). Every command declares its cog through the `category` option of
+//! `#[command]`, and a framework-wide check uses it to enforce the per-guild
 //! enabled/disabled flag stored by the cog manager.
 
 pub mod afk;
@@ -31,6 +31,7 @@ pub mod welcome;
 pub use moderation::{automod, lockdown, staff_policy};
 
 pub use crate::core::error::{Context, Error};
+use crate::core::framework::Command;
 pub use crate::core::state::{Data, State};
 pub use crate::shared::utils::{format_time, now_iso, parse_iso, title_case, truncate};
 
@@ -64,7 +65,7 @@ pub const COGS: &[&str] = &[
 pub const COG_MANAGER: &str = "cogmanager";
 
 /// The top-level command being run: for a subcommand like `/sticky stick`, `/sticky`.
-pub fn root_command<'a>(ctx: Context<'a>) -> &'a poise::Command<Data, Error> {
+pub fn root_command<'a>(ctx: Context<'a>) -> &'a Command {
     ctx.parent_commands().first().copied().unwrap_or(ctx.command())
 }
 

@@ -1,6 +1,6 @@
 //! Locked channels, with what to restore and when the lock ends.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rusqlite::{params, Connection, OptionalExtension};
 use serenity::Permissions as P;
 

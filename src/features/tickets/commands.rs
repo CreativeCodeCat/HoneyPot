@@ -1,17 +1,18 @@
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, CreateReply};
 use super::store::{Setup, Ticket};
 use super::{is_handler, panel_components, panel_embed, set_member_access, FOLLOWUP_SECS, GREEN, RED};
 use crate::features::{Context, Error};
 
 async fn reply_embed(ctx: Context<'_>, colour: u32, text: impl Into<String>) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new().colour(colour).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// Setup your ticketing system message
-#[poise::command(
+#[command(
     slash_command,
     rename = "ticket-setup",
     guild_only,
@@ -57,7 +58,7 @@ pub async fn ticket_setup(
 }
 
 /// Manage the ticket in this channel
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Tickets",
@@ -94,7 +95,7 @@ async fn handler_ticket(ctx: Context<'_>) -> Result<Option<(Setup, Ticket)>, Err
 }
 
 /// Add a member to the ticket.
-#[poise::command(slash_command, guild_only, ephemeral, category = "Tickets")]
+#[command(slash_command, guild_only, ephemeral, category = "Tickets")]
 pub async fn add(ctx: Context<'_>, #[description = "Select a member."] member: serenity::Member) -> Result<(), Error> {
     let Some((_, mut ticket)) = handler_ticket(ctx).await? else { return Ok(()) };
     let user_id = member.user.id;
@@ -108,12 +109,12 @@ pub async fn add(ctx: Context<'_>, #[description = "Select a member."] member: s
     ctx.data().tickets.lock().unwrap().set_members(ticket.channel_id, &ticket.members)?;
 
     let embed = serenity::CreateEmbed::new().colour(GREEN).description(format!("✅ | <@{user_id}> has been added to the ticket."));
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(false)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(false)).await?;
     Ok(())
 }
 
 /// Remove a member from the ticket.
-#[poise::command(slash_command, guild_only, ephemeral, category = "Tickets")]
+#[command(slash_command, guild_only, ephemeral, category = "Tickets")]
 pub async fn remove(ctx: Context<'_>, #[description = "Select a member."] member: serenity::Member) -> Result<(), Error> {
     let Some((_, mut ticket)) = handler_ticket(ctx).await? else { return Ok(()) };
     let user_id = member.user.id;
@@ -130,12 +131,12 @@ pub async fn remove(ctx: Context<'_>, #[description = "Select a member."] member
     ctx.data().tickets.lock().unwrap().set_members(ticket.channel_id, &ticket.members)?;
 
     let embed = serenity::CreateEmbed::new().colour(GREEN).description(format!("✅ | <@{user_id}> has been removed from the ticket."));
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(false)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(false)).await?;
     Ok(())
 }
 
 /// Post a follow-up message; the ticket closes in 48 hours unless someone replies.
-#[poise::command(slash_command, guild_only, ephemeral, category = "Tickets")]
+#[command(slash_command, guild_only, ephemeral, category = "Tickets")]
 pub async fn followup(ctx: Context<'_>) -> Result<(), Error> {
     let Some((_, ticket)) = handler_ticket(ctx).await? else { return Ok(()) };
 

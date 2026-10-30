@@ -2,9 +2,10 @@
 //! status), set by the owner with `/presence` and kept across restarts. Maintenance mode
 //! overrides it until it's turned off.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use serde_json::json;
 
+use crate::core::framework::{command, Choice, CreateReply};
 use crate::features::{Context, Error};
 use super::developer;
 use crate::log;
@@ -12,7 +13,7 @@ use crate::log;
 /// Where the presence is saved
 const PRESENCE_FILE: &str = "database/presence.json";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, poise::ChoiceParameter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Choice)]
 pub enum Status {
     Online,
     Idle,
@@ -50,7 +51,7 @@ impl Status {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, poise::ChoiceParameter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Choice)]
 pub enum Activity {
     #[name = "Custom status"]
     Custom,
@@ -151,7 +152,7 @@ pub fn apply(ctx: &serenity::Context) {
 }
 
 /// Set the bot's status and activity (bot owner only)
-#[poise::command(
+#[command(
     slash_command,
     owners_only,
     ephemeral,
@@ -181,14 +182,14 @@ pub async fn presence(
     let shown = match presence.activity {
         Activity::Nothing => "No activity".to_string(),
         Activity::Custom => presence.text(&bot_name),
-        kind => format!("{} {}", poise::ChoiceParameter::name(&kind), presence.text(&bot_name)),
+        kind => format!("{} {}", Choice::name(&kind), presence.text(&bot_name)),
     };
-    let mut text = format!("**Status:** {}\n**Activity:** {shown}", poise::ChoiceParameter::name(&status));
+    let mut text = format!("**Status:** {}\n**Activity:** {shown}", Choice::name(&status));
     if developer::maintenance() {
         text += "\n\nMaintenance mode is on, so this will show once it's turned off with `/maintenance`.";
     }
     let embed = serenity::CreateEmbed::new().colour(0x2ecc71).title("✅ Presence Updated").description(text);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 

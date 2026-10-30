@@ -9,10 +9,11 @@ use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rand::seq::SliceRandom;
 use rand::Rng;
 
+use crate::core::framework::{command, CreateReply};
 use super::super::economy::money;
 use super::super::economy::store::EcoError;
 use super::super::{title_case, Context, Error};
@@ -100,12 +101,12 @@ impl Bomb {
 static PLAYING: LazyLock<Mutex<HashSet<(u64, u64)>>> = LazyLock::new(Default::default);
 
 async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Defuse a bomb by cutting the right wire, optionally betting on it
-#[poise::command(slash_command, prefix_command, guild_only, category = "Games")]
+#[command(slash_command, guild_only, category = "Games")]
 pub async fn defuse(
     ctx: Context<'_>,
     #[description = "How much of your wallet to bet; defusing pays it back doubled"]
@@ -188,7 +189,7 @@ async fn play(ctx: Context<'_>, guild_id: u64, user_id: u64, bet: Option<i64>) -
                 bomb.clue.name()
             ))
     };
-    let reply = ctx.send(poise::CreateReply::default().embed(board(&cut, "", ends_at(deadline))).components(wires_row(&cut, true))).await?;
+    let reply = ctx.send(CreateReply::default().embed(board(&cut, "", ends_at(deadline))).components(wires_row(&cut, true))).await?;
 
     let ids: Vec<String> = Wire::ALL.iter().map(|w| wire_id(*w)).collect();
     let outcome = loop {
@@ -246,7 +247,7 @@ async fn play(ctx: Context<'_>, guild_id: u64, user_id: u64, bet: Option<i64>) -
         };
     }
     let embed = serenity::CreateEmbed::new().colour(colour).title(title).description(format!("{}\n\n{text}", wires_text(&cut)));
-    reply.edit(ctx, poise::CreateReply::default().embed(embed).components(wires_row(&cut, false))).await?;
+    reply.edit(ctx, CreateReply::default().embed(embed).components(wires_row(&cut, false))).await?;
     Ok(())
 }
 

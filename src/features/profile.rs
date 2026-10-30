@@ -2,8 +2,9 @@
 //! `/profile set ...`, and anyone can see it with `/profile view` or the "Profile" user
 //! context menu. Profiles belong to the user, so they're the same in every server.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, CreateReply};
 use super::{Context, Error};
 
 pub use crate::database::repositories::profiles::*;
@@ -38,7 +39,7 @@ fn notice(title: &str, text: &str) -> serenity::CreateEmbed {
 }
 
 async fn reply(ctx: Context<'_>, embed: serenity::CreateEmbed, ephemeral: bool) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(ephemeral)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(ephemeral)).await?;
     Ok(())
 }
 
@@ -102,7 +103,7 @@ async fn set_field(ctx: Context<'_>, field: Field, value: String) -> Result<(), 
 }
 
 /// User profiles
-#[poise::command(
+#[command(
     slash_command,
     category = "Profile",
     subcommands("view", "create", "delete", "set", "help"),
@@ -113,7 +114,7 @@ pub async fn profile(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// View a user's profile
-#[poise::command(slash_command)]
+#[command(slash_command)]
 async fn view(
     ctx: Context<'_>,
     #[description = "The user whose profile you want to see (default: you)"] user: Option<serenity::User>,
@@ -122,13 +123,13 @@ async fn view(
 }
 
 /// View this user's profile
-#[poise::command(context_menu_command = "Profile", category = "Profile")]
+#[command(context_menu_command = "Profile", category = "Profile")]
 pub async fn profile_menu(ctx: Context<'_>, user: serenity::User) -> Result<(), Error> {
     show(ctx, user).await
 }
 
 /// Create your profile
-#[poise::command(slash_command)]
+#[command(slash_command)]
 async fn create(ctx: Context<'_>) -> Result<(), Error> {
     if !ctx.data().profiles.lock().unwrap().create(ctx.author().id.get())? {
         return reply(ctx, notice("❌ Profile Already Exists", "You already have a profile. Fill it in with `/profile set`."), true).await;
@@ -137,7 +138,7 @@ async fn create(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Delete your profile
-#[poise::command(slash_command)]
+#[command(slash_command)]
 async fn delete(ctx: Context<'_>) -> Result<(), Error> {
     if !ctx.data().profiles.lock().unwrap().delete(ctx.author().id.get())? {
         return reply(ctx, notice("❌ No Profile Found", "You don't have a profile to delete."), true).await;
@@ -146,7 +147,7 @@ async fn delete(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Fill in your profile
-#[poise::command(
+#[command(
     slash_command,
     subcommands(
         "gender", "age", "birthday", "languages", "favorite_color", "favorite_animals", "favorite_foods",
@@ -162,7 +163,7 @@ async fn set(_ctx: Context<'_>) -> Result<(), Error> {
 macro_rules! text_setter {
     ($fn_name:ident, $name:literal, $field:expr, $doc:literal, $option:literal, $max:literal) => {
         #[doc = $doc]
-        #[poise::command(slash_command, rename = $name)]
+        #[command(slash_command, rename = $name)]
         async fn $fn_name(
             ctx: Context<'_>,
             #[description = $option]
@@ -189,7 +190,7 @@ text_setter!(hobbies, "hobbies", Field::Hobbies, "Set your hobbies", "Your hobbi
 text_setter!(aboutme, "aboutme", Field::AboutMe, "Set your about me", "A bit about you", 1000);
 
 /// Set your age
-#[poise::command(slash_command)]
+#[command(slash_command)]
 async fn age(
     ctx: Context<'_>,
     #[description = "Your age"]
@@ -201,7 +202,7 @@ async fn age(
 }
 
 /// Set your birthday
-#[poise::command(slash_command)]
+#[command(slash_command)]
 async fn birthday(
     ctx: Context<'_>,
     #[description = "Your birthday, as DD-MM-YYYY"]
@@ -212,7 +213,7 @@ async fn birthday(
 }
 
 /// Get help with the command
-#[poise::command(slash_command)]
+#[command(slash_command)]
 async fn help(ctx: Context<'_>) -> Result<(), Error> {
     let setters: Vec<String> = Field::ALL.iter().map(|f| format!("`{}`", f.key())).collect();
     let text = format!(

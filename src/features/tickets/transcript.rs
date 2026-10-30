@@ -1,6 +1,6 @@
 //! Renders a channel's full message history as a standalone HTML page.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
 use crate::features::Error;
 

@@ -3,9 +3,10 @@
 //! count, the bot pokes fun at whoever did it, and it starts again from 1. Messages
 //! that don't start with a number are deleted to keep the channel tidy.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rand::Rng;
 
+use crate::core::framework::{command, CreateReply};
 use super::super::{Context, Data, Error};
 use crate::log;
 
@@ -101,12 +102,12 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, message: &serenity
 
 async fn reply(ctx: Context<'_>, colour: u32, text: impl Into<String>) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new().colour(colour).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// The counting game
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Games",
@@ -118,7 +119,7 @@ pub async fn counting(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Choose the channel members count in (starts the count again)
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn setup(
     ctx: Context<'_>,
     #[description = "Channel to count in"]
@@ -135,7 +136,7 @@ async fn setup(
 }
 
 /// Stop the counting game in this server
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     if ctx.data().counting.lock().unwrap().stop(ctx.guild_id().unwrap().get())? {
         reply(ctx, GREEN, "✅ Counting has been stopped. The high score is kept for when `/counting setup` starts it again.").await
@@ -145,7 +146,7 @@ async fn stop(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// See the current count and the high score
-#[poise::command(slash_command, guild_only, ephemeral)]
+#[command(slash_command, guild_only, ephemeral)]
 async fn stats(ctx: Context<'_>) -> Result<(), Error> {
     let game = ctx.data().counting.lock().unwrap().get(ctx.guild_id().unwrap().get())?;
     let Some(game) = game.clone().filter(|g| g.channel_id != 0) else {

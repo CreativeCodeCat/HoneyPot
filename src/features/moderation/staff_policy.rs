@@ -4,9 +4,10 @@
 //! also undone, so it has to be redone through the bot. The bot's own actions, other bots and the server
 //! owner are left alone.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use serenity::audit_log::{Action, Change, MemberAction};
 
+use crate::core::framework::{command, CreateReply};
 use crate::features::{Context, Data, Error};
 use crate::log;
 
@@ -198,12 +199,12 @@ pub async fn on_audit_entry(ctx: &serenity::Context, data: &Data, guild_id: sere
 }
 
 async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Manage staff who broke the moderation policy
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     ephemeral,
@@ -234,7 +235,7 @@ fn settings_embed(settings: &Settings) -> serenity::CreateEmbed {
 }
 
 /// Set the demoted role, the log channel and which roles are removed
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn setup(
     ctx: Context<'_>,
     #[description = "The role to give in place of the roles taken, like Demoted"] demoted_role: Option<serenity::Role>,
@@ -277,7 +278,7 @@ async fn setup(
             .max_values(25);
         vec![serenity::CreateActionRow::SelectMenu(roles)]
     };
-    let reply = ctx.send(poise::CreateReply::default().embed(settings_embed(&settings)).components(components(&settings))).await?;
+    let reply = ctx.send(CreateReply::default().embed(settings_embed(&settings)).components(components(&settings))).await?;
 
     loop {
         let id = roles_id.clone();
@@ -294,12 +295,12 @@ async fn setup(
     }
 
     // Already gone if someone dismissed it
-    let _ = reply.edit(ctx, poise::CreateReply::default().embed(settings_embed(&settings)).components(vec![])).await;
+    let _ = reply.edit(ctx, CreateReply::default().embed(settings_embed(&settings)).components(vec![])).await;
     Ok(())
 }
 
 /// Give a staff member back the roles the policy took from them
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn restore(ctx: Context<'_>, #[description = "The staff member"] member: serenity::Member) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
     let Some(saved) = ctx.data().staff_policy.lock().unwrap().get(guild_id.get(), member.user.id.get())? else {
@@ -321,7 +322,7 @@ async fn restore(ctx: Context<'_>, #[description = "The staff member"] member: s
 }
 
 /// Clear the list of staff whose roles were taken, without giving any back
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn clear(ctx: Context<'_>) -> Result<(), Error> {
     let cleared = ctx.data().staff_policy.lock().unwrap().clear(ctx.guild_id().unwrap().get())?;
     if cleared == 0 {
@@ -331,7 +332,7 @@ async fn clear(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// List staff whose roles the policy has taken
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn list(ctx: Context<'_>) -> Result<(), Error> {
     let removed = ctx.data().staff_policy.lock().unwrap().list(ctx.guild_id().unwrap().get())?;
     if removed.is_empty() {

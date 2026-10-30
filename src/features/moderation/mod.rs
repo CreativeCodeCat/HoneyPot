@@ -4,16 +4,16 @@ pub mod automod;
 pub mod lockdown;
 pub mod staff_policy;
 
-use poise::serenity_prelude as serenity;
-use poise::ChoiceParameter;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, Choice, CreateReply};
 use super::{truncate, Context, Error};
 
 const COLOUR: u32 = 0xed4245;
 /// Discord's limit on audit log reasons
 const MAX_REASON: usize = 512;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, poise::ChoiceParameter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Choice)]
 pub enum TimeoutLength {
     #[name = "60 Seconds"]
     Minute,
@@ -81,7 +81,7 @@ async fn autocomplete_length(_ctx: Context<'_>, partial: &str) -> Vec<serenity::
     choices
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, poise::ChoiceParameter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Choice)]
 pub enum DeleteMessages {
     #[name = "Don't delete any"]
     None,
@@ -116,7 +116,7 @@ fn result_embed(title: &str, text: String, reason: Option<&str>) -> serenity::Cr
 }
 
 async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
@@ -159,7 +159,7 @@ async fn hierarchy_problem(ctx: Context<'_>, target: serenity::UserId) -> Option
 }
 
 /// Ban a member, or anyone by user ID
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Moderation",
@@ -183,12 +183,12 @@ pub async fn ban(
     let days = delete_messages.unwrap_or(DeleteMessages::None).days();
     ctx.guild_id().unwrap().ban_with_reason(ctx, user.id, days, audit_reason(ctx, reason)).await?;
     let embed = result_embed("🔨 Member Banned", format!("<@{}> (`{}`) has been banned.", user.id, user.name), reason);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// Unban a user
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Moderation",
@@ -210,12 +210,12 @@ pub async fn unban(
     }
     ctx.http().remove_ban(guild_id, user.id, Some(&audit_reason(ctx, reason))).await?;
     let embed = result_embed("✅ User Unbanned", format!("<@{}> (`{}`) has been unbanned.", user.id, user.name), reason);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// Kick a member
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Moderation",
@@ -237,12 +237,12 @@ pub async fn kick(
     notify(ctx, &member.user, "kicked", reason).await;
     ctx.guild_id().unwrap().kick_with_reason(ctx, member.user.id, &audit_reason(ctx, reason)).await?;
     let embed = result_embed("👢 Member Kicked", format!("<@{}> (`{}`) has been kicked.", member.user.id, member.user.name), reason);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
 /// Time a member out, so they can't chat, react or join voice
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Moderation",
@@ -271,7 +271,7 @@ pub async fn timeout(
     let until = time_out(ctx, member.user.id, seconds, &audit_reason(ctx, reason)).await?;
     notify(ctx, &member.user, &format!("timed out until <t:{until}:F>"), reason).await;
     let text = format!("<@{}> has been timed out until <t:{until}:F> (<t:{until}:R>).", member.user.id);
-    ctx.send(poise::CreateReply::default().embed(result_embed("⏳ Member Timed Out", text, reason))).await?;
+    ctx.send(CreateReply::default().embed(result_embed("⏳ Member Timed Out", text, reason))).await?;
     Ok(())
 }
 
@@ -286,7 +286,7 @@ async fn time_out(ctx: Context<'_>, user_id: serenity::UserId, seconds: i64, rea
 }
 
 /// End a member's timeout
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Moderation",
@@ -310,7 +310,7 @@ pub async fn untimeout(
     let edit = serenity::EditMember::new().enable_communication().audit_log_reason(&reason_text);
     ctx.guild_id().unwrap().edit_member(ctx, member.user.id, edit).await?;
     let embed = result_embed("✅ Timeout Removed", format!("<@{}>'s timeout has ended.", member.user.id), reason);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 

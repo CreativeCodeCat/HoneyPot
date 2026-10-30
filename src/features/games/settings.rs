@@ -2,8 +2,9 @@
 //! cog, so they're only available while it's enabled. The settings are kept in the
 //! cog manager's config as "game:<name>".
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, CreateReply};
 use super::super::cog_manager::resync;
 use crate::database::guild_config::game_key;
 use super::super::{Context, Error};
@@ -32,9 +33,8 @@ async fn set_game(ctx: Context<'_>, game: String, enabled: bool) -> Result<(), E
 }
 
 /// Enable a game for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "Games",
@@ -50,9 +50,8 @@ pub async fn enablegame(
 }
 
 /// Disable a game for this server, leaving the other games on
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "Games",
@@ -68,9 +67,8 @@ pub async fn disablegame(
 }
 
 /// Check which games are enabled for this server
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     ephemeral,
     category = "Games",
@@ -96,6 +94,6 @@ pub async fn gamestatus(ctx: Context<'_>) -> Result<(), Error> {
         .title("Game Status")
         .description(status_msg)
         .colour(0x3498db);
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }

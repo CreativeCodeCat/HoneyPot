@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rusqlite::{params, Connection};
 
 use crate::database::connection;

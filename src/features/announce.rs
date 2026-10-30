@@ -1,20 +1,21 @@
 //! Announcements cog: `/announce message` posts an embed, pinging a role, in the channel
 //! set with `/server-setup announcements`, whichever channel the command is used in.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, CreateReply};
 use super::{Context, Error};
 
 const ANNOUNCEMENTS_KEY: &str = "channel.announcements";
 const COLOUR: u32 = 0x9b59b6;
 
 async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Make announcements in the server announcements channel
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     ephemeral,
@@ -29,7 +30,7 @@ pub async fn announce(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Announce a message to the announcements channel
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_GUILD")]
 async fn message(
     ctx: Context<'_>,
     #[description = "The role to ping"] role: serenity::Role,
@@ -75,7 +76,7 @@ async fn message(
 }
 
 /// Get help with the command
-#[poise::command(slash_command, guild_only, ephemeral)]
+#[command(slash_command, guild_only, ephemeral)]
 async fn help(ctx: Context<'_>) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new().colour(COLOUR).title("Announce Help").description(
         "> `/announce message <role> <title> <information>` • Post an announcement in the \
@@ -83,6 +84,6 @@ async fn help(ctx: Context<'_>) -> Result<(), Error> {
          > `/announce help` • Show this message.\n\n\
          The channel is set with `/server-setup announcements`.",
     );
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }

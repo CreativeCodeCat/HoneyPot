@@ -3,9 +3,10 @@
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
-use super::{command_router, event_router, permissions};
+use super::command_router;
+use super::framework::Framework;
 use crate::database::guild_config;
 use crate::features::developer;
 use crate::features::{
@@ -54,28 +55,7 @@ pub async fn run() {
         Err(e) => log::error(format!("Error refunding bets from interrupted games: {e}")),
     }
 
-    let framework = poise::Framework::builder()
-        .options(poise::FrameworkOptions {
-            commands: command_router::commands(),
-            prefix_options: poise::PrefixFrameworkOptions {
-                prefix: Some("!".into()),
-                ..Default::default()
-            },
-            command_check: Some(|ctx| Box::pin(permissions::command_check(ctx))),
-            on_error: |error| Box::pin(command_router::on_error(error)),
-            event_handler: |ctx, event, framework, data| {
-                Box::pin(event_router::event_handler(ctx, event, framework, data))
-            },
-            ..Default::default()
-        })
-        .setup(|_ctx, ready, _framework| {
-            Box::pin(async move {
-                log::info(format!("{} has connected to Discord!", ready.user.name));
-                log::blue(format!("Connected to {} guilds", ready.guilds.len()));
-                Ok(data)
-            })
-        })
-        .build();
+    let framework = Framework::new(command_router::commands(), data);
 
     let intents = serenity::GatewayIntents::non_privileged()
         | serenity::GatewayIntents::MESSAGE_CONTENT

@@ -3,8 +3,9 @@
 //! decline, complete or reopen them with `/suggestion`, which updates the post,
 //! announces the result and, if the member asked, DMs them.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
+use crate::core::framework::{command, Choice, CreateReply};
 use super::{Context, Error};
 
 pub use crate::database::repositories::suggestions::*;
@@ -13,7 +14,7 @@ const GREEN: u32 = 0x57f287;
 const PURPLE: u32 = 0x9b59b6;
 const RED: u32 = 0xed4245;
 
-#[derive(Clone, Copy, Debug, poise::ChoiceParameter)]
+#[derive(Clone, Copy, Debug, Choice)]
 enum Kind {
     Command,
     Event,
@@ -23,7 +24,7 @@ enum Kind {
 
 async fn reply(ctx: Context<'_>, colour: u32, text: impl Into<String>) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new().colour(colour).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(true)).await?;
     Ok(())
 }
 
@@ -51,7 +52,7 @@ fn post(author: &serenity::User, suggestion: &Suggestion, colour: u32, status: &
 }
 
 /// Submit a suggestion
-#[poise::command(slash_command, guild_only, ephemeral, category = "Suggestions")]
+#[command(slash_command, guild_only, ephemeral, category = "Suggestions")]
 pub async fn suggest(
     ctx: Context<'_>,
     #[description = "What kind of suggestion it is"]
@@ -68,7 +69,7 @@ pub async fn suggest(
     let mut suggestion = Suggestion {
         message_id: 0,
         member_id: ctx.author().id.get(),
-        kind: poise::ChoiceParameter::name(&kind).to_string(),
+        kind: Choice::name(&kind).to_string(),
         text: suggestion,
         dm,
     };
@@ -89,7 +90,7 @@ pub async fn suggest(
 }
 
 /// Manage suggestions
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     ephemeral,
@@ -104,7 +105,7 @@ pub async fn suggestion(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Choose where suggestions go and where results are announced
-#[poise::command(slash_command, guild_only, ephemeral, rename = "setup", required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, rename = "setup", required_permissions = "ADMINISTRATOR")]
 async fn setup_cmd(
     ctx: Context<'_>,
     #[description = "Channel suggestions are posted in"]
@@ -201,7 +202,7 @@ async fn decide(ctx: Context<'_>, message_id: String, verdict: Verdict, reason: 
 }
 
 /// Accept a suggestion
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn accept(
     ctx: Context<'_>,
     #[description = "Message ID of the suggestion"]
@@ -213,7 +214,7 @@ async fn accept(
 }
 
 /// Decline a suggestion
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn decline(
     ctx: Context<'_>,
     #[description = "Message ID of the suggestion"]
@@ -225,7 +226,7 @@ async fn decline(
 }
 
 /// Set a suggestion back to pending
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn pending(
     ctx: Context<'_>,
     #[description = "Message ID of the suggestion"]
@@ -237,7 +238,7 @@ async fn pending(
 }
 
 /// Mark a suggestion as done, which closes its voting
-#[poise::command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
+#[command(slash_command, guild_only, ephemeral, required_permissions = "ADMINISTRATOR")]
 async fn completed(
     ctx: Context<'_>,
     #[description = "Message ID of the suggestion"]

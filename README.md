@@ -1,6 +1,6 @@
 # Discord Honeypot Bot
 
-A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenity) + [poise](https://github.com/serenity-rs/poise)) with a cog-style module system, featuring a comprehensive honeypot system for multi-server monitoring and security.
+A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenity), with its own slash command framework) with a cog-style module system, featuring a comprehensive honeypot system for multi-server monitoring and security.
 
 ## Features
 
@@ -65,7 +65,7 @@ A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenit
 
 ## Commands
 
-All commands can be used with `!` prefix or as slash commands (`/`). Most commands require administrator permissions, and all replies are only visible to you when used as slash commands.
+All commands are slash commands (`/`). Most commands require administrator permissions, and most replies are only visible to you.
 
 ### Honeypot Commands
 
@@ -413,12 +413,14 @@ HoneyPot/
 ├── database/               # SQLite database files (created at runtime)
 │   ├── honeypot.db         # Honeypot data
 │   └── cog_config.db       # Cog configuration
+├── macros/               # #[command] and #[derive(Choice)] for the framework
 ├── migrations/             # Each store's tables, as SQL (built into the bot)
 ├── tests/                  # Integration tests (run with `cargo test`)
 └── src/
     ├── main.rs             # Entry point; runs core::gateway
     ├── lib.rs              # The bot as a library, so tests/ can use it
     ├── core/
+    │   ├── framework/      # Our slash command framework: commands, options, replies, modals
     │   ├── gateway.rs      # Opens the databases, builds the framework, connects
     │   ├── command_router.rs # Every registered command, and command error replies
     │   ├── event_router.rs # Sends gateway events to features; startup work and loops
@@ -458,10 +460,10 @@ HoneyPot/
 
 1. Create `src/features/your_cog.rs` and add `pub mod your_cog;` to `src/features/mod.rs`
 2. Add its display name (e.g. `"YourCog"`) to `COGS` in `src/features/mod.rs`
-3. Write commands with `category = "YourCog"` so the per-server enable/disable check applies:
+3. Write commands with `#[command]` (from `crate::core::framework`) and `category = "YourCog"` so the per-server enable/disable check applies:
    ```rust
    /// Description shown in Discord
-   #[poise::command(slash_command, prefix_command, guild_only, ephemeral, category = "YourCog")]
+   #[command(slash_command, guild_only, ephemeral, category = "YourCog")]
    pub async fn yourcommand(ctx: Context<'_>) -> Result<(), Error> {
        ctx.say("Hello!").await?;
        Ok(())

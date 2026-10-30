@@ -1,6 +1,6 @@
 //! Staff application positions and the applications made to them.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::database::connection;

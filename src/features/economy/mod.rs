@@ -3,9 +3,10 @@
 pub use crate::database::repositories::economy as store;
 
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rand::Rng;
 
+use crate::core::framework::{command, CreateReply};
 use super::{Context, Error};
 use store::{Balance, DailyRate, EcoError, Pocket, DEFAULT_DAILY};
 
@@ -53,13 +54,13 @@ async fn reply(ctx: Context<'_>, text: impl Into<String>, ephemeral: bool) -> Re
     let text = text.into();
     let colour = if text.starts_with('❌') { RED } else { GREEN };
     let embed = serenity::CreateEmbed::new().colour(colour).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(ephemeral)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(ephemeral)).await?;
     Ok(())
 }
 
 /// Sends a public embed, the style every successful economy action replies in.
 async fn reply_embed(ctx: Context<'_>, embed: serenity::CreateEmbed) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -98,9 +99,8 @@ fn check_amount(amount: i64) -> Option<&'static str> {
 }
 
 /// Economy commands
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     category = "Economy",
     subcommands("join", "work", "daily", "balance", "deposit", "withdraw", "pay", "dailyrate", "wallet", "bank"),
@@ -111,7 +111,7 @@ pub async fn eco(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Join the economy
-#[poise::command(slash_command, prefix_command, guild_only, category = "Economy")]
+#[command(slash_command, guild_only, category = "Economy")]
 async fn join(ctx: Context<'_>) -> Result<(), Error> {
     let created = ctx.data().economy.lock().unwrap().join(guild_id(ctx), ctx.author().id.get())?;
     if created {
@@ -125,7 +125,7 @@ async fn join(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Work a random job (once every 6 hours)
-#[poise::command(slash_command, prefix_command, guild_only, category = "Economy")]
+#[command(slash_command, guild_only, category = "Economy")]
 async fn work(ctx: Context<'_>) -> Result<(), Error> {
     let (job, wage) = {
         let mut rng = rand::rng();
@@ -140,7 +140,7 @@ async fn work(ctx: Context<'_>) -> Result<(), Error> {
             let embed = serenity::CreateEmbed::new()
                 .colour(PURPLE)
                 .description(format!("<@{}> You worked as a {job} and earned {}", ctx.author().id, money(wage)));
-            ctx.send(poise::CreateReply::default().embed(embed)).await?;
+            ctx.send(CreateReply::default().embed(embed)).await?;
             Ok(())
         }
         Err(e) => reply_error(ctx, e, None).await,
@@ -162,7 +162,7 @@ fn daily_rate_for(ctx: Context<'_>, rates: &[DailyRate], member_roles: &[serenit
 }
 
 /// Claim your daily reward (once a day, resets at midnight UTC)
-#[poise::command(slash_command, prefix_command, guild_only, category = "Economy")]
+#[command(slash_command, guild_only, category = "Economy")]
 async fn daily(ctx: Context<'_>) -> Result<(), Error> {
     let rates = ctx.data().economy.lock().unwrap().daily_rates(guild_id(ctx))?;
     let roles = ctx.author_member().await.map(|m| m.roles.clone()).unwrap_or_default();
@@ -178,7 +178,7 @@ async fn daily(ctx: Context<'_>) -> Result<(), Error> {
             }
             text += &format!("\nWallet: {} · Next daily <t:{}:R>", money(balance.wallet), next_daily_reset());
             let embed = serenity::CreateEmbed::new().colour(PURPLE).title("📅 Daily Reward").description(text);
-            ctx.send(poise::CreateReply::default().embed(embed)).await?;
+            ctx.send(CreateReply::default().embed(embed)).await?;
             Ok(())
         }
         Err(e) => reply_error(ctx, e, None).await,
@@ -186,9 +186,8 @@ async fn daily(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Daily reward settings (Manage Server)
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     category = "Economy",
     subcommands("dailyrate_set", "dailyrate_remove", "dailyrate_list"),
@@ -199,9 +198,8 @@ async fn dailyrate(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Set the daily reward range for a role, or the default for everyone
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     rename = "set",
     category = "Economy",
@@ -230,9 +228,8 @@ async fn dailyrate_set(
 }
 
 /// Remove a role's daily reward range
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     rename = "remove",
     category = "Economy",
@@ -254,7 +251,7 @@ async fn dailyrate_remove(
 }
 
 /// Show the daily reward ranges
-#[poise::command(slash_command, prefix_command, guild_only, rename = "list", category = "Economy")]
+#[command(slash_command, guild_only, rename = "list", category = "Economy")]
 async fn dailyrate_list(ctx: Context<'_>) -> Result<(), Error> {
     let rates = ctx.data().economy.lock().unwrap().daily_rates(guild_id(ctx))?;
     let default = rates.iter().find(|r| r.role_id == 0).copied().unwrap_or(DEFAULT_DAILY);
@@ -271,12 +268,12 @@ async fn dailyrate_list(ctx: Context<'_>) -> Result<(), Error> {
         .title("📅 Daily Rewards")
         .description(lines.join("\n"))
         .footer(serenity::CreateEmbedFooter::new("Members get the range of their highest role that has one."));
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Check your balance, or another member's
-#[poise::command(slash_command, prefix_command, guild_only, category = "Economy")]
+#[command(slash_command, guild_only, category = "Economy")]
 async fn balance(
     ctx: Context<'_>,
     #[description = "The user whose balance to check"] user: Option<serenity::User>,
@@ -294,7 +291,7 @@ async fn balance(
         .field("Bank", format!("`{}`", money(bank)), true)
         .field("Total", format!("`{}`", money(wallet + bank)), true)
         .timestamp(serenity::Timestamp::now());
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -319,7 +316,7 @@ async fn move_money(ctx: Context<'_>, amount: i64, from: Pocket) -> Result<(), E
 }
 
 /// Deposit money from your wallet into your bank
-#[poise::command(slash_command, prefix_command, guild_only, category = "Economy")]
+#[command(slash_command, guild_only, category = "Economy")]
 async fn deposit(
     ctx: Context<'_>,
     #[description = "The amount to deposit"]
@@ -330,7 +327,7 @@ async fn deposit(
 }
 
 /// Withdraw money from your bank into your wallet
-#[poise::command(slash_command, prefix_command, guild_only, category = "Economy")]
+#[command(slash_command, guild_only, category = "Economy")]
 async fn withdraw(
     ctx: Context<'_>,
     #[description = "The amount to withdraw"]
@@ -341,7 +338,7 @@ async fn withdraw(
 }
 
 /// Pay another member from your wallet
-#[poise::command(slash_command, prefix_command, guild_only, category = "Economy")]
+#[command(slash_command, guild_only, category = "Economy")]
 async fn pay(
     ctx: Context<'_>,
     #[description = "The user to pay"] user: serenity::User,
@@ -396,9 +393,8 @@ async fn adjust(ctx: Context<'_>, user: Option<serenity::User>, amount: i64, poc
 }
 
 /// Wallet admin commands
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     category = "Economy",
     subcommands("wallet_add", "wallet_remove"),
@@ -409,9 +405,8 @@ async fn wallet(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Add money to a wallet (Manage Server)
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     rename = "add",
     category = "Economy",
@@ -428,9 +423,8 @@ async fn wallet_add(
 }
 
 /// Remove money from a wallet (Manage Server)
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     rename = "remove",
     category = "Economy",
@@ -447,9 +441,8 @@ async fn wallet_remove(
 }
 
 /// Bank admin commands
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     category = "Economy",
     subcommands("bank_add", "bank_remove"),
@@ -460,9 +453,8 @@ async fn bank(_ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Add money to a bank (Manage Server)
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     rename = "add",
     category = "Economy",
@@ -479,9 +471,8 @@ async fn bank_add(
 }
 
 /// Remove money from a bank (Manage Server)
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     rename = "remove",
     category = "Economy",

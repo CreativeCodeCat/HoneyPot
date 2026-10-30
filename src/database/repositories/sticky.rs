@@ -1,6 +1,6 @@
 //! Sticky messages, kept at the bottom of their channel.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::database::connection;

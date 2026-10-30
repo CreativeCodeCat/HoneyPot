@@ -1,36 +1,48 @@
 //! Rules cog: each server writes its own rules sections, and `/rules post` posts them as
 //! embeds. Posting again deletes the previous rules messages first.
 
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 
-use super::{Data, Error};
+use crate::core::framework::{command, CreateReply, execute_modal, create_modal, find_modal_text, Modal, TextField};
+use super::{Context, Error};
 use crate::log;
 
 pub use crate::database::repositories::rules::*;
 
-type AppContext<'a> = poise::ApplicationContext<'a, Data, Error>;
 
 const DEFAULT_COLOUR: u32 = 0xaa5bbe;
 /// Embeds per message (Discord's limit is 10)
 const EMBEDS_PER_MESSAGE: usize = 10;
 
 /// The form for writing a section.
-#[derive(Debug, poise::Modal)]
-#[name = "Rules section"]
+#[derive(Debug)]
 struct SectionForm {
-    #[name = "Title"]
-    #[placeholder = ":white_check_mark: Our Server Rules"]
-    #[max_length = 256]
     title: String,
-    #[name = "Text"]
-    #[placeholder = "1. Be respectful.\n2. No spam."]
-    #[paragraph]
-    #[max_length = 4000]
     body: String,
-    #[name = "Colour (hex, optional)"]
-    #[placeholder = "#aa5bbe"]
-    #[max_length = 7]
     colour: Option<String>,
+}
+
+impl Modal for SectionForm {
+    fn create(defaults: Option<Self>, custom_id: String) -> serenity::CreateInteractionResponse {
+        let (title, body, colour) = match defaults {
+            Some(form) => (Some(form.title), Some(form.body), form.colour),
+            None => (None, None, None),
+        };
+        let fields = vec![
+            TextField { id: "title", label: "Title", placeholder: ":white_check_mark: Our Server Rules", max_length: 256, paragraph: false, required: true, value: title },
+            TextField { id: "body", label: "Text", placeholder: "1. Be respectful.\n2. No spam.", max_length: 4000, paragraph: true, required: true, value: body },
+            TextField { id: "colour", label: "Colour (hex, optional)", placeholder: "#aa5bbe", max_length: 7, paragraph: false, required: false, value: colour },
+        ];
+        create_modal(custom_id, "Rules section", fields)
+    }
+
+    fn parse(mut data: serenity::ModalInteractionData) -> Result<Self, &'static str> {
+        Ok(Self {
+            title: find_modal_text(&mut data, "title").ok_or("the title is missing")?,
+            body: find_modal_text(&mut data, "body").ok_or("the text is missing")?,
+            colour: find_modal_text(&mut data, "colour"),
+        })
+    }
 }
 
 impl SectionForm {
@@ -59,17 +71,17 @@ fn embed(section: &Section) -> serenity::CreateEmbed {
     serenity::CreateEmbed::new().title(&section.title).description(&section.body).colour(section.colour)
 }
 
-fn guild_id(ctx: AppContext<'_>) -> u64 {
+fn guild_id(ctx: Context<'_>) -> u64 {
     ctx.guild_id().expect("rules commands are guild_only").get()
 }
 
-async fn say_private(ctx: AppContext<'_>, text: impl Into<String>) -> Result<(), Error> {
-    ctx.send(poise::CreateReply::default().content(text).ephemeral(true)).await?;
+async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Error> {
+    ctx.send(CreateReply::default().content(text).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Manage and post this server's rules
-#[poise::command(
+#[command(
     slash_command,
     guild_only,
     category = "Rules",
@@ -78,14 +90,14 @@ async fn say_private(ctx: AppContext<'_>, text: impl Into<String>) -> Result<(),
     required_permissions = "MANAGE_GUILD",
     default_member_permissions = "MANAGE_GUILD"
 )]
-pub async fn rules(_ctx: AppContext<'_>) -> Result<(), Error> {
+pub async fn rules(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
 /// Add a rules section
-#[poise::command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
-async fn add(ctx: AppContext<'_>) -> Result<(), Error> {
-    let Some(form) = poise::execute_modal(ctx, None::<SectionForm>, None).await? else { return Ok(()) };
+#[command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
+async fn add(ctx: Context<'_>) -> Result<(), Error> {
+    let Some(form) = execute_modal(ctx, None::<SectionForm>, None).await? else { return Ok(()) };
     let section = match form.into_section() {
         Ok(section) => section,
         Err(message) => return say_private(ctx, message).await,
@@ -96,7 +108,7 @@ async fn add(ctx: AppContext<'_>) -> Result<(), Error> {
         rules.add(guild_id(ctx), &section)?;
         rules.sections(guild_id(ctx))?.len()
     };
-    let reply = poise::CreateReply::default()
+    let reply = CreateReply::default()
         .content(format!("✅ Added section {count}. Run `/rules post` to update the rules channel."))
         .embed(embed(&section))
         .ephemeral(true);
@@ -105,9 +117,9 @@ async fn add(ctx: AppContext<'_>) -> Result<(), Error> {
 }
 
 /// Edit a rules section
-#[poise::command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
 async fn edit(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "Section number, as shown in /rules list"]
     #[min = 1]
     number: usize,
@@ -117,7 +129,7 @@ async fn edit(
         return say_private(ctx, format!("❌ There's no section {number}. Use `/rules list` to see them.")).await;
     };
 
-    let form = poise::execute_modal(ctx, Some(SectionForm::from_section(&current)), None).await?;
+    let form = execute_modal(ctx, Some(SectionForm::from_section(&current)), None).await?;
     let Some(form) = form else { return Ok(()) };
     let section = match form.into_section() {
         Ok(section) => section,
@@ -125,7 +137,7 @@ async fn edit(
     };
 
     ctx.data().rules.lock().unwrap().update(guild_id(ctx), number, &section)?;
-    let reply = poise::CreateReply::default()
+    let reply = CreateReply::default()
         .content(format!("✅ Updated section {number}. Run `/rules post` to update the rules channel."))
         .embed(embed(&section))
         .ephemeral(true);
@@ -134,9 +146,9 @@ async fn edit(
 }
 
 /// Remove a rules section
-#[poise::command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
 async fn remove(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "Section number, as shown in /rules list"]
     #[min = 1]
     number: usize,
@@ -150,8 +162,8 @@ async fn remove(
 }
 
 /// List the rules sections
-#[poise::command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
-async fn list(ctx: AppContext<'_>) -> Result<(), Error> {
+#[command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
+async fn list(ctx: Context<'_>) -> Result<(), Error> {
     let (sections, post) = {
         let rules = ctx.data().rules.lock().unwrap();
         (rules.sections(guild_id(ctx))?, rules.post(guild_id(ctx))?)
@@ -166,14 +178,14 @@ async fn list(ctx: AppContext<'_>) -> Result<(), Error> {
         text += &format!("\nLast posted in <#{channel_id}>.");
     }
     let embed = serenity::CreateEmbed::new().title("Rules sections").description(text).colour(DEFAULT_COLOUR);
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(true)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(true)).await?;
     Ok(())
 }
 
 /// Post the rules, replacing the previous rules messages
-#[poise::command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
+#[command(slash_command, guild_only, category = "Rules", required_permissions = "MANAGE_GUILD")]
 async fn post(
-    ctx: AppContext<'_>,
+    ctx: Context<'_>,
     #[description = "Channel to post the rules in"]
     #[channel_types("Text")]
     channel: serenity::GuildChannel,

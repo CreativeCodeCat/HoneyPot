@@ -5,9 +5,10 @@
 use std::time::Duration;
 
 use chrono::Utc;
-use poise::serenity_prelude as serenity;
+use ::serenity::all as serenity;
 use serenity::Permissions as P;
 
+use crate::core::framework::{command, CreateReply};
 use crate::features::{Context, Data, Error};
 use crate::log;
 
@@ -84,14 +85,13 @@ fn lifted_embed() -> serenity::CreateEmbed {
 
 async fn reply_embed(ctx: Context<'_>, colour: u32, text: impl Into<String>, ephemeral: bool) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new().colour(colour).description(text);
-    ctx.send(poise::CreateReply::default().embed(embed).ephemeral(ephemeral)).await?;
+    ctx.send(CreateReply::default().embed(embed).ephemeral(ephemeral)).await?;
     Ok(())
 }
 
 /// Lockdown this channel.
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     category = "Lockdown",
     required_permissions = "MANAGE_CHANNELS",
@@ -101,7 +101,6 @@ pub async fn lock(
     ctx: Context<'_>,
     #[description = "How long to lock for, e.g. 30m, 2h, 1d (default 24h)"] time: Option<String>,
     #[description = "Reason for this lockdown"]
-    #[rest]
     reason: Option<String>,
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
@@ -140,9 +139,8 @@ pub async fn lock(
 }
 
 /// Remove lockdown from this channel.
-#[poise::command(
+#[command(
     slash_command,
-    prefix_command,
     guild_only,
     category = "Lockdown",
     required_permissions = "MANAGE_CHANNELS",
@@ -167,7 +165,7 @@ pub async fn unlock(ctx: Context<'_>) -> Result<(), Error> {
 
     restore_overwrite(ctx.http(), guild_id, &lockdown).await?;
     ctx.data().lockdown.lock().unwrap().remove(channel_id.get())?;
-    ctx.send(poise::CreateReply::default().embed(lifted_embed())).await?;
+    ctx.send(CreateReply::default().embed(lifted_embed())).await?;
     Ok(())
 }
 
