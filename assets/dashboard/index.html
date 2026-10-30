@@ -262,6 +262,19 @@
   .catch .flags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .empty-card { background: var(--panel); border: 1px dashed var(--border); border-radius: 10px; padding: 22px; text-align: center; color: var(--muted); font-size: 14px; }
 
+  /* Adding the bot */
+  .nav-item.add { color: var(--muted); }
+  .nav-item.add:hover { color: var(--text); }
+  .add-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .add-card .who-cell { min-width: 0; }
+  .add-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn.primary { background: #5865f2; border-color: #5865f2; color: #fff; white-space: nowrap; }
+  .btn.primary:hover { background: #4752c4; color: #fff; }
+  .add-other { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; flex-wrap: wrap; }
+  .perms summary { cursor: pointer; font-weight: 600; }
+  .perms p { margin: 8px 0 10px; }
+  #add-hint { margin-top: 10px; }
+
   /* Quick switcher */
   .palette-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 50; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
   .palette { width: 100%; max-width: 560px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
@@ -317,6 +330,7 @@
       <a class="nav-item" data-page="system" href="/system" id="nav-system" hidden><span class="ico" data-icon="cpu"></span><span class="label">System</span></a>
       <div class="nav-label">Servers</div>
       <div id="nav-servers"></div>
+      <a class="nav-item add" data-page="add" href="/add"><span class="ico" data-icon="plus"></span><span class="label">Add a server</span></a>
     </nav>
     <nav id="nav-guild" hidden>
       <a class="nav-back" href="/">← All servers</a>
@@ -362,6 +376,30 @@
             <tbody id="guilds"></tbody>
           </table>
         </div>
+      </section>
+    </main>
+
+    <!-- Adding the bot to a server -->
+    <main class="page" id="view-add" hidden>
+      <div class="page-head"><div class="grow"><h1>Add a server</h1><div class="sub">Add the bot to a server you own or manage</div></div></div>
+      <section>
+        <div class="section-head"><h2>Your servers without the bot</h2><button class="btn" id="add-refresh" type="button">Refresh</button></div>
+        <div class="cards" id="add-servers"></div>
+        <p class="sub" id="add-hint">After you add the bot, the server shows up in your sidebar within a few seconds.</p>
+      </section>
+      <section>
+        <h2>Somewhere else</h2>
+        <div class="panel add-other">
+          <div><b>Add to another server</b><div class="sub">Pick any server you have Manage Server in, on Discord's own page.</div></div>
+          <a class="button" id="add-any" href="#" target="_blank" rel="noopener">Add the bot</a>
+        </div>
+      </section>
+      <section>
+        <details class="perms">
+          <summary>What the bot asks for</summary>
+          <p class="sub">Only what its features use. You can untick any of them on Discord's page, but the features that need them won't work.</p>
+          <div class="chips-inline" id="add-perms"></div>
+        </details>
       </section>
     </main>
 
@@ -505,6 +543,7 @@
     terminal: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
     cog: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
     trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>',
@@ -542,7 +581,7 @@
   const section = (serverMatch && serverMatch[2]) || '';
   const dataCog = section === 'cogs' && serverMatch[3] ? decodeURIComponent(serverMatch[3]) : null;
   const view = dataCog ? 'data' : section || 'overview';
-  const botPage = serverId ? null : path === '/system' ? 'system' : 'home';
+  const botPage = serverId ? null : path === '/system' ? 'system' : path === '/add' ? 'add' : 'home';
   const serverPath = sub => `/servers/${serverId}${sub ? '/' + sub : ''}`;
   const SECTIONS = ['overview', 'settings', 'commands', 'cogs', 'data', 'leaderboards', 'audit'];
   const TITLES = { overview: 'Overview', settings: 'Settings', commands: 'Commands', cogs: 'Cogs', leaderboards: 'Leaderboards', audit: 'Audit log' };
@@ -624,7 +663,8 @@
       });
     const body = $('guilds');
     if (!rows.length) {
-      const td = el('td', 'empty', o.guilds.length ? 'No servers match.' : 'You don’t manage any servers the bot is in.');
+      const td = el('td', 'empty', o.guilds.length ? 'No servers match.' : 'You don’t manage any servers the bot is in yet. ');
+      if (!o.guilds.length) { const link = el('a', null, 'Add it to one'); link.href = '/add'; td.append(link); }
       td.colSpan = 4;
       const tr = el('tr'); tr.append(td);
       body.replaceChildren(tr);
@@ -643,6 +683,36 @@
     }));
   }
   $('guild-filter').addEventListener('input', () => overview && renderHome());
+
+  /* ---------- Adding the bot ---------- */
+
+  async function loadAdd() {
+    let d;
+    try { d = await api('/api/invite'); } catch (e) { return; }
+    $('add-any').href = d.invite;
+    $('add-perms').replaceChildren(...d.permissions.map(p => el('span', 'pill', p)));
+    const box = $('add-servers');
+    if (!d.servers.length) {
+      box.replaceChildren(el('div', 'empty-card', 'The bot is already in every server you manage.'));
+      $('add-hint').hidden = true;
+      return;
+    }
+    $('add-hint').hidden = false;
+    box.replaceChildren(...d.servers.map(g => {
+      const card = el('div', 'card add-card');
+      const top = el('div', 'who-cell');
+      top.append(avatar(g.icon, g.name), el('b', null, g.name));
+      const add = el('a', 'btn primary', 'Add bot');
+      add.href = g.invite; add.target = '_blank'; add.rel = 'noopener';
+      card.append(top, add);
+      return card;
+    }));
+  }
+  $('add-refresh').addEventListener('click', async () => {
+    await refresh();
+    await loadAdd();
+    toast('Updated.');
+  });
 
   /* ---------- System (bot owners) ---------- */
 
@@ -1399,6 +1469,7 @@
   function paletteEntries() {
     const entries = [{ label: 'Overview', hint: 'Bot', href: '/' }];
     if (me && me.owner) entries.push({ label: 'System', hint: 'Bot', href: '/system' });
+    entries.push({ label: 'Add a server', hint: 'Bot', href: '/add' });
     for (const g of (overview ? overview.guilds : [])) {
       entries.push({ label: g.name, hint: 'Server', href: `/servers/${g.id}`, icon: g.icon });
       for (const [sub, title] of [['settings', 'Settings'], ['commands', 'Commands'], ['cogs', 'Cogs'], ['leaderboards', 'Leaderboards'], ['audit', 'Audit log']]) {
@@ -1480,14 +1551,17 @@
 
   $('view-home').hidden = botPage !== 'home';
   $('view-system').hidden = botPage !== 'system';
+  $('view-add').hidden = botPage !== 'add';
   $('view-server').hidden = !serverId;
   if (serverId) setupGuildNav();
   if (botPage === 'system') { document.title = 'System · Dashboard'; $('topbar-title').textContent = 'System'; }
+  if (botPage === 'add') { document.title = 'Add a server · Dashboard'; $('topbar-title').textContent = 'Add a server'; }
 
   refresh().then(ok => {
     if (!ok) return;
     if (serverId) loadServer();
     if (botPage === 'system') loadSystem();
+    if (botPage === 'add') loadAdd();
   });
   // Live: the bot's numbers every 10 seconds; a server's security and the host every 30
   setInterval(refresh, 10000);

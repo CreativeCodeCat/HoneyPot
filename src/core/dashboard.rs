@@ -43,7 +43,41 @@ struct Session {
     /// Servers they own or manage, and whether they can turn cogs on and off there (as owner
     /// or admin, like `/enablecog`); None for the bot's owners, who can do it everywhere
     guilds: Option<HashMap<u64, bool>>,
+    /// The servers they own or manage, as Discord listed them when they signed in
+    managed: Vec<ManagedGuild>,
     expires: Instant,
+}
+
+#[derive(Clone)]
+struct ManagedGuild {
+    id: u64,
+    name: String,
+    icon: Option<String>,
+    /// Owner or Administrator, so they can change settings and cogs
+    admin: bool,
+}
+
+/// What the bot asks for when it's added to a server: what its features use
+fn invite_permissions() -> serenity::Permissions {
+    use serenity::Permissions as P;
+    P::VIEW_CHANNEL
+        | P::SEND_MESSAGES
+        | P::SEND_MESSAGES_IN_THREADS
+        | P::EMBED_LINKS
+        | P::ATTACH_FILES
+        | P::ADD_REACTIONS
+        | P::USE_EXTERNAL_EMOJIS
+        | P::READ_MESSAGE_HISTORY
+        | P::MENTION_EVERYONE
+        | P::MANAGE_MESSAGES
+        | P::MANAGE_CHANNELS
+        | P::MANAGE_ROLES
+        | P::MANAGE_GUILD
+        | P::VIEW_AUDIT_LOG
+        | P::KICK_MEMBERS
+        | P::BAN_MEMBERS
+        | P::MODERATE_MEMBERS
+        | P::CONNECT
 }
 
 /// Held while a toggle updates a server's slash commands.
@@ -152,6 +186,7 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         .route("/servers/{id}/{section}", get(|| async { Html(PAGE) }))
         .route("/servers/{id}/{section}/{item}", get(|| async { Html(PAGE) }))
         .route("/system", get(|| async { Html(PAGE) }))
+        .route("/add", get(|| async { Html(PAGE) }))
         .route("/login", get(login))
         .route("/callback", get(callback))
         .route("/logout", get(logout))
@@ -163,6 +198,7 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         .route("/api/servers/{id}/settings", get(settings).post(save_setting))
         .route("/api/servers/{id}/leaderboards", get(leaderboards))
         .route("/api/system", get(system))
+        .route("/api/invite", get(invite))
         .with_state(dash.clone());
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(listener) => listener,
@@ -243,26 +279,25 @@ impl Dashboard {
             Some(hash) => format!("https://cdn.discordapp.com/avatars/{user_id}/{hash}.png?size=64"),
             None => format!("https://cdn.discordapp.com/embed/avatars/{}.png", (user_id >> 22) % 6),
         };
-        let guilds = if self.owners.contains(&user_id) {
-            None
-        } else {
-            let list = self.get_json("/users/@me/guilds", access_token).await?;
-            let managed = list
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|g| {
-                    let permissions: u64 = g["permissions"].as_str().and_then(|p| p.parse().ok()).unwrap_or(0);
-                    let owner = g["owner"].as_bool() == Some(true);
-                    if !owner && permissions & MANAGE_PERMISSIONS == 0 {
-                        return None;
-                    }
-                    Some((g["id"].as_str()?.parse().ok()?, owner || permissions & ADMINISTRATOR != 0))
-                })
-                .collect();
-            Some(managed)
-        };
-        Ok(Session { user_id, name, avatar, guilds, expires: Instant::now() + SESSION_LENGTH })
+        // Every server they own or manage, whether the bot is in it or not
+        let list = self.get_json("/users/@me/guilds", access_token).await?;
+        let managed: Vec<ManagedGuild> = list
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|g| {
+                let permissions: u64 = g["permissions"].as_str().and_then(|p| p.parse().ok()).unwrap_or(0);
+                let owner = g["owner"].as_bool() == Some(true);
+                if !owner && permissions & MANAGE_PERMISSIONS == 0 {
+                    return None;
+                }
+                let id: u64 = g["id"].as_str()?.parse().ok()?;
+                let icon = g["icon"].as_str().map(|hash| format!("https://cdn.discordapp.com/icons/{id}/{hash}.png?size=64"));
+                Some(ManagedGuild { id, name: g["name"].as_str().unwrap_or("Unknown").to_string(), icon, admin: owner || permissions & ADMINISTRATOR != 0 })
+            })
+            .collect();
+        let guilds = if self.owners.contains(&user_id) { None } else { Some(managed.iter().map(|g| (g.id, g.admin)).collect()) };
+        Ok(Session { user_id, name, avatar, guilds, managed, expires: Instant::now() + SESSION_LENGTH })
     }
 }
 
@@ -772,6 +807,38 @@ async fn system(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Re
     .into_response()
 }
 
+impl Dashboard {
+    /// The link that adds the bot to a server, with that server picked if given.
+    fn invite_url(&self, guild_id: Option<u64>) -> String {
+        let mut url = format!(
+            "https://discord.com/oauth2/authorize?client_id={}&scope=bot%20applications.commands&permissions={}",
+            self.client_id,
+            invite_permissions().bits()
+        );
+        if let Some(guild_id) = guild_id {
+            url.push_str(&format!("&guild_id={guild_id}&disable_guild_select=true"));
+        }
+        url
+    }
+}
+
+/// The servers the signed-in person manages that the bot isn't in yet, with links to add it.
+/// Manage Server is what Discord needs to add a bot, and everyone here has it.
+async fn invite(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Response {
+    let Some(managed) = dash.session(&headers, |s| s.managed.clone()) else {
+        return json_error(StatusCode::UNAUTHORIZED, "Sign in first");
+    };
+    let cache = &dash.ctx.cache;
+    let mut servers: Vec<Value> = managed
+        .iter()
+        .filter(|g| cache.guild(g.id).is_none())
+        .map(|g| json!({ "id": g.id.to_string(), "name": g.name, "icon": g.icon, "invite": dash.invite_url(Some(g.id)) }))
+        .collect();
+    servers.sort_by_key(|g| g["name"].as_str().unwrap_or("").to_lowercase());
+    let permissions = invite_permissions().get_permission_names();
+    Json(json!({ "invite": dash.invite_url(None), "servers": servers, "permissions": permissions })).into_response()
+}
+
 /// Discord IDs: 17 to 20 digits.
 static ID: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"\b\d{17,20}\b").unwrap());
 
@@ -835,6 +902,13 @@ mod tests {
         assert!(infos.iter().any(|c| c.usage.starts_with("/reaction-roles add <message> <emoji> <role>")));
         // The bot owner's commands aren't shown
         assert!(!infos.iter().any(|c| c.usage.starts_with("/blacklist")));
+    }
+
+    #[test]
+    fn the_bot_asks_for_what_it_uses_but_not_administrator() {
+        let p = invite_permissions();
+        assert!(!p.administrator());
+        assert!(p.ban_members() && p.manage_roles() && p.manage_channels() && p.view_audit_log() && p.add_reactions());
     }
 
     #[test]
