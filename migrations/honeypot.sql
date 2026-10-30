@@ -4,7 +4,6 @@
 CREATE TABLE IF NOT EXISTS guilds (
     guild_id INTEGER PRIMARY KEY,
     ban_count INTEGER DEFAULT 0,
-    admin_role_id INTEGER,
     notification_channel_id INTEGER,
     notification_dm BOOLEAN DEFAULT 0,
     admin_user_ids TEXT

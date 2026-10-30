@@ -18,6 +18,19 @@ pub fn add_column(conn: &Connection, table: &str, column: &str, definition: &str
     Ok(())
 }
 
+/// Removes `column` from `table` if it's there.
+pub fn drop_column(conn: &Connection, table: &str, column: &str) -> rusqlite::Result<()> {
+    let exists: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info(?1) WHERE name = ?2",
+        [table, column],
+        |row| row.get(0),
+    )?;
+    if exists {
+        conn.execute_batch(&format!("ALTER TABLE {table} DROP COLUMN {column}"))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -31,5 +44,17 @@ mod tests {
         conn.execute_batch("INSERT INTO t (a) VALUES (1)").unwrap();
         let b: i64 = conn.query_row("SELECT b FROM t", [], |row| row.get(0)).unwrap();
         assert_eq!(b, 3);
+    }
+
+    #[test]
+    fn drop_column_runs_once() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE t (a INTEGER, b INTEGER); INSERT INTO t VALUES (1, 2)").unwrap();
+        drop_column(&conn, "t", "b").unwrap();
+        drop_column(&conn, "t", "b").unwrap();
+        let columns: i64 = conn.query_row("SELECT COUNT(*) FROM pragma_table_info('t')", [], |row| row.get(0)).unwrap();
+        assert_eq!(columns, 1);
+        let a: i64 = conn.query_row("SELECT a FROM t", [], |row| row.get(0)).unwrap();
+        assert_eq!(a, 1);
     }
 }

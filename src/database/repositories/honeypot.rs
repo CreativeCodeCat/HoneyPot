@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::Value;
 
-use crate::database::connection;
+use crate::database::{connection, migrations};
 use crate::shared::utils::now_iso;
 
 const DB_FILE: &str = "database/honeypot.db";
@@ -45,7 +45,6 @@ impl ChannelConfig {
 #[derive(Clone, Debug, Default)]
 pub struct GuildData {
     pub ban_count: i64,
-    pub admin_role_id: Option<u64>,
     pub notification_channel_id: Option<u64>,
     pub notification_dm: bool,
     pub admin_user_ids: Vec<u64>,
@@ -106,6 +105,8 @@ impl Store {
     fn open_path(path: &str) -> rusqlite::Result<Self> {
         let conn = connection::open(path)?;
         conn.execute_batch(include_str!("../../../migrations/honeypot.sql"))?;
+        // Never used; databases from older versions still have it
+        migrations::drop_column(&conn, "guilds", "admin_role_id")?;
 
         let mut store = Self {
             conn,
@@ -121,17 +122,16 @@ impl Store {
 
     fn load(&mut self) -> rusqlite::Result<()> {
         let mut stmt = self.conn.prepare(
-            "SELECT guild_id, ban_count, admin_role_id, notification_channel_id, notification_dm, admin_user_ids FROM guilds",
+            "SELECT guild_id, ban_count, notification_channel_id, notification_dm, admin_user_ids FROM guilds",
         )?;
         let rows = stmt.query_map([], |row| {
             Ok((
                 row.get::<_, u64>(0)?,
                 GuildData {
                     ban_count: row.get::<_, Option<i64>>(1)?.unwrap_or(0),
-                    admin_role_id: row.get(2)?,
-                    notification_channel_id: row.get(3)?,
-                    notification_dm: row.get::<_, Option<bool>>(4)?.unwrap_or(false),
-                    admin_user_ids: id_list(row.get(5)?),
+                    notification_channel_id: row.get(2)?,
+                    notification_dm: row.get::<_, Option<bool>>(3)?.unwrap_or(false),
+                    admin_user_ids: id_list(row.get(4)?),
                     channels: vec![],
                 },
             ))
@@ -182,12 +182,11 @@ impl Store {
         let tx = self.conn.transaction()?;
         tx.execute(
             "INSERT OR REPLACE INTO guilds
-             (guild_id, ban_count, admin_role_id, notification_channel_id, notification_dm, admin_user_ids)
-             VALUES (?, ?, ?, ?, ?, ?)",
+             (guild_id, ban_count, notification_channel_id, notification_dm, admin_user_ids)
+             VALUES (?, ?, ?, ?, ?)",
             params![
                 guild_id,
                 guild.ban_count,
-                guild.admin_role_id,
                 guild.notification_channel_id,
                 guild.notification_dm,
                 serde_json::to_string(&guild.admin_user_ids).unwrap(),
