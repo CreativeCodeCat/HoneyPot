@@ -211,7 +211,7 @@ Reports also show the member's **moderation history**: their other incidents on 
 - `/incident view <id>` - Read a report, with their messages on the following pages
 - `/incident export <id>` - Download a report in full as a text file
 
-The bot needs **View Audit Log**. It only knows messages it saw since it last started (up to 500 per channel), so older messages aren't in reports.
+The bot needs **View Audit Log**. It only knows messages it saw since it last started (up to 50 per channel), so older messages aren't in reports.
 
 ### Economy Commands
 
