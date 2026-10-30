@@ -88,8 +88,9 @@ impl Command {
         self.slash_action?;
         let mut command = serenity::CreateCommand::new(&self.name).description(self.description_or_default());
         // Discord takes empty default permissions to mean admins only
-        if !self.default_member_permissions.is_empty() {
-            command = command.default_member_permissions(self.default_member_permissions);
+        let visible_to = self.visible_to();
+        if !visible_to.is_empty() {
+            command = command.default_member_permissions(visible_to);
         }
         if self.guild_only {
             command = command.contexts(vec![serenity::InteractionContext::Guild]);
@@ -113,10 +114,33 @@ impl Command {
             ContextMenuAction::Message(_) => serenity::CommandType::Message,
         };
         let mut command = serenity::CreateCommand::new(self.context_menu_name.as_deref().unwrap_or(&self.name)).kind(kind);
+        let visible_to = self.visible_to();
+        if !visible_to.is_empty() {
+            command = command.default_member_permissions(visible_to);
+        }
         if self.guild_only {
             command = command.contexts(vec![serenity::InteractionContext::Guild]);
         }
         Some(command)
+    }
+
+    /// The permissions Discord shows the command to: `default_member_permissions` if it's
+    /// set, otherwise the ones every way of running it needs, so members only see commands
+    /// they can use. Server admins, and anyone a server gives access in its settings, see it anyway.
+    pub fn visible_to(&self) -> serenity::Permissions {
+        if !self.default_member_permissions.is_empty() {
+            return self.default_member_permissions;
+        }
+        self.needed_permissions()
+    }
+
+    /// Permissions needed to run the command, or for a group, the ones every subcommand needs.
+    fn needed_permissions(&self) -> serenity::Permissions {
+        let runnable = self.subcommands.iter().filter(|sub| sub.slash_action.is_some() && !sub.owners_only);
+        runnable
+            .map(Command::needed_permissions)
+            .reduce(|a, b| a & b)
+            .unwrap_or(self.required_permissions)
     }
 
     /// Fills in `qualified_name` for this command's subcommands, all the way down.
