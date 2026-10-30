@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use ::serenity::all as serenity;
 use axum::extract::{Path, Query, State as AxumState};
@@ -18,6 +18,7 @@ use serde_json::{json, Value};
 
 use super::framework::Command;
 use crate::database::repositories::dashboard_log::Action as DashboardAction;
+use crate::database::repositories::dashboard_sessions::token_hash;
 use crate::features::{cog_manager, normalize_cog_name, Data, COGS, COG_MANAGER};
 use crate::log;
 
@@ -45,7 +46,47 @@ struct Session {
     guilds: Option<HashMap<u64, bool>>,
     /// The servers they own or manage, as Discord listed them when they signed in
     managed: Vec<ManagedGuild>,
-    expires: Instant,
+    /// Unix seconds
+    expires: i64,
+}
+
+impl Session {
+    /// As saved in the sessions database.
+    fn to_json(&self) -> Value {
+        let guilds = self.guilds.as_ref().map(|g| g.iter().map(|(id, admin)| (id.to_string(), json!(admin))).collect::<serde_json::Map<_, _>>());
+        let managed: Vec<Value> =
+            self.managed.iter().map(|g| json!({ "id": g.id.to_string(), "name": g.name, "icon": g.icon, "admin": g.admin })).collect();
+        json!({ "user_id": self.user_id.to_string(), "name": self.name, "avatar": self.avatar, "guilds": guilds, "managed": managed })
+    }
+
+    fn from_json(data: &Value, expires: i64) -> Option<Self> {
+        let id = |v: &Value| v.as_str()?.parse::<u64>().ok();
+        let guilds = match &data["guilds"] {
+            Value::Null => None,
+            Value::Object(map) => Some(map.iter().filter_map(|(k, v)| Some((k.parse().ok()?, v.as_bool()?))).collect()),
+            _ => return None,
+        };
+        let managed = data["managed"]
+            .as_array()?
+            .iter()
+            .filter_map(|g| {
+                Some(ManagedGuild {
+                    id: id(&g["id"])?,
+                    name: g["name"].as_str()?.to_string(),
+                    icon: g["icon"].as_str().map(str::to_string),
+                    admin: g["admin"].as_bool()?,
+                })
+            })
+            .collect();
+        Some(Session {
+            user_id: id(&data["user_id"])?,
+            name: data["name"].as_str()?.to_string(),
+            avatar: data["avatar"].as_str()?.to_string(),
+            guilds,
+            managed,
+            expires,
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -167,6 +208,7 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
     }
     let addr = env("DASHBOARD_ADDR").unwrap_or_else(|| DEFAULT_ADDR.to_string());
     let url = env("DASHBOARD_URL").unwrap_or_else(|| DEFAULT_URL.to_string()).trim_end_matches('/').to_string();
+    let sessions = load_sessions(&data);
     let dash = Dashboard {
         ctx,
         data,
@@ -174,7 +216,7 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         client_secret,
         url,
         owners: Arc::new(owners),
-        sessions: Default::default(),
+        sessions: Arc::new(Mutex::new(sessions)),
         http: reqwest::Client::new(),
         commands: Arc::new(command_infos(&super::command_router::commands())),
         registered: Arc::new(super::command_router::commands()),
@@ -210,6 +252,21 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
     }
 }
 
+/// The sign-ins saved before a restart that haven't expired.
+fn load_sessions(data: &Data) -> HashMap<String, Session> {
+    let saved = match data.dashboard_sessions.lock().unwrap().load(chrono::Utc::now().timestamp()) {
+        Ok(saved) => saved,
+        Err(e) => {
+            log::error(format!("Error loading dashboard sign-ins: {e}"));
+            return HashMap::new();
+        }
+    };
+    saved
+        .into_iter()
+        .filter_map(|(hash, data, expires)| Some((hash, Session::from_json(&serde_json::from_str(&data).ok()?, expires)?)))
+        .collect()
+}
+
 fn random_token() -> String {
     let bytes: [u8; 32] = rand::rng().random();
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -235,13 +292,20 @@ impl Dashboard {
         format!("{}/callback", self.url)
     }
 
-    /// Who's signed in, dropping their session if it's expired.
+    /// Who's signed in, dropping their session if it's expired. Sessions are kept by the
+    /// hash of their token, as they're saved.
     fn session<T>(&self, headers: &HeaderMap, read: impl FnOnce(&Session) -> T) -> Option<T> {
-        let token = cookie(headers, COOKIE)?;
+        let hash = token_hash(&cookie(headers, COOKIE)?);
         let mut sessions = self.sessions.lock().unwrap();
-        let now = Instant::now();
-        sessions.retain(|_, s| s.expires > now);
-        sessions.get(&token).map(read)
+        let expired = sessions.get(&hash).is_some_and(|s| s.expires <= chrono::Utc::now().timestamp());
+        if expired {
+            sessions.remove(&hash);
+            if let Err(e) = self.data.dashboard_sessions.lock().unwrap().remove(&hash) {
+                log::error(format!("Error removing an expired dashboard sign-in: {e}"));
+            }
+            return None;
+        }
+        sessions.get(&hash).map(read)
     }
 
     async fn get_json(&self, path: &str, access_token: &str) -> Result<Value, String> {
@@ -297,7 +361,8 @@ impl Dashboard {
             })
             .collect();
         let guilds = if self.owners.contains(&user_id) { None } else { Some(managed.iter().map(|g| (g.id, g.admin)).collect()) };
-        Ok(Session { user_id, name, avatar, guilds, managed, expires: Instant::now() + SESSION_LENGTH })
+        let expires = chrono::Utc::now().timestamp() + SESSION_LENGTH.as_secs() as i64;
+        Ok(Session { user_id, name, avatar, guilds, managed, expires })
     }
 }
 
@@ -346,7 +411,12 @@ async fn callback(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Que
     };
     log::info(format!("{} ({}) signed in to the dashboard", session.name, session.user_id));
     let token = random_token();
-    dash.sessions.lock().unwrap().insert(token.clone(), session);
+    let hash = token_hash(&token);
+    if let Err(e) = dash.data.dashboard_sessions.lock().unwrap().save(&hash, session.user_id, &session.to_json().to_string(), session.expires) {
+        // Still signed in until the bot restarts
+        log::error(format!("Error saving a dashboard sign-in: {e}"));
+    }
+    dash.sessions.lock().unwrap().insert(hash, session);
     // Appended, as a plain array of headers would keep only the last Set-Cookie
     let cookies = AppendHeaders([
         (header::SET_COOKIE, dash.set_cookie(COOKIE, &token, SESSION_LENGTH)),
@@ -357,7 +427,11 @@ async fn callback(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Que
 
 async fn logout(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Response {
     if let Some(token) = cookie(&headers, COOKIE) {
-        dash.sessions.lock().unwrap().remove(&token);
+        let hash = token_hash(&token);
+        dash.sessions.lock().unwrap().remove(&hash);
+        if let Err(e) = dash.data.dashboard_sessions.lock().unwrap().remove(&hash) {
+            log::error(format!("Error removing a dashboard sign-in: {e}"));
+        }
     }
     ([(header::SET_COOKIE, dash.set_cookie(COOKIE, "", Duration::ZERO))], Redirect::to("/")).into_response()
 }
@@ -909,6 +983,26 @@ mod tests {
         let p = invite_permissions();
         assert!(!p.administrator());
         assert!(p.ban_members() && p.manage_roles() && p.manage_channels() && p.view_audit_log() && p.add_reactions());
+    }
+
+    #[test]
+    fn saved_sessions_come_back_the_same() {
+        let session = Session {
+            user_id: 861270236475817994,
+            name: "Wayne".into(),
+            avatar: "https://cdn.discordapp.com/a.png".into(),
+            guilds: Some(HashMap::from([(1162534077681913887, true), (945963538474754058, false)])),
+            managed: vec![ManagedGuild { id: 945963538474754058, name: "Hub".into(), icon: None, admin: false }],
+            expires: 1_900_000_000,
+        };
+        let back = Session::from_json(&session.to_json(), session.expires).unwrap();
+        assert_eq!(back.user_id, session.user_id);
+        assert_eq!(back.guilds, session.guilds);
+        assert_eq!(back.managed.len(), 1);
+        assert_eq!((back.managed[0].id, back.managed[0].admin), (945963538474754058, false));
+        // A bot owner sees every server
+        let owner = Session { guilds: None, ..session };
+        assert!(Session::from_json(&owner.to_json(), 0).unwrap().guilds.is_none());
     }
 
     #[test]

@@ -9,7 +9,7 @@ use super::command_router;
 use super::framework::Framework;
 use crate::database::guild_config;
 use crate::database::repositories::{
-    bot_messages, dashboard_log, incidents, live_status, quarantine, raid_protection, suspicious_accounts,
+    bot_messages, dashboard_log, dashboard_sessions, incidents, live_status, quarantine, raid_protection, suspicious_accounts,
 };
 use crate::features::developer;
 use crate::features::{
@@ -80,6 +80,9 @@ pub async fn run() {
         ),
         dashboard_log: Mutex::new(
             dashboard_log::Store::open().expect("failed to open dashboard log database"),
+        ),
+        dashboard_sessions: Mutex::new(
+            dashboard_sessions::Store::open().expect("failed to open dashboard sessions database"),
         ),
         reaction_roles: Mutex::new(
             reaction_roles::Store::open().expect("failed to open reaction roles database"),

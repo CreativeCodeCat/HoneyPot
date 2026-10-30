@@ -12,6 +12,7 @@ pub mod blacklist;
 pub mod bot_messages;
 pub mod cooldowns;
 pub mod dashboard_log;
+pub mod dashboard_sessions;
 pub mod counting;
 pub mod guessing;
 pub mod incidents;

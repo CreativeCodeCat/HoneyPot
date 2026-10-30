@@ -87,7 +87,7 @@ Without the secret, the dashboard stays off. Other settings in `.env`:
 - `DASHBOARD_URL` - Where people open it, e.g. `https://dash.example.com` (default `http://localhost:8080`). Use HTTPS if it's reachable from the internet, so sign-ins can't be read on the way
 - `DASHBOARD_ADDR` - Where it listens (default `127.0.0.1:8080`, only this machine). Use `0.0.0.0:8080` to reach it from other machines, ideally behind a reverse proxy that adds HTTPS
 
-Sign-ins last a week, and are kept in memory, so restarting the bot signs everyone out. The servers someone manages are read when they sign in; sign out and in again to update them.
+Sign-ins last a week and survive restarts; they're saved in `database/dashboard_sessions.db` by a hash of their token, never the token itself, so the file can't be used to sign in. The servers someone manages are read when they sign in; sign out and in again to update them.
 
 ## Commands
 
@@ -510,6 +510,7 @@ The bot uses SQLite for persistent storage:
 - `database/staff_policy.db` - Roles taken by the staff policy, for restoring
 - `database/sticky.db` - Sticky messages
 - `database/dashboard_log.db` - Changes made through the web dashboard
+- `database/dashboard_sessions.db` - Who's signed in to the web dashboard
 - `database/reaction_roles.db` - Reaction role emojis and the roles they give
 - `database/counting.db` - Counting channels, counts and high scores
 - `database/guessing.db` - Guessing channels, current numbers and stats
