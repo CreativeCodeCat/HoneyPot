@@ -143,6 +143,22 @@ The bot's own actions, other bots and the server owner are ignored. Each case is
 - `/staffpolicy clear` - Clear that list without giving any roles back; the cleared roles can't be restored with the bot afterwards (admin)
 - `/staffpolicy restore <member>` - Give a staff member back the roles the policy took (admin)
 
+### Evidence Collection (Incidents)
+
+The Incidents cog (`/enablecog incidents`) opens an incident report whenever Discord's audit log records a ban, kick or timeout: from the bot's moderation commands, the honeypot, or staff doing it by hand. Each report saves, as they were at the time:
+
+- **The action**: what happened, the reason, who did it and when
+- **The account**: username, display name, ID, account age, when they joined and their roles
+- **Their messages**: every message of theirs the bot had seen across the server's channels and threads (up to the newest 200), with attachment links, including ones deleted along with a ban
+
+Reports also show the member's **moderation history**: their other incidents on the server and any honeypot catches. Reports aren't posted anywhere; staff with **Moderate Members** read them with:
+
+- `/incident list [user]` - List incident reports, newest first
+- `/incident view <id>` - Read a report, with their messages on the following pages
+- `/incident export <id>` - Download a report in full as a text file
+
+The bot needs **View Audit Log**. It only knows messages it saw since it last started (up to 200 per channel), so older messages aren't in reports.
+
 ### Economy Commands
 
 Each server has its own economy. Members start with ₪ 100 in the bank after joining.

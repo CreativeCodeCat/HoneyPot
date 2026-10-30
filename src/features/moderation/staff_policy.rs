@@ -19,7 +19,7 @@ const COLOUR: u32 = 0xed4245;
 const SETUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// What a native moderation entry did, like "banned", or `None` if it isn't one the policy covers.
-fn native_action(entry: &serenity::AuditLogEntry) -> Option<&'static str> {
+pub(crate) fn native_action(entry: &serenity::AuditLogEntry) -> Option<&'static str> {
     match entry.action {
         Action::Member(MemberAction::Kick) => Some("kicked"),
         Action::Member(MemberAction::BanAdd) => Some("banned"),

@@ -13,6 +13,7 @@ pub mod bot_messages;
 pub mod cooldowns;
 pub mod counting;
 pub mod guessing;
+pub mod incidents;
 pub mod lockdown;
 pub mod profiles;
 pub mod rules;

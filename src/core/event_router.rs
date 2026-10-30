@@ -10,7 +10,7 @@ use super::framework::{Command, Framework};
 
 use crate::features::developer;
 use crate::features::{
-    afk, applications, cog_manager, games, honeypot, leveling, lockdown, logging, pets, server_setup, staff_policy, stats, sticky, tickets, Data, Error,
+    afk, applications, cog_manager, games, honeypot, incidents, leveling, lockdown, logging, pets, server_setup, staff_policy, stats, sticky, tickets, Data, Error,
 };
 use crate::log;
 use crate::features::presence;
@@ -38,6 +38,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
         if let Err(e) = bot_messages.cleanup_stale(&guild_ids).and_then(|_| bot_messages.prune(chrono::Utc::now().timestamp())) {
             log::error(format!("Error cleaning up stale bot messages: {e}"));
         }
+    }
+    if let Err(e) = data.incidents.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale incidents: {e}"));
     }
     if let Err(e) = data.afk.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale AFKs: {e}"));
@@ -131,6 +134,7 @@ pub async fn event_handler(
     match event {
         serenity::FullEvent::GuildAuditLogEntryCreate { entry, guild_id } => {
             staff_policy::on_audit_entry(ctx, data, *guild_id, entry).await;
+            incidents::on_audit_entry(ctx, data, *guild_id, entry).await;
         }
         serenity::FullEvent::GuildCreate { guild, is_new } => {
             // Also runs for every server on startup
@@ -192,7 +196,8 @@ pub async fn event_handler(
             games::counting::on_message(ctx, data, new_message).await;
             games::guessing::on_message(ctx, data, new_message).await;
         }
-        serenity::FullEvent::GuildMemberRemoval { guild_id, user, .. } => {
+        serenity::FullEvent::GuildMemberRemoval { guild_id, user, member_data_if_available } => {
+            incidents::on_member_leave(*guild_id, member_data_if_available.as_ref());
             tickets::on_member_leave(ctx, data, *guild_id, user).await;
         }
         serenity::FullEvent::InteractionCreate { interaction } => {
