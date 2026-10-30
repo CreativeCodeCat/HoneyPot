@@ -45,6 +45,13 @@ pub async fn sync_guild_commands(
     };
     let count = enabled.len();
     guild_id.set_commands(http, enabled).await?;
+    // Overwriting with no commands has been seen to leave the old ones in place, so when a
+    // server has none, any left over are deleted one by one
+    if count == 0 {
+        for command in guild_id.get_commands(http).await? {
+            guild_id.delete_command(http, command.id).await?;
+        }
+    }
     Ok(count)
 }
 
