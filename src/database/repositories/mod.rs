@@ -14,6 +14,7 @@ pub mod cooldowns;
 pub mod counting;
 pub mod guessing;
 pub mod incidents;
+pub mod live_status;
 pub mod lockdown;
 pub mod profiles;
 pub mod quarantine;

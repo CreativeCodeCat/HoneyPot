@@ -305,6 +305,25 @@ The Logs cog (`/enablecog logs`) posts what happens in the server to a log chann
 | Thread | Threads created, deleted, renamed, archived or locked |
 | Voice | Members joining, leaving or moving voice channels, and server mutes and deafens |
 
+### Live Notifications (Twitch)
+
+The LiveStatus cog (`/enablecog livestatus`) follows one Twitch streamer per server. When they go live, it posts a live card in the chosen channel, pinging a role if set:
+
+- **Game** and **Subject**, from the stream's category and title on Twitch
+- An **I AM LIVE** section with links to watch on Twitch (automatic), plus TikTok, YouTube and Kick if set
+- A **SPOTLIGHT** section with your own message (merch, events...), if set
+- A coloured accent bar and lines (green by default)
+
+When the stream ends, the card is deleted. Twitch is checked every minute.
+
+- `/live setup <twitch> <channel> [ping_role] [tiktok] [youtube] [kick] [colour]` - Choose the streamer (username or twitch.tv link), where the card goes, who it pings, the extra links and the card colour. Run it again to change any of them
+- `/live spotlight` - Write the spotlight message in a pop-up (leave it empty to remove it)
+- `/live preview` - See the card as it'll look, only to you (with their real stream if they're live)
+- `/live status` - See the settings and whether they're live
+- `/live remove` - Stop following the streamer
+
+These need **Manage Server**. The bot needs a Twitch app: create one at https://dev.twitch.tv/console (any name, OAuth redirect `http://localhost`, category "Chat Bot"), then put its **Client ID** and a **Client Secret** in `.env` as `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` and restart the bot. Without them, the commands work but nothing is posted.
+
 ### Announcement Commands
 
 Announcements always go to the channel set with `/server-setup announcements`, wherever the command is used. It can be a text or announcement channel; in an announcement channel the post is also published to servers following it. Needs **Manage Server**.

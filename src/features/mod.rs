@@ -15,6 +15,7 @@ pub mod honeypot;
 pub mod incidents;
 pub mod info;
 pub mod leveling;
+pub mod live_status;
 pub mod moderation;
 pub mod logging;
 pub mod pets;
@@ -50,6 +51,7 @@ pub const COGS: &[&str] = &[
     "Incidents",
     "Info",
     "Levels",
+    "LiveStatus",
     "Lockdown",
     "Moderation",
     "Logs",

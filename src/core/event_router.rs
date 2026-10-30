@@ -10,7 +10,7 @@ use super::framework::{Command, Framework};
 
 use crate::features::developer;
 use crate::features::{
-    afk, applications, cog_manager, games, honeypot, incidents, leveling, lockdown, logging, pets, quarantine, raid_protection, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
+    afk, applications, cog_manager, games, honeypot, incidents, leveling, live_status, lockdown, logging, pets, quarantine, raid_protection, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
 };
 use crate::log;
 use crate::features::presence;
@@ -38,6 +38,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
         if let Err(e) = bot_messages.cleanup_stale(&guild_ids).and_then(|_| bot_messages.prune(chrono::Utc::now().timestamp())) {
             log::error(format!("Error cleaning up stale bot messages: {e}"));
         }
+    }
+    if let Err(e) = data.live_status.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale live status settings: {e}"));
     }
     if let Err(e) = data.suspicious_accounts.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale suspicious account data: {e}"));
@@ -189,6 +192,7 @@ pub async fn event_handler(
                 tokio::spawn(tickets::auto_close_loop(ctx.clone(), data.clone()));
                 tokio::spawn(lockdown::expiry_loop(ctx.clone(), data.clone()));
                 tokio::spawn(raid_protection::quiet_loop(ctx.clone(), data.clone()));
+                tokio::spawn(live_status::live_loop(ctx.clone(), data.clone()));
                 tokio::spawn(pets::needs_loop(ctx.clone(), data.clone()));
             }
         }
