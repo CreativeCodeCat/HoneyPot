@@ -56,7 +56,7 @@ fn buttons(user_id: u64, disabled: bool) -> Vec<serenity::CreateActionRow> {
     ])]
 }
 
-fn review_embed(user: &serenity::User, record: &Quarantined, kept: &[serenity::RoleId]) -> serenity::CreateEmbed {
+fn review_embed(user: &serenity::User, record: &Quarantined, kept: &[serenity::RoleId], suspicion: Option<&super::suspicious_accounts::Score>) -> serenity::CreateEmbed {
     let created = user.id.created_at().unix_timestamp();
     let roles = if record.saved_roles.is_empty() { "None".to_string() } else { record.saved_roles.iter().map(|r| format!("<@&{r}>")).collect::<Vec<_>>().join(" ") };
     let mut embed = serenity::CreateEmbed::new()
@@ -69,6 +69,10 @@ fn review_embed(user: &serenity::User, record: &Quarantined, kept: &[serenity::R
         .field("Reason", &record.reason, false)
         .field("Roles taken (given back on release)", roles, false)
         .timestamp(serenity::Timestamp::now());
+    if let Some(score) = suspicion {
+        let reasons = crate::features::truncate(&super::suspicious_accounts::reasons_text(score), 900);
+        embed = embed.field("Suspicion score", format!("{}\n{reasons}", super::suspicious_accounts::label(score)), false);
+    }
     if !kept.is_empty() {
         let kept: Vec<String> = kept.iter().map(|r| format!("<@&{r}>")).collect();
         embed = embed.field("⚠️ Roles the bot couldn't take", format!("{}\nIf these let them see channels, quarantine won't hide them.", kept.join(" ")), false);
@@ -107,7 +111,8 @@ pub async fn isolate(ctx: &serenity::Context, data: &Data, guild_id: serenity::G
     log::info(format!("Quarantined {} in guild {guild_id} ({source}: {reason})", member.user.name));
 
     if let Some(channel) = settings.review_channel_id.map(serenity::ChannelId::new) {
-        let message = serenity::CreateMessage::new().embed(review_embed(&member.user, &record, &kept)).components(buttons(user_id.get(), false));
+        let suspicion = super::suspicious_accounts::score_for(ctx, data, guild_id, user_id).await;
+        let message = serenity::CreateMessage::new().embed(review_embed(&member.user, &record, &kept, suspicion.as_ref())).components(buttons(user_id.get(), false));
         match channel.send_message(ctx, message).await {
             Ok(posted) => data.quarantine.lock().unwrap().set_review_message(guild_id.get(), user_id.get(), posted.id.get())?,
             Err(e) => log::warning(format!("Couldn't post a quarantine review card in guild {guild_id}: {e}")),

@@ -10,7 +10,7 @@ use super::framework::{Command, Framework};
 
 use crate::features::developer;
 use crate::features::{
-    afk, applications, cog_manager, games, honeypot, incidents, leveling, lockdown, logging, pets, quarantine, raid_protection, server_setup, staff_policy, stats, sticky, tickets, Data, Error,
+    afk, applications, cog_manager, games, honeypot, incidents, leveling, lockdown, logging, pets, quarantine, raid_protection, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
 };
 use crate::log;
 use crate::features::presence;
@@ -38,6 +38,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
         if let Err(e) = bot_messages.cleanup_stale(&guild_ids).and_then(|_| bot_messages.prune(chrono::Utc::now().timestamp())) {
             log::error(format!("Error cleaning up stale bot messages: {e}"));
         }
+    }
+    if let Err(e) = data.suspicious_accounts.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale suspicious account data: {e}"));
     }
     if let Err(e) = data.quarantine.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale quarantine data: {e}"));
@@ -200,6 +203,7 @@ pub async fn event_handler(
             tickets::on_message(data, new_message);
             leveling::on_message(ctx, data, new_message).await;
             sticky::on_message(ctx, data, new_message).await;
+            suspicious_accounts::on_message(ctx, data, new_message).await;
             games::counting::on_message(ctx, data, new_message).await;
             games::guessing::on_message(ctx, data, new_message).await;
         }
@@ -210,6 +214,7 @@ pub async fn event_handler(
             // Raid protection first: it may already deal with the joiner
             raid_protection::on_member_join(ctx, data, new_member).await;
             quarantine::on_member_join(ctx, data, new_member).await;
+            suspicious_accounts::on_member_join(ctx, data, new_member).await;
         }
         serenity::FullEvent::GuildMemberRemoval { guild_id, user, member_data_if_available } => {
             incidents::on_member_leave(*guild_id, member_data_if_available.as_ref());

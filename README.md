@@ -135,6 +135,25 @@ Raid mode ends by itself once there have been no raid-speed joins for 10 minutes
 
 These need **Manage Server**. The bot needs **Manage Channels**, **Manage Server**, and **Moderate Members**, **Kick Members** or **Ban Members** for the joiner action.
 
+### Suspicious Accounts
+
+The SuspiciousAccounts cog (`/enablecog suspiciousaccounts`) scores members from 0 to 100 on how suspicious their account looks. Each group of signals has a cap, so no single group can decide a score alone:
+
+| Group (cap) | Signals |
+|---|---|
+| **Account & profile** (40) | Account under 1 day old +25 (under 7 days +15, under 30 days +5) · default avatar +10 · no display name +5 · username with 5+ digits +10 |
+| **Activity** (30) | Posting in bursts (5 messages in 10 seconds) +15 · repeating the same message (3 times in a minute) +15 · first message within a minute of joining +5 · joined less than a day ago +5 · 30+ days on the server with 100+ messages **−15** |
+| **Message content** (30) | Discord invites +15 (3 or more +25) · mass mentions or @everyone/@here +15 · links while new +5 · shouting or repeated characters (3+ messages) +5 |
+| **History** (50) | Caught by a honeypot here +30 · caught by honeypots on other servers the bot is in +20 · past incidents +10 each (up to +20) · joined during a raid +15 |
+
+Scores are worked out on joining and as members post. When a member reaches the threshold (60 by default), staff get an alert with the score and why, once per member. Admins can also have them quarantined automatically (a 24-hour timeout if quarantine isn't set up). Scores also show on incident reports and quarantine review cards.
+
+- `/suspicious check <user>` - See a member's score and what makes it up
+- `/suspicious list` - See the most suspicious members (anyone with recorded activity, or who joined in the last 30 days)
+- `/suspicious setup [threshold] [alert_channel] [auto_quarantine]` - Change the threshold, where alerts go (default: the quarantine review channel, join & leave log, or system channel), and auto-quarantine
+
+Staff commands need **Moderate Members** (setup needs **Manage Server**). Activity is only known from when the cog was turned on.
+
 ### Quarantine
 
 The Quarantine cog (`/enablecog quarantine`) isolates suspicious members until staff review them. A quarantined member's roles are taken away and saved, and they get a **Quarantined** role that can only see a quarantine channel, where they can talk to staff. Leaving and rejoining doesn't get them out.

@@ -5,6 +5,7 @@ pub mod lockdown;
 pub mod quarantine;
 pub mod raid_protection;
 pub mod staff_policy;
+pub mod suspicious_accounts;
 
 use ::serenity::all as serenity;
 

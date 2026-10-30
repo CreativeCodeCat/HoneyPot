@@ -27,7 +27,8 @@ pub fn honeypot_embed(custom_message: Option<&str>) -> serenity::CreateEmbed {
         .colour(0x2b2d31)
 }
 
-/// Checks message content for suspicious patterns (all case-insensitive, as in the Python bot).
+/// Checks message content for suspicious patterns. All are case-insensitive except
+/// `spam_caps`, which is about capitals.
 fn check_suspicious_patterns(content: &str) -> Map<String, Value> {
     static PATTERNS: OnceLock<Vec<(&str, Regex)>> = OnceLock::new();
     let patterns = PATTERNS.get_or_init(|| {
@@ -41,7 +42,10 @@ fn check_suspicious_patterns(content: &str) -> Map<String, Value> {
             ("spam_caps", r"[A-Z]{5,}"),
         ]
         .into_iter()
-        .map(|(name, pattern)| (name, Regex::new(&format!("(?i){pattern}")).unwrap()))
+        .map(|(name, pattern)| {
+            let flags = if name == "spam_caps" { "" } else { "(?i)" };
+            (name, Regex::new(&format!("{flags}{pattern}")).unwrap())
+        })
         .collect()
     });
 
@@ -469,7 +473,7 @@ mod tests {
     #[test]
     fn detects_suspicious_patterns() {
         let found =
-            check_suspicious_patterns("join discord.gg/abc at https://x.y <@123> hello aaaaa");
+            check_suspicious_patterns("join discord.gg/abc at https://x.y <@123> HELLO aaaaa");
         for key in [
             "urls",
             "mentions",
@@ -479,6 +483,9 @@ mod tests {
         ] {
             assert!(found.contains_key(key), "missing {key}");
         }
+        // Only capitals count as shouting, not any long word
+        assert!(!check_suspicious_patterns("hello there everyone").contains_key("spam_caps"));
+        assert!(check_suspicious_patterns("QUIET please").contains_key("spam_caps"));
         assert!(check_suspicious_patterns("hi").is_empty());
         assert!(check_suspicious_patterns("AaAaA b").contains_key("repeated_chars"));
     }

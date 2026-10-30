@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use ::serenity::all as serenity;
 
 use crate::core::framework::{command, CreateReply};
-use super::moderation::staff_policy;
+use super::moderation::{staff_policy, suspicious_accounts};
 use super::{format_time, now_iso, parse_iso, truncate, Context, Data, Error};
 use crate::log;
 use crate::shared::pagination::{chunk_lines, field_pages, paginate};
@@ -195,6 +195,8 @@ async fn view(ctx: Context<'_>, #[description = "The incident's number"] #[min =
     };
     let messages = ctx.data().incidents.lock().unwrap().messages(id)?;
     let history = history(ctx.data(), &incident)?;
+    let guild = serenity::GuildId::new(incident.guild_id);
+    let suspicion = suspicious_accounts::score_for(ctx.serenity_context(), ctx.data(), guild, serenity::UserId::new(incident.user_id)).await;
 
     let name = match &incident.display_name {
         Some(display) => format!("{display} (@{})", incident.username),
@@ -206,7 +208,7 @@ async fn view(ctx: Context<'_>, #[description = "The incident's number"] #[min =
     let title = format!("Incident #{id}: {}", incident.action);
     let make_page = || serenity::CreateEmbed::new().title(&title).colour(COLOUR);
 
-    let mut pages = vec![make_page()
+    let mut summary = make_page()
         .field("Member", format!("<@{}> {name}\nID `{}`", incident.user_id, incident.user_id), true)
         .field("By", format!("<@{}>", incident.moderator_id), true)
         .field("When", discord_time(&incident.created_at, 'f'), true)
@@ -215,7 +217,13 @@ async fn view(ctx: Context<'_>, #[description = "The incident's number"] #[min =
         .field("Joined", incident.joined_at.as_deref().map_or_else(|| "Not known".to_string(), |t| format!("{} ({})", discord_time(t, 'f'), discord_time(t, 'R'))), true)
         .field("Roles", truncate(&roles, 1000), false)
         .field("History", history_text, false)
-        .field("Messages", format!("{} saved; see the next pages, or `/incident export` for all of them in full.", messages.len()), false)];
+        .field("Messages", format!("{} saved; see the next pages, or `/incident export` for all of them in full.", messages.len()), false);
+    // Worked out now, so it reflects everything known about them since
+    if let Some(score) = &suspicion {
+        let reasons = truncate(&suspicious_accounts::reasons_text(score), 900);
+        summary = summary.field("Suspicion score (now)", format!("{}\n{reasons}", suspicious_accounts::label(score)), false);
+    }
+    let mut pages = vec![summary];
 
     let guild_id = incident.guild_id;
     let fields = messages
@@ -267,6 +275,14 @@ async fn export(ctx: Context<'_>, #[description = "The incident's number"] #[min
     let roles: Vec<String> = incident.roles.iter().map(|r| role_name(*r)).collect();
     out += &format!("Roles: {}\n\n", if roles.is_empty() { "None recorded".to_string() } else { roles.join(", ") });
 
+    let user_id = serenity::UserId::new(incident.user_id);
+    if let Some(score) = suspicious_accounts::score_for(ctx.serenity_context(), ctx.data(), serenity::GuildId::new(incident.guild_id), user_id).await {
+        out += &format!("SUSPICION SCORE (NOW): {}/100\n", score.total);
+        for reason in &score.reasons {
+            out += &format!("{:+} {}\n", reason.points, reason.text);
+        }
+        out += "\n";
+    }
     out += "HISTORY\n";
     let mut any_history = false;
     for other in others.iter().filter(|i| i.id != id) {

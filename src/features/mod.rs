@@ -29,7 +29,7 @@ pub mod tickets;
 pub mod welcome;
 
 // Moderation tools live under `moderation/`, but are their own cogs
-pub use moderation::{automod, lockdown, quarantine, raid_protection, staff_policy};
+pub use moderation::{automod, lockdown, quarantine, raid_protection, staff_policy, suspicious_accounts};
 
 pub use crate::core::error::{Context, Error};
 use crate::core::framework::Command;
@@ -62,6 +62,7 @@ pub const COGS: &[&str] = &[
     "StaffPolicy",
     "Sticky",
     "Suggestions",
+    "SuspiciousAccounts",
     "Tickets",
 ];
 

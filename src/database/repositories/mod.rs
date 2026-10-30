@@ -22,4 +22,5 @@ pub mod rules;
 pub mod server_setup;
 pub mod staff_policy;
 pub mod sticky;
+pub mod suspicious_accounts;
 pub mod suggestions;
