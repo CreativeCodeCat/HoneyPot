@@ -307,7 +307,13 @@ impl Dashboard {
             }
             return None;
         }
-        sessions.get(&hash).map(read)
+        let session = sessions.get(&hash)?;
+        // In private mode only the bot's owners can use the dashboard. Others' sign-ins are
+        // kept, and work again once it's off
+        if crate::features::private_mode::enabled() && session.guilds.is_some() {
+            return None;
+        }
+        Some(read(session))
     }
 
     async fn get_json(&self, path: &str, access_token: &str) -> Result<Value, String> {
@@ -411,6 +417,11 @@ async fn callback(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Que
             return (StatusCode::BAD_GATEWAY, "Signing in with Discord failed. Go back to the dashboard and try again.").into_response();
         }
     };
+    if crate::features::private_mode::enabled() && session.guilds.is_some() {
+        log::warning(format!("[PRIVATE] Turned {} ({}) away from the dashboard: private mode is on", session.name, session.user_id));
+        let clear = dash.set_cookie(STATE_COOKIE, "", Duration::ZERO);
+        return ([(header::SET_COOKIE, clear)], Redirect::to("/?denied=private")).into_response();
+    }
     log::info(format!("{} ({}) signed in to the dashboard", session.name, session.user_id));
     let token = random_token();
     let hash = token_hash(&token);
@@ -443,7 +454,7 @@ async fn overview(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> 
     let Some((user, allowed)) = dash.session(&headers, |s| {
         (json!({ "id": s.user_id.to_string(), "name": s.name, "avatar": s.avatar, "owner": s.guilds.is_none() }), s.guilds.clone())
     }) else {
-        return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Sign in first" }))).into_response();
+        return signed_out();
     };
     let cache = &dash.ctx.cache;
     let bot = cache.current_user().clone();
@@ -543,7 +554,7 @@ impl Dashboard {
     /// with whether they can turn its cogs on and off. Otherwise, the response to send.
     fn access(&self, headers: &HeaderMap, id: &str) -> Result<(u64, bool), Response> {
         let Some(allowed) = self.session(headers, |s| s.guilds.clone()) else {
-            return Err((StatusCode::UNAUTHORIZED, Json(json!({ "error": "Sign in first" }))).into_response());
+            return Err(signed_out());
         };
         let not_found = || (StatusCode::NOT_FOUND, Json(json!({ "error": "You don't manage that server, or the bot isn't in it" }))).into_response();
         let guild_id = id.parse::<u64>().ok().filter(|&id| id != 0).ok_or_else(not_found)?;
@@ -694,6 +705,12 @@ impl Dashboard {
     }
 }
 
+/// For anyone not signed in, saying whether that's because private mode is on.
+fn signed_out() -> Response {
+    let private = crate::features::private_mode::enabled();
+    (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Sign in first", "private": private }))).into_response()
+}
+
 fn json_error(status: StatusCode, text: &str) -> Response {
     (status, Json(json!({ "error": text }))).into_response()
 }
@@ -837,7 +854,7 @@ async fn leaderboards(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap,
 /// The bot's host and every server it's in, for its owners.
 async fn system(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Response {
     match dash.is_owner(&headers) {
-        None => return json_error(StatusCode::UNAUTHORIZED, "Sign in first"),
+        None => return signed_out(),
         Some(false) => return json_error(StatusCode::FORBIDDEN, "Only the bot's owners can see this"),
         Some(true) => {}
     }
@@ -902,7 +919,7 @@ impl Dashboard {
     /// The bot owner's name, for the log, or the response to send anyone else.
     fn require_owner(&self, headers: &HeaderMap) -> Result<String, Response> {
         match self.session(headers, |s| (s.guilds.is_none(), format!("{} ({})", s.name, s.user_id))) {
-            None => Err(json_error(StatusCode::UNAUTHORIZED, "Sign in first")),
+            None => Err(signed_out()),
             Some((false, _)) => Err(json_error(StatusCode::FORBIDDEN, "Only the bot's owners can do this")),
             Some((true, who)) => Ok(who),
         }
@@ -975,7 +992,7 @@ impl Dashboard {
 /// Manage Server is what Discord needs to add a bot, and everyone here has it.
 async fn invite(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Response {
     let Some(managed) = dash.session(&headers, |s| s.managed.clone()) else {
-        return json_error(StatusCode::UNAUTHORIZED, "Sign in first");
+        return signed_out();
     };
     let cache = &dash.ctx.cache;
     let mut servers: Vec<Value> = managed

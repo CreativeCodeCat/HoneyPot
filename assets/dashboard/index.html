@@ -46,6 +46,7 @@
   .signin-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 36px 32px; text-align: center; max-width: 380px; width: 100%; }
   .signin-card h1 { margin: 0 0 6px; font-size: 22px; }
   .signin-card p { color: var(--muted); margin: 0 0 22px; }
+  .signin-card .private-note { background: var(--amber-bg); border: 1px solid var(--amber); color: var(--text); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
   .button { display: inline-block; background: #5865f2; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
   .button:hover { background: #4752c4; }
 
@@ -316,6 +317,7 @@
   <div class="signin-card">
     <h1>Dashboard</h1>
     <p>Sign in to manage the servers you run with the bot.</p>
+    <p class="private-note" id="signin-private" hidden><b>Private mode is on.</b> Only the bot's owners can use the dashboard right now.</p>
     <a class="button" href="/login">Sign in with Discord</a>
   </div>
 </section>
@@ -543,8 +545,8 @@
   }
   async function api(path, options) {
     const res = await fetch(path, options);
-    if (res.status === 401) { showSignIn(); throw new Error('signed out'); }
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { showSignIn(data.private); throw new Error('signed out'); }
     if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong'), { status: res.status });
     return data;
   }
@@ -611,9 +613,12 @@
   let me = null, overview = null, server = null;
   let cogShow = 'all';
 
-  function showSignIn() {
+  // Private mode turns away everyone but the bot's owners, at sign-in and after
+  function showSignIn(privateMode) {
     $('app').hidden = true;
     $('signin').hidden = false;
+    const denied = new URLSearchParams(location.search).get('denied') === 'private';
+    $('signin-private').hidden = !(privateMode || denied);
   }
 
   // Phone menu

@@ -77,7 +77,7 @@ Clicking a server switches the sidebar to that server's pages:
 
 Only the server's owner and admins (and the bot's owners) can change settings and cogs; people with only Manage Server see them read-only. The bot's owners also get a **System** page: switches for maintenance mode and private mode (turning private mode on lists the servers it will leave and asks first), plus CPU, memory, host, database size and every server the bot is in. Press **Ctrl+K** anywhere to jump to a server or page, and use the moon/sun button to pick a light or dark theme.
 
-People sign in with Discord and see the servers they own or have **Administrator** or **Manage Server** in; the bot's owners (or its team) see every server. To turn it on:
+People sign in with Discord and see the servers they own or have **Administrator** or **Manage Server** in; the bot's owners (or its team) see every server. While private mode is on (`/private`), only the bot's owners can use the dashboard: anyone else is turned away at sign-in, and people already signed in are locked out until it's turned off. To turn it on:
 
 1. In the [Discord Developer Portal](https://discord.com/developers/applications), open the bot's application, go to **OAuth2**, and copy (or reset) the **Client Secret**
 2. Under **Redirects**, add `http://localhost:8080/callback`, or your `DASHBOARD_URL` followed by `/callback`
