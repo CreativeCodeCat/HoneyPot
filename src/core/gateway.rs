@@ -71,7 +71,7 @@ pub async fn run() {
 
     // Recent messages are cached so the Logs cog can show what deleted and edited messages said
     let mut cache_settings = serenity::cache::Settings::default();
-    cache_settings.max_messages = 200;
+    cache_settings.max_messages = 500;
     let mut client = serenity::ClientBuilder::new(token, intents)
         .cache_settings(cache_settings)
         .framework(framework)
