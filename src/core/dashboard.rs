@@ -241,6 +241,8 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         .route("/api/servers/{id}/leaderboards", get(leaderboards))
         .route("/api/system", get(system))
         .route("/api/invite", get(invite))
+        .route("/api/system/maintenance", axum::routing::post(set_maintenance))
+        .route("/api/system/private", axum::routing::post(set_private))
         .with_state(dash.clone());
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(listener) => listener,
@@ -877,8 +879,81 @@ async fn system(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Re
         "shards": cache.shard_count(),
         "users_cached": cache.user_count(),
         "guilds": guilds,
+        "maintenance": crate::features::developer::maintenance(),
+        "private": crate::features::private_mode::enabled(),
+        "private_would_leave": dash.private_would_leave(),
     }))
     .into_response()
+}
+
+impl Dashboard {
+    fn owner_ids(&self) -> HashSet<serenity::UserId> {
+        self.owners.iter().map(|&id| serenity::UserId::new(id)).collect()
+    }
+
+    /// The servers private mode would make the bot leave.
+    fn private_would_leave(&self) -> Vec<Value> {
+        crate::features::private_mode::others(&self.ctx.cache, &self.owner_ids())
+            .into_iter()
+            .map(|(id, name)| json!({ "id": id.get().to_string(), "name": name }))
+            .collect()
+    }
+
+    /// The bot owner's name, for the log, or the response to send anyone else.
+    fn require_owner(&self, headers: &HeaderMap) -> Result<String, Response> {
+        match self.session(headers, |s| (s.guilds.is_none(), format!("{} ({})", s.name, s.user_id))) {
+            None => Err(json_error(StatusCode::UNAUTHORIZED, "Sign in first")),
+            Some((false, _)) => Err(json_error(StatusCode::FORBIDDEN, "Only the bot's owners can do this")),
+            Some((true, who)) => Ok(who),
+        }
+    }
+}
+
+/// Turns maintenance mode on or off, like `/maintenance`. Takes `{"enabled": bool}`.
+async fn set_maintenance(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Json(body): Json<Value>) -> Response {
+    let who = match dash.require_owner(&headers) {
+        Ok(who) => who,
+        Err(response) => return response,
+    };
+    let Some(on) = body["enabled"].as_bool() else {
+        return json_error(StatusCode::BAD_REQUEST, "Send {\"enabled\": true} or {\"enabled\": false}");
+    };
+    if let Err(e) = crate::features::developer::set_maintenance(&dash.ctx, on) {
+        log::error(format!("Error setting maintenance mode from the dashboard: {e}"));
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "The change couldn't be saved");
+    }
+    log::info(format!("{who} turned maintenance mode {} from the dashboard", if on { "on" } else { "off" }));
+    Json(json!({ "enabled": on })).into_response()
+}
+
+/// Turns private mode on or off, like `/private`: turning it on leaves every server not
+/// owned by a bot owner, so the page asks first. Takes `{"enabled": bool}`.
+async fn set_private(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Json(body): Json<Value>) -> Response {
+    use crate::features::private_mode;
+    let who = match dash.require_owner(&headers) {
+        Ok(who) => who,
+        Err(response) => return response,
+    };
+    let Some(on) = body["enabled"].as_bool() else {
+        return json_error(StatusCode::BAD_REQUEST, "Send {\"enabled\": true} or {\"enabled\": false}");
+    };
+    // Without knowing who the owners are, every server would look like someone else's
+    if on && dash.owners.is_empty() {
+        return json_error(StatusCode::CONFLICT, "The bot doesn't know who its owners are, so it can't tell which servers to keep");
+    }
+    if let Err(e) = private_mode::set(on) {
+        log::error(format!("Error setting private mode from the dashboard: {e}"));
+        return json_error(StatusCode::INTERNAL_SERVER_ERROR, "The change couldn't be saved");
+    }
+    if !on {
+        log::info(format!("[PRIVATE] {who} turned private mode off from the dashboard"));
+        return Json(json!({ "enabled": false, "left": 0, "failed": [] })).into_response();
+    }
+    let others = private_mode::others(&dash.ctx.cache, &dash.owner_ids());
+    log::info(format!("[PRIVATE] {who} turned private mode on from the dashboard, leaving {} server(s)", others.len()));
+    let failed = private_mode::leave(&dash.ctx.http, &others).await;
+    let failed: Vec<Value> = failed.into_iter().map(|(name, error)| json!({ "name": name, "error": error })).collect();
+    Json(json!({ "enabled": true, "left": others.len() - failed.len(), "failed": failed })).into_response()
 }
 
 impl Dashboard {
@@ -910,7 +985,8 @@ async fn invite(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Re
         .collect();
     servers.sort_by_key(|g| g["name"].as_str().unwrap_or("").to_lowercase());
     let permissions = invite_permissions().get_permission_names();
-    Json(json!({ "invite": dash.invite_url(None), "servers": servers, "permissions": permissions })).into_response()
+    let private = crate::features::private_mode::enabled();
+    Json(json!({ "invite": dash.invite_url(None), "servers": servers, "permissions": permissions, "private": private })).into_response()
 }
 
 /// Discord IDs: 17 to 20 digits.

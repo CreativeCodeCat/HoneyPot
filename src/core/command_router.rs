@@ -22,6 +22,7 @@ pub fn commands() -> Vec<Command> {
         developer::leave(),
         developer::blacklist(),
         developer::maintenance_mode(),
+        crate::features::private_mode::private_mode(),
         presence::presence(),
         automod::automod(),
         cog_manager::enablecog(),

@@ -20,6 +20,7 @@ pub mod moderation;
 pub mod logging;
 pub mod pets;
 pub mod presence;
+pub mod private_mode;
 pub mod profile;
 pub mod reaction_roles;
 pub mod rules;

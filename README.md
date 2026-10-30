@@ -75,7 +75,7 @@ Clicking a server switches the sidebar to that server's pages:
 - **Leaderboards** - the top 10 members by level and by money
 - **Audit log** - every change made through the dashboard: who, what and when
 
-Only the server's owner and admins (and the bot's owners) can change settings and cogs; people with only Manage Server see them read-only. The bot's owners also get a **System** page: CPU, memory, host, database size and every server the bot is in. Press **Ctrl+K** anywhere to jump to a server or page, and use the moon/sun button to pick a light or dark theme.
+Only the server's owner and admins (and the bot's owners) can change settings and cogs; people with only Manage Server see them read-only. The bot's owners also get a **System** page: switches for maintenance mode and private mode (turning private mode on lists the servers it will leave and asks first), plus CPU, memory, host, database size and every server the bot is in. Press **Ctrl+K** anywhere to jump to a server or page, and use the moon/sun button to pick a light or dark theme.
 
 People sign in with Discord and see the servers they own or have **Administrator** or **Manage Server** in; the bot's owners (or its team) see every server. To turn it on:
 
@@ -441,6 +441,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 Only the bot's owner can use these (the owner of its Discord application, or the members of the team that owns it). They work in every server and channel and can't be disabled.
 
 - `/maintenance` - Turn maintenance mode on or off. While it's on, everyone else is told the bot is under maintenance when they use a command, and the bot's status shows Do Not Disturb with "Under maintenance". Background features (honeypots, logs, AutoMod, staff policy...) keep running. It stays on across restarts
+- `/private` - Turn private mode on or off. While it's on, the bot only stays in servers owned by a bot owner: turning it on lists the other servers and leaves them once you confirm, it leaves them again whenever the bot starts, and if anyone adds the bot to another server it leaves straight away and logs who tried (`[PRIVATE] Blocked being added to…`). It stays on across restarts
 - `/presence <status> [activity] [text]` - Set the bot's status (Online, Idle, Do Not Disturb or Invisible) and activity (a custom status, Playing, Watching, Listening to, Competing in, or none). Without `text` it shows "Development of <bot> v<version>". It's kept across restarts; maintenance mode's status shows instead while it's on
 - `/leave <server>` - Make the bot leave a server, picked from a list of the servers it's in, after a confirm button. Servers owned by a bot owner can't be left this way
 - `/blacklist add <server> <type>` - Leave a server, after a confirm button, and blacklist either the server (the bot leaves straight away if it's added again) or its owner (the bot leaves any server they own, now or later, and they can't use its commands). Servers owned by a bot owner, and bot owners themselves, can't be blacklisted
@@ -506,6 +507,7 @@ The bot uses SQLite for persistent storage:
 - `database/tickets.db` - Ticket system setup and tickets
 - `database/suggestions.db` - Suggestion channels and open suggestions
 - `database/maintenance` - Exists while maintenance mode is on
+- `database/private_mode` - Exists while private mode is on
 - `database/presence.json` - The bot's status and activity set with `/presence`
 - `database/staff_policy.db` - Roles taken by the staff policy, for restoring
 - `database/sticky.db` - Sticky messages

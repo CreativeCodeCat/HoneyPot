@@ -123,6 +123,7 @@
   .banner { display: flex; align-items: center; gap: 12px; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 14px; }
   .banner.red { background: var(--red-bg); border: 1px solid var(--red); color: var(--red); }
   .banner b { color: inherit; }
+  .banner.amber { background: var(--amber-bg); border: 1px solid var(--amber); color: var(--text); display: block; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
   /* Tables */
@@ -262,6 +263,14 @@
   .catch .flags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .empty-card { background: var(--panel); border: 1px dashed var(--border); border-radius: 10px; padding: 22px; text-align: center; color: var(--muted); font-size: 14px; }
 
+  /* Bot-wide switches */
+  .confirm { border-top: 1px solid var(--border); background: var(--red-bg); padding: 14px 16px; }
+  .confirm p { margin: 4px 0 8px; }
+  .leave-list { margin: 0 0 12px; padding-left: 20px; max-height: 180px; overflow-y: auto; font-size: 14px; }
+  .confirm .actions { display: flex; gap: 8px; }
+  .btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+  .btn.danger:hover { color: #fff; filter: brightness(1.1); }
+
   /* Adding the bot */
   .nav-item.add { color: var(--muted); }
   .nav-item.add:hover { color: var(--text); }
@@ -382,6 +391,7 @@
     <!-- Adding the bot to a server -->
     <main class="page" id="view-add" hidden>
       <div class="page-head"><div class="grow"><h1>Add a server</h1><div class="sub">Add the bot to a server you own or manage</div></div></div>
+      <div class="banner amber" id="add-private" hidden><b>Private mode is on.</b> The bot only stays in servers owned by a bot owner, and leaves any other server straight away. A bot owner can turn it off with <code>/private</code>.</div>
       <section>
         <div class="section-head"><h2>Your servers without the bot</h2><button class="btn" id="add-refresh" type="button">Refresh</button></div>
         <div class="cards" id="add-servers"></div>
@@ -407,6 +417,10 @@
     <main class="page" id="view-system" hidden>
       <div class="page-head"><div class="grow"><h1>System</h1><div class="sub">The bot's host, for its owners</div></div><span class="updated" id="system-updated"></span></div>
       <p class="error" id="system-error" hidden></p>
+      <section id="system-switches-section" hidden>
+        <h2>Bot-wide switches</h2>
+        <div class="panel" id="system-switches"></div>
+      </section>
       <section class="tiles" id="system-tiles"></section>
       <section><h2>Host</h2><div class="table"><table><tbody id="system-host"></tbody></table></div></section>
       <section><h2>Every server</h2><div class="table"><table><thead><tr><th>Server</th><th>Owner</th><th class="num">Members</th><th>Bot joined</th></tr></thead><tbody id="system-guilds"></tbody></table></div></section>
@@ -690,6 +704,7 @@
     let d;
     try { d = await api('/api/invite'); } catch (e) { return; }
     $('add-any').href = d.invite;
+    $('add-private').hidden = !d.private;
     $('add-perms').replaceChildren(...d.permissions.map(p => el('span', 'pill', p)));
     const box = $('add-servers');
     if (!d.servers.length) {
@@ -716,6 +731,82 @@
 
   /* ---------- System (bot owners) ---------- */
 
+  // While private mode's confirmation is showing, the 30-second refresh leaves it alone
+  let confirmingPrivate = false;
+
+  function drawSwitches(s) {
+    if (confirmingPrivate) return;
+    $('system-switches-section').hidden = false;
+    const row = (title, text, on, onToggle) => {
+      const r = el('div', 'setting');
+      const what = el('div', 'what');
+      what.append(el('b', null, title), el('small', null, text));
+      const sw = el('button', 'switch');
+      sw.setAttribute('role', 'switch');
+      sw.setAttribute('aria-checked', String(on));
+      sw.setAttribute('aria-label', title);
+      sw.addEventListener('click', () => onToggle(sw));
+      r.append(what, sw);
+      return r;
+    };
+    const leaving = s.private_would_leave;
+    const privateText = s.private
+      ? 'On: the bot only stays in servers a bot owner owns, and leaves any other server it\u2019s added to.'
+      : `Off. Turning it on leaves ${leaving.length ? `the ${leaving.length} server${leaving.length === 1 ? '' : 's'} not owned by a bot owner` : 'no servers: they\u2019re all owned by a bot owner'}.`;
+    $('system-switches').replaceChildren(
+      row('Maintenance mode', s.maintenance ? 'On: only bot owners can use commands, and the bot\u2019s status says it\u2019s under maintenance.' : 'Off. Like /maintenance: while on, only bot owners can use commands.', s.maintenance, sw => setMaintenance(!s.maintenance, sw)),
+      row('Private mode', privateText, s.private, sw => {
+        if (s.private || !leaving.length) setPrivate(!s.private, sw);
+        else confirmPrivate(leaving);
+      }),
+    );
+  }
+
+  async function postSwitch(path, enabled) {
+    return api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+  }
+
+  async function setMaintenance(on, sw) {
+    sw.disabled = true;
+    try {
+      await postSwitch('/api/system/maintenance', on);
+      toast(`Maintenance mode is now ${on ? 'on' : 'off'}.`);
+    } catch (e) { if (e.message !== 'signed out') toast(e.message, true); }
+    loadSystem();
+  }
+
+  async function setPrivate(on, sw) {
+    if (sw) sw.disabled = true;
+    try {
+      const r = await postSwitch('/api/system/private', on);
+      if (!on) toast('Private mode is now off. Anyone can add the bot again.');
+      else if (r.failed.length) toast(`Private mode is on. Left ${r.left}, but couldn\u2019t leave ${r.failed.map(f => f.name).join(', ')}.`, true);
+      else toast(`Private mode is on${r.left ? `. Left ${r.left} server${r.left === 1 ? '' : 's'}` : ''}.`);
+    } catch (e) { if (e.message !== 'signed out') toast(e.message, true); }
+    confirmingPrivate = false;
+    await refresh();
+    loadSystem();
+  }
+
+  // Turning private mode on leaves servers, so it's confirmed first, listing them
+  function confirmPrivate(leaving) {
+    confirmingPrivate = true;
+    const box = el('div', 'confirm');
+    box.append(el('b', null, `Turn on private mode and leave ${leaving.length} server${leaving.length === 1 ? '' : 's'}?`));
+    box.append(el('p', 'sub', 'These aren\u2019t owned by a bot owner. The bot will also leave any other server it\u2019s added to while private mode is on.'));
+    const list = el('ul', 'leave-list');
+    list.append(...leaving.map(g => el('li', null, g.name)));
+    const buttons = el('div', 'actions');
+    const yes = el('button', 'btn danger', 'Turn on and leave them');
+    const no = el('button', 'btn', 'Cancel');
+    yes.addEventListener('click', () => { yes.disabled = no.disabled = true; yes.textContent = 'Leaving…'; setPrivate(true); });
+    no.addEventListener('click', () => { confirmingPrivate = false; loadSystem(); });
+    buttons.append(yes, no);
+    box.append(list, buttons);
+    $('system-switches').append(box);
+    yes.focus();
+  }
+
   async function loadSystem() {
     let s;
     try { s = await api('/api/system'); }
@@ -725,6 +816,7 @@
       $('system-error').hidden = false;
       return;
     }
+    drawSwitches(s);
     $('system-updated').textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
     const tile = (label, value, hint, percent) => {
       const t = el('div', 'tile');

@@ -13,7 +13,7 @@ use crate::features::{
     afk, applications, cog_manager, games, honeypot, incidents, leveling, live_status, lockdown, logging, pets, quarantine, raid_protection, reaction_roles, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
 };
 use crate::log;
-use crate::features::presence;
+use crate::features::{presence, private_mode};
 
 /// Background loops are spawned once, on the first CacheReady (it can fire again after reconnects).
 static TASKS_STARTED: AtomicBool = AtomicBool::new(false);
@@ -160,7 +160,11 @@ pub async fn event_handler(
             incidents::on_audit_entry(ctx, data, *guild_id, entry).await;
         }
         serenity::FullEvent::GuildCreate { guild, is_new } => {
-            // Also runs for every server on startup
+            // Also runs for every server on startup. In private mode, servers not owned by a
+            // bot owner are left at once, and nothing else happens for them
+            if private_mode::enforce(ctx, &framework.owners, guild, *is_new == Some(true)).await {
+                return Ok(());
+            }
             developer::enforce_blacklist(ctx, data, guild).await;
             // Guilds the bot was already in are synced on startup by `startup_report`
             if *is_new == Some(true) {

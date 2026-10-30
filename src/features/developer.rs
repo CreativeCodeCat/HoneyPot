@@ -25,6 +25,21 @@ pub fn maintenance() -> bool {
     MAINTENANCE.load(Ordering::Relaxed)
 }
 
+/// Turns maintenance mode on or off, keeping it across restarts, and shows it in the bot's
+/// status. Used by `/maintenance` and the dashboard.
+pub fn set_maintenance(ctx: &serenity::Context, on: bool) -> std::io::Result<()> {
+    if on {
+        std::fs::write(MAINTENANCE_FILE, "")?;
+    } else if let Err(e) = std::fs::remove_file(MAINTENANCE_FILE) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            return Err(e);
+        }
+    }
+    MAINTENANCE.store(on, Ordering::Relaxed);
+    crate::features::presence::apply(ctx);
+    Ok(())
+}
+
 /// Whether a user is blacklisted from using the bot's commands.
 pub fn is_user_blacklisted(data: &Data, user_id: serenity::UserId) -> bool {
     data.blacklist.lock().unwrap().contains(BlacklistKind::User, user_id.get()).unwrap_or(false)
@@ -312,15 +327,8 @@ async fn blacklist_list(ctx: Context<'_>) -> Result<(), Error> {
 )]
 pub async fn maintenance_mode(ctx: Context<'_>) -> Result<(), Error> {
     let on = !maintenance();
-    if on {
-        std::fs::write(MAINTENANCE_FILE, "")?;
-    } else if let Err(e) = std::fs::remove_file(MAINTENANCE_FILE) {
-        if e.kind() != std::io::ErrorKind::NotFound {
-            return Err(e.into());
-        }
-    }
-    MAINTENANCE.store(on, Ordering::Relaxed);
-    crate::features::presence::apply(ctx.serenity_context());
+    set_maintenance(ctx.serenity_context(), on)?;
+    log::info(format!("{} turned maintenance mode {}", ctx.author().tag(), if on { "on" } else { "off" }));
 
     let (title, text) = if on {
         ("Maintenance mode **enabled**", "👷 The bot is in maintenance mode. Only you can use its commands until you run `/maintenance` again.")
