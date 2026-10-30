@@ -88,7 +88,6 @@ pub async fn cleanup(
                 too_old = true;
                 break 'scan;
             }
-            // A prefix command's own message is deleted along with the rest
             if user.as_ref().is_none_or(|u| message.author.id == u.id) {
                 matched.push(message.id);
                 if matched.len() == amount {

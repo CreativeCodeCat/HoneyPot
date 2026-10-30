@@ -355,6 +355,11 @@ pub async fn on_event(ctx: &serenity::Context, data: &Data, event: &serenity::Fu
             post(ctx, *guild_id, "message", log, with_actor(embed, "Deleted by", by)).await;
         }
         MessageDeleteBulk { channel_id, multiple_deleted_messages_ids, guild_id: Some(guild_id) } => {
+            // Like /cleanup: bots' messages among them needn't be remembered any more
+            let ids: Vec<u64> = multiple_deleted_messages_ids.iter().map(|id| id.get()).collect();
+            if let Err(e) = data.bot_messages.lock().unwrap().forget(&ids) {
+                log::error(format!("Error forgetting bulk deleted bot messages: {e}"));
+            }
             let text = format!("{} messages were deleted in <#{channel_id}>.", multiple_deleted_messages_ids.len());
             send_by(ctx, data, *guild_id, "message", embed(RED, "Messages Bulk Deleted", text), serenity::audit_log::Action::Message(MessageAction::BulkDelete), channel_id.get()).await;
         }

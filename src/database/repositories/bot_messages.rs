@@ -36,6 +36,20 @@ impl Store {
         Ok(self.conn.execute("DELETE FROM bot_messages WHERE message_id = ?", [message_id])? > 0)
     }
 
+    /// Forgets messages deleted together, like by `/cleanup`.
+    pub fn forget(&mut self, message_ids: &[u64]) -> rusqlite::Result<usize> {
+        let tx = self.conn.transaction()?;
+        let mut forgotten = 0;
+        {
+            let mut stmt = tx.prepare("DELETE FROM bot_messages WHERE message_id = ?")?;
+            for id in message_ids {
+                forgotten += stmt.execute([id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(forgotten)
+    }
+
     /// Forgets messages sent more than `KEEP_DAYS` before Unix time `now`. Message IDs start
     /// with when they were sent, so the oldest have the smallest IDs.
     pub fn prune(&self, now: i64) -> rusqlite::Result<usize> {
@@ -67,6 +81,17 @@ mod tests {
         assert!(s.take(100).unwrap());
         assert!(!s.take(100).unwrap());
         assert!(!s.take(200).unwrap());
+    }
+
+    #[test]
+    fn forgets_bulk_deletes() {
+        let mut s = Store::open_path(":memory:").unwrap();
+        s.add(1, 100).unwrap();
+        s.add(1, 101).unwrap();
+        s.add(1, 102).unwrap();
+        assert_eq!(s.forget(&[100, 101, 999]).unwrap(), 2);
+        assert!(!s.take(100).unwrap());
+        assert!(s.take(102).unwrap());
     }
 
     #[test]
