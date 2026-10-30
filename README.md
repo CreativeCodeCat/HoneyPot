@@ -413,58 +413,51 @@ HoneyPot/
 ├── database/               # SQLite database files (created at runtime)
 │   ├── honeypot.db         # Honeypot data
 │   └── cog_config.db       # Cog configuration
+├── migrations/             # Each store's tables, as SQL (built into the bot)
+├── tests/                  # Integration tests (run with `cargo test`)
 └── src/
-    ├── main.rs             # Startup, event dispatch, cog check, error handling
-    ├── log.rs              # Colored console logging
-    ├── developer.rs        # Bot owner commands: /leave, /blacklist and /maintenance
-    ├── pagination.rs       # Previous / Next / Delete buttons for multi-page replies
-    ├── presence.rs         # The bot's status and activity, and /presence
-    ├── render.rs           # Shared drawing code for the image cards
-    └── cogs/
-        ├── mod.rs          # Shared state, cog list, helpers
+    ├── main.rs             # Entry point; runs core::gateway
+    ├── lib.rs              # The bot as a library, so tests/ can use it
+    ├── core/
+    │   ├── gateway.rs      # Opens the databases, builds the framework, connects
+    │   ├── command_router.rs # Every registered command, and command error replies
+    │   ├── event_router.rs # Sends gateway events to features; startup work and loops
+    │   ├── permissions.rs  # The check before every command (blacklist, cog enabled, cooldowns)
+    │   ├── error.rs        # Error and Context types
+    │   └── state.rs        # Shared state: a handle to every store
+    ├── database/
+    │   ├── connection.rs   # Opens the SQLite files under database/
+    │   ├── migrations.rs   # Runs migrations/*.sql; adds columns for older databases
+    │   ├── guild_config.rs # Per-server cog/game enabled flags
+    │   └── repositories/   # One store per feature: the data each feature keeps
+    ├── shared/
+    │   ├── log.rs          # Colored console logging
+    │   ├── models.rs       # Types several features share (e.g. a member on an image card)
+    │   ├── pagination.rs   # Previous / Next / Delete buttons for multi-page replies
+    │   ├── render.rs       # Shared drawing code for the image cards
+    │   └── utils.rs        # Timestamp and text helpers
+    └── features/           # One module per feature ("cog")
+        ├── mod.rs          # Cog list and cog helpers
         ├── cog_manager.rs  # Per-server enable/disable
-        ├── economy/
-        │   ├── mod.rs      # /eco commands
-        │   └── store.rs    # SQLite storage
-        ├── games.rs        # /hack
-        ├── general.rs      # /ping
-        ├── info.rs         # /info and the User Info user menu
-        ├── afk.rs          # /afk and AFK notices
-        ├── announce.rs     # /announce
-        ├── applications.rs # /apply and /application
-        ├── automod.rs      # /automod
-        ├── levels/
-        │   ├── mod.rs      # XP on messages and level commands
-        │   └── store.rs    # SQLite storage and the level curve
-        ├── lockdown.rs     # /lock and /unlock
-        ├── logs.rs         # Server logs for /server-setup logs channels
-        ├── member_card.rs  # The welcome and boost images for the logs
-        ├── moderation.rs   # /ban, /unban, /kick, /timeout, /untimeout
-        ├── pets/
-        │   ├── mod.rs      # /pet commands, battles and hunger DMs
-        │   ├── card.rs     # /pet status picture card
-        │   └── store.rs    # SQLite storage and pet needs
-        ├── profile.rs      # /profile and the Profile user menu
-        ├── rules.rs        # /rules
-        ├── staff_policy.rs # Punishing moderation done outside the bot
-        ├── stats.rs        # Voice channel stats
-        ├── sticky.rs       # /sticky and moving sticky messages down
-        ├── suggestions.rs  # /suggest and /suggestion
-        ├── tickets/
-        │   ├── mod.rs      # Panel, buttons, closing, auto-close
-        │   ├── commands.rs # /ticket-setup and /ticket
-        │   ├── store.rs    # SQLite storage
-        │   └── transcript.rs # HTML transcripts
-        └── honeypot/
-            ├── mod.rs      # Message trap, punishments, weekly summary
-            ├── commands.rs # Honeypot commands
-            └── store.rs    # SQLite storage
+        ├── developer.rs    # Bot owner commands: /leave, /blacklist and /maintenance
+        ├── presence.rs     # The bot's status and activity, and /presence
+        ├── honeypot/       # Message trap, punishments, weekly summary, commands
+        ├── moderation/     # /ban, /kick, /timeout…, plus automod, lockdown, staff_policy
+        ├── welcome/        # Welcome and boost images (card.rs draws them)
+        ├── leveling/       # XP, /rank, /leaderboard and the rank card
+        ├── tickets/        # Panel, buttons, transcripts, /ticket
+        ├── logging/        # Server logs for /server-setup logs channels
+        ├── economy/        # /eco commands
+        ├── games/          # /hack, /heist, /defuse, /fight, counting, guessing
+        ├── pets/           # /pet commands and the pet card
+        └── …               # afk, announce, applications, general, info, profile,
+                            # rules, server_setup, stats, sticky, suggestions, cooldowns
 ```
 
 ## Adding More Cogs
 
-1. Create `src/cogs/your_cog.rs` and add `pub mod your_cog;` to `src/cogs/mod.rs`
-2. Add its display name (e.g. `"YourCog"`) to `COGS` in `src/cogs/mod.rs`
+1. Create `src/features/your_cog.rs` and add `pub mod your_cog;` to `src/features/mod.rs`
+2. Add its display name (e.g. `"YourCog"`) to `COGS` in `src/features/mod.rs`
 3. Write commands with `category = "YourCog"` so the per-server enable/disable check applies:
    ```rust
    /// Description shown in Discord
@@ -474,9 +467,10 @@ HoneyPot/
        Ok(())
    }
    ```
-4. Register the command in `commands()` in `src/main.rs`
-5. For event handlers or background tasks, check `data.is_cog_enabled(guild_id, "yourcog")` yourself
-6. Use `log::info()`, `log::error()`, `log::warning()` or `log::debug()` for colored console output
+4. Register the command in `commands()` in `src/core/command_router.rs`
+5. Route its events from `event_handler` in `src/core/event_router.rs`; there, check `data.is_cog_enabled(guild_id, "yourcog")` yourself
+6. If it stores data, add its store in `src/database/repositories/your_cog.rs` (registered in `repositories/mod.rs`), with its tables in `migrations/your_cog.sql`, and give `State` in `src/core/state.rs` a field for it
+7. Use `log::info()`, `log::error()`, `log::warning()` or `log::debug()` for colored console output
 
 ## Security Notes
 
