@@ -1,5 +1,7 @@
 //! Ticket system configuration and tickets, persisted to SQLite.
 
+use std::collections::{HashMap, HashSet};
+
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::database::connection;
@@ -59,7 +61,11 @@ pub struct Store {
 
 impl Store {
     pub fn open() -> rusqlite::Result<Self> {
-        let conn = connection::open(DB_FILE)?;
+        Self::open_path(DB_FILE)
+    }
+
+    pub fn open_path(path: &str) -> rusqlite::Result<Self> {
+        let conn = connection::open(path)?;
         conn.execute_batch(include_str!("../../../migrations/tickets.sql"))?;
         Ok(Self { conn })
     }
@@ -100,10 +106,19 @@ impl Store {
         Ok(())
     }
 
-    /// The number for the next ticket in a guild.
+    /// Takes the number for the next ticket in a guild. A guild without a counter yet starts
+    /// after the tickets it has, as numbers used to be counted from them.
     pub fn next_number(&self, guild_id: u64) -> rusqlite::Result<i64> {
-        self.conn
-            .query_row("SELECT COUNT(*) + 1 FROM tickets WHERE guild_id = ?", [guild_id], |row| row.get(0))
+        self.conn.execute(
+            "INSERT OR IGNORE INTO ticket_counters (guild_id, last_number)
+             VALUES (?1, (SELECT COUNT(*) FROM tickets WHERE guild_id = ?1))",
+            [guild_id],
+        )?;
+        self.conn.query_row(
+            "UPDATE ticket_counters SET last_number = last_number + 1 WHERE guild_id = ? RETURNING last_number",
+            [guild_id],
+            |row| row.get(0),
+        )
     }
 
     pub fn create(&self, ticket: &Ticket, expires_at: i64) -> rusqlite::Result<()> {
@@ -170,10 +185,96 @@ impl Store {
         Ok(())
     }
 
+    /// Forgets a ticket, once it's closed and its channel is gone.
+    pub fn delete(&self, channel_id: u64) -> rusqlite::Result<()> {
+        self.conn.execute("DELETE FROM tickets WHERE channel_id = ?", [channel_id])?;
+        Ok(())
+    }
+
+    /// Deletes tickets whose channel no longer exists, and any already closed, in the guilds
+    /// in `current` (guild ID to its channel IDs); and everything for guilds the bot has left.
+    /// Returns how many tickets were deleted.
+    pub fn cleanup_stale(&self, current: &HashMap<u64, HashSet<u64>>) -> rusqlite::Result<usize> {
+        // An empty cache means the guilds haven't loaded, not that the bot left them all
+        if current.is_empty() {
+            return Ok(0);
+        }
+        let mut stale = Vec::new();
+        {
+            let mut stmt = self.conn.prepare("SELECT channel_id, guild_id, closed FROM tickets")?;
+            let rows = stmt.query_map([], |row| Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?, row.get::<_, bool>(2)?)))?;
+            for row in rows {
+                let (channel_id, guild_id, closed) = row?;
+                let gone = current.get(&guild_id).is_none_or(|channels| !channels.contains(&channel_id));
+                if closed || gone {
+                    stale.push(channel_id);
+                }
+            }
+        }
+        for channel_id in &stale {
+            self.delete(*channel_id)?;
+        }
+        let ids: Vec<String> = current.keys().map(u64::to_string).collect();
+        let ids = ids.join(",");
+        self.conn.execute_batch(&format!(
+            "DELETE FROM ticket_setup WHERE guild_id NOT IN ({ids}); DELETE FROM ticket_counters WHERE guild_id NOT IN ({ids})"
+        ))?;
+        Ok(stale.len())
+    }
+
     /// Marks a ticket closed. Returns false if it was already closed, so a ticket
     /// is only ever closed once even if several close paths race.
     pub fn mark_closed(&self, channel_id: u64) -> rusqlite::Result<bool> {
         let changed = self.conn.execute("UPDATE tickets SET closed = 1 WHERE channel_id = ? AND closed = 0", [channel_id])?;
         Ok(changed > 0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ticket(guild_id: u64, channel_id: u64, number: i64) -> Ticket {
+        Ticket {
+            guild_id,
+            channel_id,
+            message_id: 1,
+            ticket_id: format!("{number:04}"),
+            ticket_type: "support".into(),
+            creator_id: 7,
+            members: vec![7],
+            locked: false,
+            claimed_by: None,
+        }
+    }
+
+    #[test]
+    fn numbers_keep_going_after_tickets_are_deleted() {
+        let s = Store::open_path(":memory:").unwrap();
+        // A guild with tickets from before the counter starts after them
+        s.create(&ticket(1, 10, 1), 0).unwrap();
+        s.create(&ticket(1, 11, 2), 0).unwrap();
+        assert_eq!(s.next_number(1).unwrap(), 3);
+        s.delete(10).unwrap();
+        s.delete(11).unwrap();
+        assert_eq!(s.next_number(1).unwrap(), 4);
+        assert_eq!(s.next_number(2).unwrap(), 1);
+    }
+
+    #[test]
+    fn tickets_without_a_channel_are_cleaned_up() {
+        let s = Store::open_path(":memory:").unwrap();
+        s.create(&ticket(1, 10, 1), 0).unwrap();
+        s.create(&ticket(1, 11, 2), 0).unwrap();
+        s.create(&ticket(1, 12, 3), 0).unwrap();
+        s.mark_closed(12).unwrap();
+        s.create(&ticket(2, 20, 1), 0).unwrap();
+        let current = HashMap::from([(1, HashSet::from([10, 12]))]);
+        // 11's channel is gone, 12 is closed, and the bot left guild 2
+        assert_eq!(s.cleanup_stale(&current).unwrap(), 3);
+        assert!(s.open_ticket(10).unwrap().is_some());
+        assert!(s.open_ticket(11).unwrap().is_none());
+        // Nothing happens before the guilds have loaded
+        assert_eq!(s.cleanup_stale(&HashMap::new()).unwrap(), 0);
     }
 }

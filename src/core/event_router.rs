@@ -57,6 +57,11 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     if let Err(e) = data.afk.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale AFKs: {e}"));
     }
+    match data.tickets.lock().unwrap().cleanup_stale(&current) {
+        Ok(0) => {}
+        Ok(count) => log::info(format!("[TICKETS] Removed {count} ticket(s) whose channel is gone")),
+        Err(e) => log::error(format!("Error cleaning up stale tickets: {e}")),
+    }
     if let Err(e) = data.honeypot.lock().unwrap().cleanup_stale(&current) {
         log::error(format!("Error cleaning up stale data: {e}"));
     }

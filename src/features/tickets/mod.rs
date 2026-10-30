@@ -145,7 +145,8 @@ fn closed_embed(ticket: &Ticket, closed_by: serenity::UserId) -> CreateEmbed {
         .timestamp(serenity::Timestamp::now())
 }
 
-/// Saves the transcript to the transcript channel, then deletes the ticket channel.
+/// Saves the transcript to the transcript channel, then deletes the ticket channel and
+/// forgets the ticket.
 pub async fn close_ticket(ctx: &serenity::Context, data: &Data, ticket: &Ticket, closed_by: serenity::UserId) {
     let setup = {
         let tickets = data.tickets.lock().unwrap();
@@ -177,6 +178,11 @@ pub async fn close_ticket(ctx: &serenity::Context, data: &Data, ticket: &Ticket,
 
     if let Err(e) = channel_id.delete(&ctx.http).await {
         log::warning(format!("[TICKETS] Could not delete ticket channel {}: {e}", ticket.channel_id));
+    }
+    // Only once the transcript is posted, as it's built from the channel. Until then it's
+    // kept, marked closed, so another close can't run at the same time.
+    if let Err(e) = data.tickets.lock().unwrap().delete(ticket.channel_id) {
+        log::error(format!("[TICKETS] Error removing closed ticket {}: {e}", ticket.ticket_id));
     }
     log::info(format!("[TICKETS] Closed ticket {} in guild {}", ticket.ticket_id, ticket.guild_id));
 }

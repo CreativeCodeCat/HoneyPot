@@ -25,3 +25,9 @@ CREATE TABLE IF NOT EXISTS tickets (
     expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tickets_open ON tickets(closed, expires_at);
+-- The last ticket number used in each guild. Kept apart from the tickets, as closed tickets
+-- are deleted and numbers mustn't be reused
+CREATE TABLE IF NOT EXISTS ticket_counters (
+    guild_id INTEGER PRIMARY KEY,
+    last_number INTEGER NOT NULL
+);
