@@ -376,11 +376,9 @@ A sticky message stays near the bottom of its channel: once enough messages are 
 
 ### Reaction Roles Commands
 
-Staff post a message with their own text, then pick emojis for it: reacting with one gives its role, and taking the reaction off takes the role away. Any message can be used, not just ones the bot posted. All need **Manage Roles**, and the bot's highest role has to be above the roles it gives.
+Staff pick emojis for a message that's already in a channel: reacting with one gives its role, and taking the reaction off takes the role away. `message` is the message's link (right-click it, **Copy Message Link**), or its ID if it's in the channel you run the command in; the bot checks it can find the message first. All need **Manage Roles**, and the bot's highest role has to be above the roles it gives.
 
-- `/reaction-roles post <message> [title] [channel]` - Post a message for reaction roles. Use `\n` for new lines
-- `/reaction-roles edit <message> <text> [title] [channel]` - Change the text of a message the bot posted
-- `/reaction-roles add <message> <emoji> <role> [channel]` - Make reacting with the emoji give the role; the bot adds the reaction. `message` is the message's ID or link, and `channel` is where it is (default: this channel)
+- `/reaction-roles add <message> <emoji> <role>` - Make reacting with the emoji give the role; the bot adds the reaction
 - `/reaction-roles remove <message> <emoji>` - Stop the emoji giving a role, and take the bot's reaction off
 - `/reaction-roles list` - List the server's reaction roles, by message
 

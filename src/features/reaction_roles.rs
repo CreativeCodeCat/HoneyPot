@@ -1,5 +1,5 @@
-//! ReactionRoles cog: `/reaction-roles post` posts a message staff write, and
-//! `/reaction-roles add` puts an emoji on it. Reacting with the emoji gives its role, and
+//! ReactionRoles cog: `/reaction-roles add` puts an emoji on a message already in a
+//! channel. Reacting with the emoji gives its role, and
 //! taking the reaction off takes the role away.
 
 use ::serenity::all as serenity;
@@ -52,10 +52,43 @@ async fn say_private(ctx: Context<'_>, text: impl Into<String>) -> Result<(), Er
     Ok(())
 }
 
-/// A message ID, or a message link (the ID is its last part).
-fn parse_message_id(text: &str) -> Option<serenity::MessageId> {
-    let id = text.trim().rsplit('/').next()?.parse::<u64>().ok()?;
-    (id != 0).then(|| serenity::MessageId::new(id))
+/// A message link (`…/channels/<guild>/<channel>/<message>`) as its guild, channel and
+/// message, or a bare message ID, which has no guild or channel.
+fn parse_message(text: &str) -> Option<(Option<u64>, Option<u64>, u64)> {
+    let parts: Vec<&str> = text.trim().split('/').collect();
+    let id = |s: &str| s.parse::<u64>().ok().filter(|&id| id != 0);
+    match parts.as_slice() {
+        [message] => Some((None, None, id(message)?)),
+        [.., "channels", guild, channel, message] => Some((id(guild), Some(id(channel)?), id(message)?)),
+        _ => None,
+    }
+}
+
+/// Finds the message a link or ID points at: a link anywhere in this server, an ID in
+/// this channel. Replies with why if it can't be found.
+async fn find_message(ctx: Context<'_>, text: &str) -> Result<Option<serenity::Message>, Error> {
+    let Some((guild, channel, message_id)) = parse_message(text) else {
+        say_private(ctx, "❌ That isn't a message link or ID. Right-click the message and choose **Copy Message Link**.").await?;
+        return Ok(None);
+    };
+    if guild.is_some_and(|g| g != ctx.guild_id().unwrap().get()) {
+        say_private(ctx, "❌ That message is in another server.").await?;
+        return Ok(None);
+    }
+    let from_link = channel.is_some();
+    let channel = channel.map(serenity::ChannelId::new).unwrap_or(ctx.channel_id());
+    match channel.message(ctx, message_id).await {
+        Ok(message) => Ok(Some(message)),
+        Err(_) => {
+            let text = if !from_link {
+                "❌ I couldn't find that message in this channel. Use its link to pick one in another channel."
+            } else {
+                "❌ I couldn't find that message. Check the link, and that I can see its channel."
+            };
+            say_private(ctx, text).await?;
+            Ok(None)
+        }
+    }
 }
 
 /// Give members a role when they react to a message
@@ -67,84 +100,22 @@ fn parse_message_id(text: &str) -> Option<serenity::MessageId> {
     rename = "reaction-roles",
     required_permissions = "MANAGE_ROLES",
     default_member_permissions = "MANAGE_ROLES",
-    subcommands("post", "edit", "add", "remove", "list"),
+    subcommands("add", "remove", "list"),
     subcommand_required
 )]
 pub async fn reaction_roles(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-/// Post a message for reaction roles, with your own text
-#[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_ROLES")]
-async fn post(
-    ctx: Context<'_>,
-    #[description = "The message (use \\n for new lines)"]
-    #[max_length = 4000]
-    message: String,
-    #[description = "A title above the message"]
-    #[max_length = 256]
-    title: Option<String>,
-    #[description = "Where to post it (default: this channel)"] channel: Option<serenity::GuildChannel>,
-) -> Result<(), Error> {
-    let channel = channel.map(|c| c.id).unwrap_or(ctx.channel_id());
-    let mut embed = serenity::CreateEmbed::new().colour(COLOUR).description(message.replace("\\n", "\n"));
-    if let Some(title) = title {
-        embed = embed.title(title);
-    }
-    let posted = channel.send_message(ctx, serenity::CreateMessage::new().embed(embed)).await?;
-    say_private(
-        ctx,
-        format!("✅ Posted {}. Add roles to it with `/reaction-roles add message:{}`.", posted.link(), posted.id),
-    )
-    .await
-}
-
-/// Change the text of a reaction roles message the bot posted
-#[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_ROLES")]
-async fn edit(
-    ctx: Context<'_>,
-    #[description = "The message's ID or link"] message: String,
-    #[description = "The new message (use \\n for new lines)"]
-    #[max_length = 4000]
-    text: String,
-    #[description = "The new title (leave empty to keep it)"]
-    #[max_length = 256]
-    title: Option<String>,
-    #[description = "The channel it's in (default: this one)"] channel: Option<serenity::GuildChannel>,
-) -> Result<(), Error> {
-    let Some(message_id) = parse_message_id(&message) else {
-        return say_private(ctx, "❌ That isn't a message ID or link.").await;
-    };
-    let channel = channel.map(|c| c.id).unwrap_or(ctx.channel_id());
-    let Ok(mut posted) = channel.message(ctx, message_id).await else {
-        return say_private(ctx, "❌ I couldn't find that message in this channel. Pick its channel with `channel`.").await;
-    };
-    if posted.author.id != ctx.cache().current_user().id {
-        return say_private(ctx, "❌ I can only edit messages I posted with `/reaction-roles post`.").await;
-    }
-    let old = posted.embeds.first();
-    let title = title.or_else(|| old.and_then(|e| e.title.clone()));
-    let mut embed = serenity::CreateEmbed::new().colour(COLOUR).description(text.replace("\\n", "\n"));
-    if let Some(title) = title {
-        embed = embed.title(title);
-    }
-    posted.edit(ctx, serenity::EditMessage::new().embed(embed)).await?;
-    say_private(ctx, "✅ The message has been updated.").await
-}
-
 /// Make an emoji on a message give a role
 #[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_ROLES")]
 async fn add(
     ctx: Context<'_>,
-    #[description = "The message's ID or link"] message: String,
+    #[description = "The message's link (or ID, if it's in this channel)"] message: String,
     #[description = "The emoji to react with"] emoji: String,
     #[description = "The role it gives"] role: serenity::Role,
-    #[description = "The channel the message is in (default: this one)"] channel: Option<serenity::GuildChannel>,
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
-    let Some(message_id) = parse_message_id(&message) else {
-        return say_private(ctx, "❌ That isn't a message ID or link.").await;
-    };
     let Ok(reaction) = serenity::ReactionType::try_from(emoji.trim()) else {
         return say_private(ctx, "❌ That isn't an emoji.").await;
     };
@@ -158,15 +129,12 @@ async fn add(
     if bot_top.is_some_and(|top| role.position >= top) {
         return say_private(ctx, format!("❌ <@&{}> is above my highest role, so I can't give it. Move my role above it first.", role.id)).await;
     }
-    let channel = channel.map(|c| c.id).unwrap_or(ctx.channel_id());
-    let Ok(target) = channel.message(ctx, message_id).await else {
-        return say_private(ctx, "❌ I couldn't find that message in this channel. Pick its channel with `channel`.").await;
-    };
+    let Some(target) = find_message(ctx, &message).await? else { return Ok(()) };
     if target.react(ctx, reaction.clone()).await.is_err() {
         return say_private(ctx, "❌ I couldn't react with that emoji. Custom emojis have to be from a server I'm in.").await;
     }
     let key = emoji_key(&reaction);
-    let reaction_role = ReactionRole { message_id: message_id.get(), channel_id: channel.get(), emoji: key, role_id: role.id.get() };
+    let reaction_role = ReactionRole { message_id: target.id.get(), channel_id: target.channel_id.get(), emoji: key, role_id: role.id.get() };
     ctx.data().reaction_roles.lock().unwrap().add(guild_id.get(), &reaction_role)?;
     say_private(ctx, format!("✅ Reacting with {reaction} on {} now gives <@&{}>.", target.link(), role.id)).await
 }
@@ -175,12 +143,14 @@ async fn add(
 #[command(slash_command, guild_only, ephemeral, required_permissions = "MANAGE_ROLES")]
 async fn remove(
     ctx: Context<'_>,
-    #[description = "The message's ID or link"] message: String,
+    #[description = "The message's link or ID"] message: String,
     #[description = "The emoji"] emoji: String,
 ) -> Result<(), Error> {
-    let Some(message_id) = parse_message_id(&message) else {
-        return say_private(ctx, "❌ That isn't a message ID or link.").await;
+    // Not looked up, so it works on deleted messages too
+    let Some((_, _, message_id)) = parse_message(&message) else {
+        return say_private(ctx, "❌ That isn't a message link or ID.").await;
     };
+    let message_id = serenity::MessageId::new(message_id);
     let Ok(reaction) = serenity::ReactionType::try_from(emoji.trim()) else {
         return say_private(ctx, "❌ That isn't an emoji.").await;
     };
@@ -205,7 +175,7 @@ async fn list(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
     let roles = ctx.data().reaction_roles.lock().unwrap().list(guild_id.get())?;
     if roles.is_empty() {
-        return say_private(ctx, "This server has no reaction roles. Post a message with `/reaction-roles post`.").await;
+        return say_private(ctx, "This server has no reaction roles. Add one with `/reaction-roles add`.").await;
     }
     let mut lines = Vec::new();
     let mut last = None;
@@ -259,10 +229,11 @@ mod tests {
     }
 
     #[test]
-    fn message_ids_come_from_ids_or_links() {
-        assert_eq!(parse_message_id("123"), Some(serenity::MessageId::new(123)));
-        assert_eq!(parse_message_id("https://discord.com/channels/1/2/345"), Some(serenity::MessageId::new(345)));
-        assert_eq!(parse_message_id("nope"), None);
-        assert_eq!(parse_message_id("0"), None);
+    fn messages_come_from_ids_or_links() {
+        assert_eq!(parse_message("123"), Some((None, None, 123)));
+        assert_eq!(parse_message("https://discord.com/channels/1/2/345"), Some((Some(1), Some(2), 345)));
+        assert_eq!(parse_message("nope"), None);
+        assert_eq!(parse_message("0"), None);
+        assert_eq!(parse_message("https://discord.com/2/345"), None);
     }
 }
