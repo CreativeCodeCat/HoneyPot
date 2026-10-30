@@ -331,27 +331,21 @@ pub async fn on_event(ctx: &serenity::Context, data: &Data, event: &serenity::Fu
                 Ok(false) => {}
                 Err(e) => log::error(format!("Error checking a deleted message: {e}")),
             }
-            let cached = ctx.cache.message(*channel_id, *deleted_message_id).map(|m| m.clone());
-            let author = cached.as_ref().map(|m| m.author.id);
-            let embed = match cached {
-                // Bots' messages (like this cog's) aren't worth logging
-                Some(message) if message.author.bot => return,
-                Some(message) => {
-                    let mut text = format!("Message by <@{}> deleted in <#{channel_id}>:\n{}", message.author.id, quote(&message.content));
-                    if !message.attachments.is_empty() {
-                        let names: Vec<&str> = message.attachments.iter().map(|a| a.filename.as_str()).collect();
-                        text = format!("{text}\n**Attachments:** {}", names.join(", "));
-                    }
-                    with_user(embed(RED, "Message Deleted", text), &message.author)
-                }
-                None => embed(RED, "Message Deleted", format!("A message was deleted in <#{channel_id}> (it was sent before the bot could see it).")),
-            };
+            // Messages sent before the bot could see them say nothing worth logging, and bots'
+            // messages (like this cog's) aren't worth logging
+            let Some(message) = ctx.cache.message(*channel_id, *deleted_message_id).map(|m| m.clone()) else { return };
+            if message.author.bot {
+                return;
+            }
+            let mut text = format!("Message by <@{}> deleted in <#{channel_id}>:\n{}", message.author.id, quote(&message.content));
+            if !message.attachments.is_empty() {
+                let names: Vec<&str> = message.attachments.iter().map(|a| a.filename.as_str()).collect();
+                text = format!("{text}\n**Attachments:** {}", names.join(", "));
+            }
+            let embed = with_user(embed(RED, "Message Deleted", text), &message.author);
             // Only someone deleting another member's message is in the audit log; no entry
             // means the author deleted it themselves
-            let by = match author {
-                Some(author) => actor(ctx, *guild_id, serenity::audit_log::Action::Message(MessageAction::Delete), author.get()).await,
-                None => None,
-            };
+            let by = actor(ctx, *guild_id, serenity::audit_log::Action::Message(MessageAction::Delete), message.author.id.get()).await;
             post(ctx, *guild_id, "message", log, with_actor(embed, "Deleted by", by)).await;
         }
         MessageDeleteBulk { channel_id, multiple_deleted_messages_ids, guild_id: Some(guild_id) } => {
