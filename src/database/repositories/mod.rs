@@ -19,6 +19,7 @@ pub mod lockdown;
 pub mod profiles;
 pub mod quarantine;
 pub mod raid_protection;
+pub mod reaction_roles;
 pub mod rules;
 pub mod server_setup;
 pub mod staff_policy;

@@ -21,6 +21,7 @@ pub mod logging;
 pub mod pets;
 pub mod presence;
 pub mod profile;
+pub mod reaction_roles;
 pub mod rules;
 pub mod server_setup;
 pub mod stats;
@@ -59,6 +60,7 @@ pub const COGS: &[&str] = &[
     "Profile",
     "Quarantine",
     "RaidProtection",
+    "ReactionRoles",
     "Rules",
     "ServerStats",
     "StaffPolicy",

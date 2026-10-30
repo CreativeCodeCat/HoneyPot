@@ -374,6 +374,18 @@ A sticky message stays near the bottom of its channel: once enough messages are 
 - `/sticky list` - List the server's sticky messages, 10 per page
 - `/sticky delay <seconds>` - How long every sticky in the server waits before moving down once it's due, from 0 (straight away) to 300 seconds. The default is 5
 
+### Reaction Roles Commands
+
+Staff post a message with their own text, then pick emojis for it: reacting with one gives its role, and taking the reaction off takes the role away. Any message can be used, not just ones the bot posted. All need **Manage Roles**, and the bot's highest role has to be above the roles it gives.
+
+- `/reaction-roles post <message> [title] [channel]` - Post a message for reaction roles. Use `\n` for new lines
+- `/reaction-roles edit <message> <text> [title] [channel]` - Change the text of a message the bot posted
+- `/reaction-roles add <message> <emoji> <role> [channel]` - Make reacting with the emoji give the role; the bot adds the reaction. `message` is the message's ID or link, and `channel` is where it is (default: this channel)
+- `/reaction-roles remove <message> <emoji>` - Stop the emoji giving a role, and take the bot's reaction off
+- `/reaction-roles list` - List the server's reaction roles, by message
+
+Deleting the message removes its reaction roles.
+
 ### Rules Commands
 
 Each server writes its own rules as sections (a title, text and colour), which are posted as embeds. Posting again deletes the previous rules messages first, so the channel only ever has one copy. All need **Manage Server**.
@@ -473,6 +485,7 @@ The bot uses SQLite for persistent storage:
 - `database/presence.json` - The bot's status and activity set with `/presence`
 - `database/staff_policy.db` - Roles taken by the staff policy, for restoring
 - `database/sticky.db` - Sticky messages
+- `database/reaction_roles.db` - Reaction role emojis and the roles they give
 - `database/counting.db` - Counting channels, counts and high scores
 - `database/guessing.db` - Guessing channels, current numbers and stats
 - `database/lockdown.db` - Active lockdowns and the permissions to restore
@@ -544,7 +557,7 @@ HoneyPot/
         ├── games/          # /hack, /heist, /defuse, /fight, counting, guessing
         ├── pets/           # /pet commands and the pet card
         └── …               # afk, announce, applications, general, info, profile,
-                            # rules, server_setup, stats, sticky, suggestions, cooldowns
+                            # reaction_roles, rules, server_setup, stats, sticky, suggestions, cooldowns
 ```
 
 ## Adding More Cogs

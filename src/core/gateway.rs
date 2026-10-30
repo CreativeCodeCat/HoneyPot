@@ -11,7 +11,7 @@ use crate::database::guild_config;
 use crate::database::repositories::{bot_messages, incidents, live_status, quarantine, raid_protection, suspicious_accounts};
 use crate::features::developer;
 use crate::features::{
-    afk, applications, cooldowns, economy, games, honeypot, leveling, lockdown, pets, profile, rules, server_setup, staff_policy, sticky, suggestions, tickets,
+    afk, applications, cooldowns, economy, games, honeypot, leveling, lockdown, pets, profile, reaction_roles, rules, server_setup, staff_policy, sticky, suggestions, tickets,
     Data, State,
 };
 use crate::log;
@@ -48,6 +48,7 @@ pub async fn run() {
         rules: Mutex::new(rules::Store::open().expect("failed to open rules database")),
         server_setup: Mutex::new(server_setup::Store::open().expect("failed to open server setup database")),
         staff_policy: Mutex::new(staff_policy::Store::open().expect("failed to open staff policy database")),
+        reaction_roles: Mutex::new(reaction_roles::Store::open().expect("failed to open reaction roles database")),
         sticky: Mutex::new(sticky::Store::open().expect("failed to open sticky database")),
         suggestions: Mutex::new(suggestions::Store::open().expect("failed to open suggestions database")),
         lockdown: Mutex::new(lockdown::Store::open().expect("failed to open lockdown database")),

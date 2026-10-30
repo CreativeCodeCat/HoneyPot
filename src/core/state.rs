@@ -22,6 +22,7 @@ pub struct State {
     pub suspicious_accounts: Mutex<crate::database::repositories::suspicious_accounts::Store>,
     pub quarantine: Mutex<crate::database::repositories::quarantine::Store>,
     pub raid_protection: Mutex<crate::database::repositories::raid_protection::Store>,
+    pub reaction_roles: Mutex<reaction_roles::Store>,
     pub incidents: Mutex<crate::database::repositories::incidents::Store>,
     pub honeypot: Mutex<honeypot::store::Store>,
     pub levels: Mutex<leveling::store::Store>,

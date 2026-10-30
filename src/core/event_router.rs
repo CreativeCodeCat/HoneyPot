@@ -10,7 +10,7 @@ use super::framework::{Command, Framework};
 
 use crate::features::developer;
 use crate::features::{
-    afk, applications, cog_manager, games, honeypot, incidents, leveling, live_status, lockdown, logging, pets, quarantine, raid_protection, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
+    afk, applications, cog_manager, games, honeypot, incidents, leveling, live_status, lockdown, logging, pets, quarantine, raid_protection, reaction_roles, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
 };
 use crate::log;
 use crate::features::presence;
@@ -71,6 +71,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     }
     if let Err(e) = data.staff_policy.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale staff policy records: {e}"));
+    }
+    if let Err(e) = data.reaction_roles.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale reaction roles: {e}"));
     }
     if let Err(e) = data.sticky.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale sticky messages: {e}"));
@@ -210,6 +213,15 @@ pub async fn event_handler(
             suspicious_accounts::on_message(ctx, data, new_message).await;
             games::counting::on_message(ctx, data, new_message).await;
             games::guessing::on_message(ctx, data, new_message).await;
+        }
+        serenity::FullEvent::ReactionAdd { add_reaction } => {
+            reaction_roles::on_reaction(ctx, data, add_reaction, true).await;
+        }
+        serenity::FullEvent::ReactionRemove { removed_reaction } => {
+            reaction_roles::on_reaction(ctx, data, removed_reaction, false).await;
+        }
+        serenity::FullEvent::MessageDelete { deleted_message_id, .. } => {
+            reaction_roles::on_message_delete(data, *deleted_message_id);
         }
         serenity::FullEvent::ChannelCreate { channel } => {
             quarantine::on_channel_create(ctx, data, channel).await;
