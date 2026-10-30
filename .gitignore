@@ -5,5 +5,5 @@
 /target
 
 # Runtime data (SQLite databases)
-database/
+/database/
 *.db
