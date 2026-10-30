@@ -1,6 +1,6 @@
-//! Admin commands for turning single games on and off. They're part of the Games
-//! cog, so they're only available while it's enabled. The settings are kept in the
-//! cog manager's config as "game:<name>".
+//! Admin commands for turning single games on and off, and `/games` for anyone to see
+//! which are on. They're part of the Games cog, so they're only available while it's
+//! enabled. The settings are kept in the cog manager's config as "game:<name>".
 
 use ::serenity::all as serenity;
 
@@ -8,6 +8,7 @@ use crate::core::framework::{command, CreateReply};
 use super::super::cog_manager::resync;
 use crate::database::guild_config::game_key;
 use super::super::{Context, Error};
+use super::super::server_setup::OWN_CHANNEL_GAMES;
 use super::GAMES;
 
 async fn autocomplete_game(_ctx: Context<'_>, partial: &str) -> Vec<String> {
@@ -93,6 +94,41 @@ pub async fn gamestatus(ctx: Context<'_>) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new()
         .title("Game Status")
         .description(status_msg)
+        .colour(0x3498db);
+    ctx.send(CreateReply::default().embed(embed)).await?;
+    Ok(())
+}
+
+/// See which games you can play in the games channel
+#[command(slash_command, guild_only, ephemeral, category = "Games")]
+pub async fn games(ctx: Context<'_>) -> Result<(), Error> {
+    let guild_id = ctx.guild_id().unwrap().get();
+    let enabled: Vec<&str> = {
+        let config = ctx.data().cog_config.lock().unwrap();
+        // Counting and guessing have their own channels, so they aren't listed
+        GAMES
+            .iter()
+            .copied()
+            .filter(|game| !OWN_CHANNEL_GAMES.contains(game) && config.is_game_enabled(guild_id, game))
+            .collect()
+    };
+
+    let description = if enabled.is_empty() {
+        "No games are enabled for the games channel yet. An admin can turn them on with `/enablegame`.".to_string()
+    } else {
+        // Each game's own command description, so this list never goes stale
+        enabled
+            .iter()
+            .map(|game| {
+                let about = ctx.framework().commands.iter().find(|c| c.name == *game).and_then(|c| c.description.as_deref()).unwrap_or_default();
+                format!("**/{game}**: {about}")
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let embed = serenity::CreateEmbed::new()
+        .title(format!("🎮 Games ({} enabled)", enabled.len()))
+        .description(description)
         .colour(0x3498db);
     ctx.send(CreateReply::default().embed(embed)).await?;
     Ok(())

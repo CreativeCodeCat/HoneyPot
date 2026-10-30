@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn every_game_can_be_toggled() {
-        let mut games: Vec<_> = crate::core::command_router::commands().into_iter().filter(|c| c.category.as_deref() == Some("Games") && !["enablegame", "disablegame", "gamestatus"].contains(&c.name.as_str())).map(|c| c.name).collect();
+        let mut games: Vec<_> = crate::core::command_router::commands().into_iter().filter(|c| c.category.as_deref() == Some("Games") && !["enablegame", "disablegame", "gamestatus", "games"].contains(&c.name.as_str())).map(|c| c.name).collect();
         games.sort();
         assert_eq!(games, super::super::games::GAMES);
     }

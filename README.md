@@ -342,6 +342,7 @@ Cogs: `afk`, `announcements`, `applications`, `automod`, `economy`, `games`, `ge
 - `/cooldown set <command> <seconds> [scope]` - Set a command's cooldown (0 removes it). Scope `User` (default) makes each member wait on their own; `Global` makes one use put the command on cooldown for the whole server. `guessing` can be set too, for guesses in the guessing channel
 - `/cooldown list` - List the commands with a cooldown and their scope
 - `/gamestatus` - Check which games are enabled for this server (only available while the Games cog is enabled)
+- `/games` - Anyone can list the enabled games played in the games channel (`defuse`, `fight`, `hack`, `heist`; not counting or guessing, which have their own channels), with what each one is (only available while the Games cog is enabled)
 - `/cogstatus` - Check the status of all cogs for this server
 
 ## Templates

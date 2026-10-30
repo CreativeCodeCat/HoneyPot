@@ -33,7 +33,7 @@ pub use defuse::defuse;
 pub use fight::fight;
 pub use guessing::guessing;
 pub use heist::heist;
-pub use settings::{disablegame, enablegame, gamestatus};
+pub use settings::{disablegame, enablegame, games, gamestatus};
 
 /// Every game command; each is off until turned on with `/enablegame`.
 pub const GAMES: &[&str] = &["counting", "defuse", "fight", "guessing", "hack", "heist"];

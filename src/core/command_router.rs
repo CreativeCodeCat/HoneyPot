@@ -50,6 +50,7 @@ pub fn commands() -> Vec<Command> {
         games::enablegame(),
         games::disablegame(),
         games::gamestatus(),
+        games::games(),
         leveling::rank_setup(),
         leveling::rank(),
         leveling::leaderboard(),

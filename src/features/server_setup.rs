@@ -77,7 +77,7 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Me
 /// Where game commands go once set with `/server-setup games`
 const GAMES_CHANNEL: &str = "channel.games";
 /// Games with their own channels, set with `/counting` and `/guessing`
-const OWN_CHANNEL_GAMES: &[&str] = &["counting", "guessing"];
+pub const OWN_CHANNEL_GAMES: &[&str] = &["counting", "guessing"];
 
 /// Framework-wide check: once a games channel is set, games can only be played there and
 /// other commands can't be used there; and once a commands channel is set, members can only
