@@ -3,7 +3,7 @@
 use crate::features::developer;
 use crate::features::{
     afk, announce, applications, automod, cog_manager, cooldowns, economy, games, general, honeypot, incidents, info, leveling, lockdown, moderation, pets, profile,
-    rules, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context,
+    raid_protection, rules, server_setup, staff_policy, stats, sticky, suggestions, tickets, Context,
 };
 use crate::core::framework::{Command, CreateReply, FrameworkError};
 use crate::log;
@@ -63,6 +63,7 @@ pub fn commands() -> Vec<Command> {
     commands.push(suggestions::suggestion());
     commands.push(sticky::sticky());
     commands.push(incidents::incident());
+    commands.push(raid_protection::raid());
     commands.push(announce::announce());
     commands.push(profile::profile());
     commands.push(profile::profile_menu());

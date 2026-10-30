@@ -2,6 +2,7 @@
 
 pub mod automod;
 pub mod lockdown;
+pub mod raid_protection;
 pub mod staff_policy;
 
 use ::serenity::all as serenity;

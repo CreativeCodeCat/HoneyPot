@@ -118,6 +118,23 @@ Buttons in each ticket: **Save & Close**, **Lock**, **Unlock**, **Claim** (handl
 
 Both need **Manage Channels**. Timed lockdowns are lifted automatically, even if the bot restarts in between.
 
+### Raid Protection
+
+The RaidProtection cog (`/enablecog raidprotection`) watches how fast members join. When too many join too quickly (10 in 30 seconds by default), the server goes into **raid mode**:
+
+- 🚨 Staff get an alert, in the chosen channel, else the join & leave log, else the server's system channel
+- 🔒 Text channels are locked the same way `/lock` does, so `/unlock` works on them too. The alert channel and honeypot channels stay open (raiders who post in a honeypot still get caught). Raid locks also lift themselves after 24 hours, as a safety net
+- 🛡️ The verification level is raised to High: new members must wait 10 minutes on the server before they can talk (and need a verified email and an account at least 5 minutes old)
+- 👢 Every account that joins until it's over (including the ones that set it off) is timed out, kicked (default) or banned. Bots are never touched
+
+Raid mode ends by itself once there have been no raid-speed joins for 10 minutes (adjustable), or with `/raid end`. Channels it locked are unlocked and the verification level is put back. If the Incidents cog is on, every account it acts on gets an incident report.
+
+- `/raid setup` - Change the threshold (joins and seconds), the quiet time, whether to lock channels and raise verification, what happens to joiners, the timeout length and the alert channel. Every option is optional; unset ones keep their current value
+- `/raid status` - See the settings and whether a raid is going on
+- `/raid end` - End raid mode now
+
+These need **Manage Server**. The bot needs **Manage Channels**, **Manage Server**, and **Moderate Members**, **Kick Members** or **Ban Members** for the joiner action.
+
 ### Moderation Commands
 
 These work in any channel, even when a commands channel is set with `/server-setup commands`. Each command needs the matching permission for both the member using it and the bot. Nobody can moderate themselves, the bot, the server owner, or a member whose highest role is the same as or above theirs or the bot's. Members are sent a DM saying what happened and why (if their DMs are open), and the reason goes in the audit log.

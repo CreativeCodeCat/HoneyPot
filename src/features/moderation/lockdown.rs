@@ -55,8 +55,8 @@ pub fn parse_duration(text: &str) -> Option<i64> {
 }
 
 /// @everyone's current overwrite on a channel, as (allow, deny).
-fn everyone_overwrite(ctx: Context<'_>, channel_id: serenity::ChannelId) -> (P, P) {
-    let Some(guild) = ctx.guild() else { return (P::empty(), P::empty()) };
+fn everyone_overwrite(cache: &serenity::Cache, guild_id: serenity::GuildId, channel_id: serenity::ChannelId) -> (P, P) {
+    let Some(guild) = cache.guild(guild_id) else { return (P::empty(), P::empty()) };
     let everyone = serenity::PermissionOverwriteType::Role(guild.id.everyone_role());
     guild
         .channels
@@ -77,6 +77,40 @@ async fn restore_overwrite(http: &serenity::Http, guild_id: serenity::GuildId, l
         channel_id.create_permission(http, overwrite).await?;
     }
     Ok(())
+}
+
+/// Locks a channel so @everyone can't send messages, until `expires_at` (Unix time) or
+/// `/unlock`. Returns false if it was already locked.
+pub async fn lock_channel(
+    ctx: &serenity::Context,
+    data: &Data,
+    guild_id: serenity::GuildId,
+    channel_id: serenity::ChannelId,
+    expires_at: i64,
+    reason: &str,
+) -> Result<bool, Error> {
+    let already_locked = data.lockdown.lock().unwrap().get(channel_id.get())?.is_some();
+    let (allow, deny) = everyone_overwrite(&ctx.cache, guild_id, channel_id);
+    if already_locked || deny.contains(P::SEND_MESSAGES) {
+        return Ok(false);
+    }
+    let overwrite = serenity::PermissionOverwrite {
+        allow: allow - LOCK_PERMS,
+        deny: deny | LOCK_PERMS,
+        kind: serenity::PermissionOverwriteType::Role(guild_id.everyone_role()),
+    };
+    channel_id.create_permission(ctx, overwrite).await?;
+    let lockdown = Lockdown { channel_id: channel_id.get(), previous_allow: allow, previous_deny: deny };
+    data.lockdown.lock().unwrap().add(guild_id.get(), &lockdown, expires_at, reason)?;
+    Ok(true)
+}
+
+/// Lifts a lockdown made by `lock_channel` or `/lock`. Returns false if the channel had none.
+pub async fn unlock_channel(http: &serenity::Http, data: &Data, guild_id: serenity::GuildId, channel_id: serenity::ChannelId) -> Result<bool, Error> {
+    let Some(lockdown) = data.lockdown.lock().unwrap().get(channel_id.get())? else { return Ok(false) };
+    restore_overwrite(http, guild_id, &lockdown).await?;
+    data.lockdown.lock().unwrap().remove(channel_id.get())?;
+    Ok(true)
 }
 
 fn lifted_embed() -> serenity::CreateEmbed {
@@ -115,22 +149,10 @@ pub async fn lock(
         }
     };
 
-    let already_locked = ctx.data().lockdown.lock().unwrap().get(channel_id.get())?.is_some();
-    let (allow, deny) = everyone_overwrite(ctx, channel_id);
-    if already_locked || deny.contains(P::SEND_MESSAGES) {
+    let expires_at = Utc::now().timestamp() + duration;
+    if !lock_channel(ctx.serenity_context(), ctx.data(), guild_id, channel_id, expires_at, &reason).await? {
         return reply_embed(ctx, RED, "🟥 | This channel has already been locked!", true).await;
     }
-
-    let overwrite = serenity::PermissionOverwrite {
-        allow: allow - LOCK_PERMS,
-        deny: deny | LOCK_PERMS,
-        kind: serenity::PermissionOverwriteType::Role(guild_id.everyone_role()),
-    };
-    channel_id.create_permission(ctx, overwrite).await?;
-
-    let expires_at = Utc::now().timestamp() + duration;
-    let lockdown = Lockdown { channel_id: channel_id.get(), previous_allow: allow, previous_deny: deny };
-    ctx.data().lockdown.lock().unwrap().add(guild_id.get(), &lockdown, expires_at, &reason)?;
 
     let text = format!(
         "🔒 | This channel is now on lockdown for: {reason}\nThe lockdown will be lifted <t:{expires_at}:R>."
@@ -150,21 +172,15 @@ pub async fn unlock(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
     let channel_id = ctx.channel_id();
 
-    let saved = ctx.data().lockdown.lock().unwrap().get(channel_id.get())?;
-    let lockdown = match saved {
-        Some(lockdown) => lockdown,
-        None => {
-            // Locked some other way (e.g. by hand): just give the permissions back
-            let (allow, deny) = everyone_overwrite(ctx, channel_id);
-            if !deny.contains(P::SEND_MESSAGES) {
-                return reply_embed(ctx, RED, "🟥 | This channel has already been unlocked!", true).await;
-            }
-            Lockdown { channel_id: channel_id.get(), previous_allow: allow, previous_deny: deny - LOCK_PERMS }
+    if !unlock_channel(ctx.http(), ctx.data(), guild_id, channel_id).await? {
+        // Locked some other way (e.g. by hand): just give the permissions back
+        let (allow, deny) = everyone_overwrite(ctx.cache(), guild_id, channel_id);
+        if !deny.contains(P::SEND_MESSAGES) {
+            return reply_embed(ctx, RED, "🟥 | This channel has already been unlocked!", true).await;
         }
-    };
-
-    restore_overwrite(ctx.http(), guild_id, &lockdown).await?;
-    ctx.data().lockdown.lock().unwrap().remove(channel_id.get())?;
+        let lockdown = Lockdown { channel_id: channel_id.get(), previous_allow: allow, previous_deny: deny - LOCK_PERMS };
+        restore_overwrite(ctx.http(), guild_id, &lockdown).await?;
+    }
     ctx.send(CreateReply::default().embed(lifted_embed())).await?;
     Ok(())
 }
