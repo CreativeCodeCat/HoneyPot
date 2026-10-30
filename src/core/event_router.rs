@@ -190,6 +190,7 @@ pub async fn event_handler(
             presence::apply(ctx);
             if !TASKS_STARTED.swap(true, Ordering::SeqCst) {
                 startup_report(ctx, data, &framework.commands).await;
+                tokio::spawn(super::dashboard::serve(ctx.clone(), data.clone()));
                 tokio::spawn(stats::update_stats_loop(ctx.clone(), data.clone()));
                 tokio::spawn(honeypot::weekly_summary_loop(ctx.clone(), data.clone()));
                 tokio::spawn(tickets::auto_close_loop(ctx.clone(), data.clone()));

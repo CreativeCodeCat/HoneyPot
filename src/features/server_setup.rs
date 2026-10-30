@@ -128,6 +128,30 @@ pub async fn commands_channel_check(ctx: Context<'_>) -> Result<(), Error> {
     }
 }
 
+/// Every log type, for listing them all (keep in step with `LogType`)
+pub const LOG_TYPES: &[LogType] = &[
+    LogType::Channel,
+    LogType::Events,
+    LogType::Emoji,
+    LogType::Guild,
+    LogType::JoinLeave,
+    LogType::Member,
+    LogType::Message,
+    LogType::Role,
+    LogType::Sticker,
+    LogType::Thread,
+    LogType::User,
+    LogType::Voice,
+    LogType::Ready,
+    LogType::Welcome,
+    LogType::Boosts,
+];
+
+/// The settings key a log type's channel is saved under, e.g. "logs.joinleave".
+pub fn log_key(log: LogType) -> String {
+    key("logs", log.name())
+}
+
 /// The settings key for a choice, e.g. `key("logs", "Join & Leave")` -> "logs.joinleave".
 fn key(group: &str, choice: &str) -> String {
     format!("{group}.{}", choice.to_lowercase().replace(" & ", "").replace(' ', ""))
@@ -269,6 +293,25 @@ mod tests {
     #[test]
     fn keys_are_flat() {
         assert_eq!(key("logs", LogType::JoinLeave.name()), "logs.joinleave");
+        // Adding a log type breaks this match, as a reminder to add it to LOG_TYPES
+        let index = |log: LogType| match log {
+            LogType::Channel => 0,
+            LogType::Events => 1,
+            LogType::Emoji => 2,
+            LogType::Guild => 3,
+            LogType::JoinLeave => 4,
+            LogType::Member => 5,
+            LogType::Message => 6,
+            LogType::Role => 7,
+            LogType::Sticker => 8,
+            LogType::Thread => 9,
+            LogType::User => 10,
+            LogType::Voice => 11,
+            LogType::Ready => 12,
+            LogType::Welcome => 13,
+            LogType::Boosts => 14,
+        };
+        assert!(LOG_TYPES.iter().enumerate().all(|(i, &log)| index(log) == i) && LOG_TYPES.len() == 15);
     }
 
     #[test]

@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --side: #ebedf0; --text: #1d1f23; --muted: #6b7280;
+    --border: #e1e3e8; --hover: rgba(0, 0, 0, .05); --active: rgba(217, 138, 0, .14); --accent: #c27a00;
+    --green: #2d8a4b; --green-bg: rgba(59, 165, 93, .15); --red: #d83c3e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1f22; --panel: #2b2d31; --side: #232428; --text: #e8e9eb; --muted: #9a9ca3;
+      --border: #3a3c42; --hover: rgba(255, 255, 255, .05); --active: rgba(240, 165, 0, .16); --accent: #f0a500;
+      --green: #57c27a; --green-bg: rgba(59, 165, 93, .18);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  [hidden] { display: none !important; }
+  a { color: inherit; }
+  img { display: block; }
+
+  /* Sign in */
+  #signin { min-height: 100%; display: grid; place-items: center; padding: 16px; }
+  .signin-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 36px 32px; text-align: center; max-width: 380px; width: 100%; }
+  .signin-card h1 { margin: 0 0 6px; font-size: 22px; }
+  .signin-card p { color: var(--muted); margin: 0 0 22px; }
+  .button { display: inline-block; background: #5865f2; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
+  .button:hover { background: #4752c4; }
+
+  /* Layout */
+  .app { display: flex; min-height: 100%; }
+  .sidebar {
+    width: 260px; flex: none; background: var(--side); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 16px; border-bottom: 1px solid var(--border); }
+  .brand img { width: 36px; height: 36px; border-radius: 50%; background: var(--border); }
+  .brand .bname { font-weight: 700; font-size: 15px; line-height: 1.2; }
+  .brand .bmeta { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3ba55d; flex: none; }
+  .dot.down { background: var(--red); }
+  nav { flex: 1; overflow-y: auto; padding: 10px 8px; }
+  .nav-label { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 14px 10px 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; text-decoration: none; color: var(--text); font-size: 14px; }
+  .nav-item:hover { background: var(--hover); }
+  .nav-item.active { background: var(--active); font-weight: 600; }
+  .nav-item .ico { width: 24px; height: 24px; border-radius: 50%; background: var(--border); flex: none; display: grid; place-items: center; font-size: 11px; color: var(--muted); overflow: hidden; }
+  .nav-item .ico svg { width: 15px; height: 15px; }
+  .nav-item span.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-empty { color: var(--muted); font-size: 13px; padding: 4px 10px; }
+  .nav-back { display: block; color: var(--muted); font-size: 13px; text-decoration: none; padding: 4px 10px 8px; }
+  .nav-back:hover { color: var(--text); }
+  .nav-server { display: flex; align-items: center; gap: 10px; padding: 6px 10px 10px; }
+  .nav-server img, .nav-server .ph { width: 32px; height: 32px; border-radius: 50%; background: var(--border); flex: none; }
+  .nav-server b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-item .count { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .me { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); }
+  .me img { width: 32px; height: 32px; border-radius: 50%; background: var(--border); }
+  .me .who { flex: 1; min-width: 0; font-size: 13px; line-height: 1.3; }
+  .me .who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .me .who small { color: var(--muted); }
+  .me a { color: var(--muted); font-size: 12px; text-decoration: none; }
+  .me a:hover { color: var(--text); }
+
+  .content { flex: 1; min-width: 0; }
+  .topbar { display: none; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 28px 28px 48px; }
+  .page-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .page-head img, .page-head .ph { width: 48px; height: 48px; border-radius: 50%; background: var(--border); flex: none; }
+  .page-head .ph { display: grid; place-items: center; font-size: 18px; color: var(--muted); }
+  .page-head h1 { margin: 0; font-size: 22px; line-height: 1.2; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .error { color: var(--red); }
+
+  /* Overview */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .tile { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .tile .value { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .table { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr.clickable { cursor: pointer; }
+  tbody tr.clickable:hover { background: var(--hover); }
+  .guild { display: flex; align-items: center; gap: 10px; }
+  .guild img, .guild .ph { width: 28px; height: 28px; border-radius: 50%; background: var(--border); flex: none; }
+  .ph { display: grid; place-items: center; font-size: 12px; color: var(--muted); }
+  .guild a { text-decoration: none; font-weight: 500; }
+
+  /* Server */
+  .filter { width: 100%; padding: 9px 12px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
+  .cog { margin-bottom: 20px; }
+  .cog h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; margin: 0 0 8px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .badge.on { background: var(--green-bg); color: var(--green); }
+  .badge.off { background: var(--border); color: var(--muted); }
+  .cog.disabled .table { opacity: .6; }
+  td code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  td.desc { white-space: normal; color: var(--muted); min-width: 220px; }
+  td.perm { font-size: 12px; color: var(--muted); }
+
+  /* Server overview and cogs */
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .fact { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+  .fact .label { color: var(--muted); font-size: 12px; }
+  .fact .value { font-weight: 500; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .card { display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; text-decoration: none; }
+  .card:hover { border-color: var(--accent); }
+  .card .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .card b { font-size: 15px; }
+  .card .sub { font-size: 13px; }
+  .card.disabled b { color: var(--muted); }
+  .card .sub a { color: var(--accent); text-decoration: none; }
+  .card .sub a:hover { text-decoration: underline; }
+  .switch { position: relative; width: 38px; height: 22px; flex: none; border: 0; border-radius: 999px; background: var(--border); cursor: pointer; padding: 0; transition: background .15s; }
+  .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+  .switch[aria-checked="true"] { background: #3ba55d; }
+  .switch[aria-checked="true"]::after { transform: translateX(16px); }
+  .switch:disabled { opacity: .5; cursor: wait; }
+  .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .note { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 14px; z-index: 30; max-width: calc(100% - 32px); }
+  .toast.bad { background: var(--red); color: #fff; }
+  .card .actions { display: flex; gap: 6px; margin-top: 10px; }
+  .btn { display: inline-block; font: inherit; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); text-decoration: none; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .btn[disabled]:hover { border-color: var(--border); color: var(--text); }
+  td.cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  td.cell.null { color: var(--muted); font-style: italic; }
+  .name { font-family: system-ui, sans-serif; color: var(--accent); }
+  tr.default td { color: var(--muted); font-style: italic; }
+  tr.default td:first-child::before { content: 'default'; font: 600 10px system-ui, sans-serif; font-style: normal; text-transform: uppercase; letter-spacing: .04em; background: var(--border); color: var(--muted); border-radius: 4px; padding: 1px 5px; margin-right: 8px; }
+  .legend { font-size: 13px; color: var(--muted); margin: -4px 0 12px; }
+  .pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .chips { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .chip { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; }
+  .chip.active { background: var(--active); border-color: var(--accent); font-weight: 600; }
+
+  /* Phones: the sidebar slides in from a menu button */
+  .scrim { display: none; }
+  @media (max-width: 800px) {
+    .sidebar { position: fixed; left: 0; top: 0; z-index: 20; transform: translateX(-100%); transition: transform .2s; }
+    .app.open .sidebar { transform: none; }
+    .app.open .scrim { display: block; position: fixed; inset: 0; background: rgba(0, 0, 0, .4); z-index: 10; }
+    .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--side); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+    .topbar button { background: none; border: 0; color: var(--text); padding: 6px; margin-left: -6px; cursor: pointer; }
+    .topbar button svg { width: 22px; height: 22px; display: block; }
+    .topbar .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .page { padding: 20px 16px 40px; }
+  }
+</style>
+</head>
+<body>
+<section id="signin" hidden>
+  <div class="signin-card">
+    <h1>Dashboard</h1>
+    <p>Sign in to see the servers you manage.</p>
+    <a class="button" href="/login">Sign in with Discord</a>
+  </div>
+</section>
+
+<div class="app" id="app" hidden>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <img id="bot-avatar" alt="">
+      <div>
+        <div class="bname" id="bot-name">Loading…</div>
+        <div class="bmeta"><span class="dot" id="status-dot"></span><span id="bot-meta"></span></div>
+      </div>
+    </div>
+    <nav id="nav-bot">
+      <a class="nav-item" id="nav-overview" href="/">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>
+        <span class="label">Overview</span>
+      </a>
+      <div class="nav-label">Servers</div>
+      <div id="nav-servers"></div>
+    </nav>
+    <nav id="nav-guild" hidden>
+      <a class="nav-back" href="/">← All servers</a>
+      <div class="nav-server" id="nav-server"></div>
+      <a class="nav-item" data-section="" href="#">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>
+        <span class="label">Overview</span>
+      </a>
+      <a class="nav-item" data-section="commands" href="#">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg></span>
+        <span class="label">Commands</span><span class="count" id="count-commands"></span>
+      </a>
+      <a class="nav-item" data-section="cogs" href="#">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></span>
+        <span class="label">Cogs</span><span class="count" id="count-cogs"></span>
+      </a>
+    </nav>
+    <div class="me">
+      <img id="user-avatar" alt="">
+      <div class="who"><b id="user-name"></b><small id="user-role"></small></div>
+      <a href="/logout">Sign out</a>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="content">
+    <div class="topbar">
+      <button id="menu" aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <span class="title" id="topbar-title">Dashboard</span>
+    </div>
+
+    <main class="page" id="overview-view">
+      <div class="page-head">
+        <div>
+          <h1>Overview</h1>
+          <div class="sub">Everything the bot is doing in the servers you manage</div>
+        </div>
+      </div>
+      <section class="tiles">
+        <div class="tile"><div class="label">Servers</div><div class="value" id="servers">–</div></div>
+        <div class="tile"><div class="label">Members</div><div class="value" id="members">–</div></div>
+        <div class="tile"><div class="label">Channels</div><div class="value" id="channels">–</div></div>
+        <div class="tile"><div class="label">Uptime</div><div class="value" id="uptime">–</div></div>
+      </section>
+      <h2>Servers</h2>
+      <div class="table">
+        <table>
+          <thead><tr><th>Server</th><th class="num">Members</th><th class="num">Channels</th><th class="num">Cogs on</th></tr></thead>
+          <tbody id="guilds"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <main class="page" id="server-view" hidden>
+      <div class="page-head" id="server-head"></div>
+      <p class="error" id="server-error" hidden></p>
+
+      <section id="section-overview" hidden>
+        <section class="tiles">
+          <div class="tile"><div class="label">Members</div><div class="value" id="s-members">–</div></div>
+          <div class="tile"><div class="label">Channels</div><div class="value" id="s-channels">–</div></div>
+          <div class="tile"><div class="label">Roles</div><div class="value" id="s-roles">–</div></div>
+          <div class="tile"><div class="label">Boosts</div><div class="value" id="s-boosts">–</div></div>
+        </section>
+        <section class="facts">
+          <div class="fact"><div class="label">Owner</div><div class="value" id="s-owner">–</div></div>
+          <div class="fact"><div class="label">Created</div><div class="value" id="s-created">–</div></div>
+          <div class="fact"><div class="label">Cogs on</div><div class="value" id="s-cogs">–</div></div>
+        </section>
+        <h2>Go to</h2>
+        <div class="cards" id="s-links"></div>
+      </section>
+
+      <section id="section-commands" hidden>
+        <input class="filter" id="filter" type="search" placeholder="Filter commands" aria-label="Filter commands">
+        <div id="cogs"></div>
+      </section>
+
+      <section id="section-cogs" hidden>
+        <p class="note" id="cog-note" hidden>Only the server's owner and admins can turn cogs on and off.</p>
+        <div class="chips" id="cog-chips"></div>
+        <div class="cards" id="cog-cards"></div>
+      </section>
+
+      <section id="section-data" hidden>
+        <div class="chips" id="data-tables"></div>
+        <div id="data-body"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const fmt = n => n.toLocaleString();
+  function uptime(s) {
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.append(text);
+    return e;
+  }
+  function guildIcon(g, cls) {
+    if (g.icon) { const img = el('img', cls); img.src = g.icon; img.alt = ''; return img; }
+    return el('div', cls ? `${cls} ph` : 'ph', g.name.charAt(0));
+  }
+
+  const serverMatch = location.pathname.match(/^\/servers\/(\d+)(?:\/(commands|cogs)(?:\/([^/]+))?)?\/?$/);
+  const serverId = serverMatch && serverMatch[1];
+  const section = (serverMatch && serverMatch[2]) || '';
+  // A cog's data page: /servers/<id>/cogs/<cog>
+  const dataCog = section === 'cogs' && serverMatch[3] ? decodeURIComponent(serverMatch[3]) : null;
+  const view = dataCog ? 'data' : section || 'overview';
+  const VIEWS = ['overview', 'commands', 'cogs', 'data'];
+  const serverPath = sub => `/servers/${serverId}${sub ? '/' + sub : ''}`;
+  let server = null;
+  let cogShow = 'all';
+
+  // Phone menu
+  const app = $('app');
+  $('menu').addEventListener('click', () => app.classList.add('open'));
+  $('scrim').addEventListener('click', () => app.classList.remove('open'));
+
+  function renderNav(guilds) {
+    $('nav-overview').classList.toggle('active', !serverId);
+    const list = $('nav-servers');
+    if (!guilds.length) {
+      list.replaceChildren(el('div', 'nav-empty', 'No servers yet'));
+      return;
+    }
+    list.replaceChildren(...guilds.map(g => {
+      const a = el('a', g.id === serverId ? 'nav-item active' : 'nav-item');
+      a.href = `/servers/${g.id}`;
+      const ico = el('span', 'ico');
+      if (g.icon) { const img = el('img'); img.src = g.icon; img.alt = ''; img.width = 24; img.height = 24; ico.append(img); }
+      else ico.append(g.name.charAt(0));
+      a.append(ico, el('span', 'label', g.name));
+      return a;
+    }));
+  }
+
+  function renderOverview(o) {
+    $('servers').textContent = fmt(o.totals.servers);
+    $('members').textContent = fmt(o.totals.members);
+    $('channels').textContent = fmt(o.totals.channels);
+    $('uptime').textContent = uptime(o.bot.uptime_secs);
+    const body = $('guilds');
+    if (!o.guilds.length) {
+      const td = el('td', null, 'You don’t manage any servers the bot is in.');
+      td.colSpan = 4;
+      const tr = el('tr'); tr.append(td);
+      body.replaceChildren(tr);
+      return;
+    }
+    body.replaceChildren(...o.guilds.map(g => {
+      const tr = el('tr', 'clickable');
+      tr.addEventListener('click', e => { if (!e.target.closest('a')) location.href = `/servers/${g.id}`; });
+      const name = el('td');
+      const wrap = el('div', 'guild');
+      const link = el('a', null, g.name); link.href = `/servers/${g.id}`;
+      wrap.append(guildIcon(g), link);
+      name.append(wrap);
+      tr.append(name, el('td', 'num', fmt(g.members)), el('td', 'num', fmt(g.channels)), el('td', 'num', `${g.cogs_enabled} / ${o.totals.cogs}`));
+      return tr;
+    }));
+  }
+
+  function renderCommands() {
+    const q = $('filter').value.trim().toLowerCase();
+    // Only cogs that are on: the others' commands can't be used here
+    const parts = server.cogs.filter(cog => cog.enabled).map(cog => {
+      const commands = cog.commands.filter(c => !q || cog.name.toLowerCase().includes(q)
+        || c.usage.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
+      if (!commands.length) return null;
+      const section = el('section', 'cog');
+      section.id = `cog-${cog.name}`;
+      const h = el('h3', null, cog.name);
+      const table = el('table');
+      const head = el('tr');
+      head.append(el('th', null, 'Command'), el('th', null, 'What it does'), el('th', null, 'Needs'));
+      const thead = el('thead'); thead.append(head);
+      const body = el('tbody');
+      for (const c of commands) {
+        const tr = el('tr');
+        const usage = el('td'); usage.append(el('code', null, c.usage));
+        tr.append(usage, el('td', 'desc', c.description), el('td', 'perm', c.permissions.length ? c.permissions.join(', ') : 'Anyone'));
+        body.append(tr);
+      }
+      table.append(thead, body);
+      const wrap = el('div', 'table'); wrap.append(table);
+      section.append(h, wrap);
+      return section;
+    }).filter(Boolean);
+    const empty = server.cogs.some(c => c.enabled) ? 'No commands match.' : 'No cogs are on in this server, so it has no commands.';
+    $('cogs').replaceChildren(...(parts.length ? parts : [el('p', 'sub', empty)]));
+  }
+
+  const enabledCommands = () => server.cogs.filter(c => c.enabled).reduce((n, c) => n + c.commands.length, 0);
+
+  function renderCogs() {
+    const on = server.cogs.filter(c => c.enabled).length;
+    const chips = [['all', `All (${server.cogs.length})`], ['on', `On (${on})`], ['off', `Off (${server.cogs.length - on})`]];
+    $('cog-chips').replaceChildren(...chips.map(([key, label]) => {
+      const b = el('button', key === cogShow ? 'chip active' : 'chip', label);
+      b.addEventListener('click', () => { cogShow = key; renderCogs(); });
+      return b;
+    }));
+    const shown = server.cogs.filter(c => cogShow === 'all' || (cogShow === 'on') === c.enabled);
+    $('cog-note').hidden = server.can_toggle;
+    $('cog-cards').replaceChildren(...shown.map(cog => {
+      const card = el('div', cog.enabled ? 'card' : 'card disabled');
+      const top = el('div', 'top');
+      let control;
+      if (server.can_toggle && !cog.locked) {
+        control = el('button', 'switch');
+        control.setAttribute('role', 'switch');
+        control.setAttribute('aria-checked', String(cog.enabled));
+        control.setAttribute('aria-label', `${cog.name} ${cog.enabled ? 'on' : 'off'}`);
+        control.addEventListener('click', () => toggleCog(cog, control));
+      } else {
+        control = el('span', cog.enabled ? 'badge on' : 'badge off', cog.locked ? 'Always on' : cog.enabled ? 'On' : 'Off');
+      }
+      top.append(el('b', null, cog.name), control);
+      const n = cog.commands.length;
+      const sub = el('div', 'sub', `${n} command${n === 1 ? '' : 's'}`);
+      const actions = el('div', 'actions');
+      // Info only for cogs with data here; Cmd only for cogs that are on, as the others' commands can't be used
+      if (cog.has_data) {
+        const info = el('a', 'btn', 'Info');
+        info.href = serverPath(`cogs/${encodeURIComponent(cog.name)}`);
+        actions.append(info);
+      }
+      if (cog.enabled && n) {
+        const cmd = el('a', 'btn', 'Cmd');
+        cmd.href = `${serverPath('commands')}?cog=${encodeURIComponent(cog.name)}`;
+        actions.append(cmd);
+      }
+      card.append(top, sub);
+      if (actions.childElementCount) card.append(actions);
+      return card;
+    }));
+  }
+
+  let toastTimer;
+  function toast(text, bad) {
+    document.querySelector('.toast')?.remove();
+    const t = el('div', bad ? 'toast bad' : 'toast', text);
+    t.setAttribute('role', 'status');
+    document.body.append(t);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.remove(), 4000);
+  }
+
+  async function toggleCog(cog, button) {
+    const enabled = !cog.enabled;
+    // Flipped straight away; put back if the bot says no
+    const flip = on => {
+      cog.enabled = on;
+      $('count-commands').textContent = enabledCommands();
+      renderCogs();
+    };
+    button.disabled = true;
+    flip(enabled);
+    try {
+      const res = await fetch(`/api/servers/${serverId}/cogs/${encodeURIComponent(cog.name)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) {
+        if (res.status === 401) return location.reload();
+        const data = await res.json().catch(() => ({}));
+        flip(!enabled);
+        toast(data.error || 'That couldn\u2019t be changed.', true);
+        return;
+      }
+      toast(`${cog.name} is now ${enabled ? 'on' : 'off'}. Discord can take a minute to update the slash commands.`);
+    } catch (e) {
+      flip(!enabled);
+      toast('Can\u2019t reach the bot.', true);
+    }
+  }
+
+  function renderServerOverview() {
+    const g = server.guild;
+    $('s-members').textContent = fmt(g.members);
+    $('s-channels').textContent = fmt(g.channels);
+    $('s-roles').textContent = fmt(g.roles);
+    $('s-boosts').textContent = g.boost_tier ? `${fmt(g.boosts)} · Level ${g.boost_tier}` : fmt(g.boosts);
+    $('s-owner').replaceChildren(g.owner_name ? g.owner_name : el('code', null, g.owner_id));
+    $('s-created').textContent = new Date(g.created * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    const on = server.cogs.filter(c => c.enabled).length;
+    $('s-cogs').textContent = `${on} of ${server.cogs.length}`;
+    const commands = enabledCommands();
+    const links = [
+      ['commands', 'Commands', `${commands} commands people can use here`],
+      ['cogs', 'Cogs', `${on} on, ${server.cogs.length - on} off`],
+    ];
+    $('s-links').replaceChildren(...links.map(([sub, title, text]) => {
+      const a = el('a', 'card'); a.href = serverPath(sub);
+      a.append(el('b', null, title), el('div', 'sub', text));
+      return a;
+    }));
+  }
+
+  function setupGuildNav() {
+    $('nav-bot').hidden = true;
+    $('nav-guild').hidden = false;
+    for (const a of document.querySelectorAll('#nav-guild .nav-item')) {
+      a.href = serverPath(a.dataset.section);
+      a.classList.toggle('active', a.dataset.section === section);
+    }
+    for (const key of VIEWS) $(`section-${key}`).hidden = key !== view;
+  }
+
+  function cellText(v) {
+    if (v === null) return 'null';
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    return v;
+  }
+
+  async function loadData(table, page) {
+    const q = new URLSearchParams();
+    if (table) q.set('table', table);
+    if (page > 1) q.set('page', page);
+    const res = await fetch(`/api/servers/${serverId}/cogs/${encodeURIComponent(dataCog)}/data?${q}`);
+    const d = await res.json();
+    if (!res.ok) {
+      $('data-body').replaceChildren(el('p', 'error', d.error || 'The data couldn\u2019t be loaded.'));
+      return;
+    }
+    // Keep the address in step, so a refresh stays on the same table and page
+    const url = new URLSearchParams();
+    if (d.table) url.set('table', d.table);
+    if (d.data && d.data.page > 1) url.set('page', d.data.page);
+    history.replaceState(null, '', `${location.pathname}${url.toString() ? '?' + url : ''}`);
+
+    $('data-tables').replaceChildren(...d.tables.map(t => {
+      const b = el('button', t.id === d.table ? 'chip active' : 'chip', `${t.name} (${fmt(t.rows)})`);
+      b.addEventListener('click', () => loadData(t.id, 1));
+      return b;
+    }));
+    const body = $('data-body');
+    if (!d.data) {
+      body.replaceChildren(el('p', 'sub', 'This cog keeps nothing for this server.'));
+      return;
+    }
+    if (!d.data.rows.length) {
+      body.replaceChildren(el('p', 'sub', 'This table has no rows for this server.'));
+      return;
+    }
+    const tableEl = el('table');
+    const head = el('tr');
+    head.append(...d.data.columns.map(c => el('th', null, c)));
+    const thead = el('thead'); thead.append(head);
+    const tbody = el('tbody');
+    // Discord IDs the bot knows are shown by name, with the ID on hover
+    const names = d.names || {};
+    const named = text => {
+      const parts = [];
+      let last = 0;
+      for (const m of text.matchAll(/\b\d{17,20}\b/g)) {
+        const name = names[m[0]];
+        if (!name) continue;
+        parts.push(text.slice(last, m.index));
+        const span = el('span', 'name', name);
+        span.title = m[0];
+        parts.push(span);
+        last = m.index + m[0].length;
+      }
+      parts.push(text.slice(last));
+      return parts;
+    };
+    const defaults = new Set(d.data.defaults || []);
+    d.data.rows.forEach((row, index) => {
+      const tr = el('tr', defaults.has(index) ? 'default' : null);
+      tr.append(...row.map(v => {
+        const text = cellText(v);
+        const td = el('td', v === null ? 'cell null' : 'cell');
+        td.append(...(v === null ? [text] : named(text)));
+        td.title = text;
+        return td;
+      }));
+      tbody.append(tr);
+    });
+    tableEl.append(thead, tbody);
+    const wrap = el('div', 'table'); wrap.append(tableEl);
+    const { page: p, pages, total } = d.data;
+    const pager = el('div', 'pager', `${fmt(total)} row${total === 1 ? '' : 's'} · page ${p} of ${pages}`);
+    const prev = el('button', 'btn', 'Previous'); prev.disabled = p <= 1;
+    const next = el('button', 'btn', 'Next'); next.disabled = p >= pages;
+    prev.addEventListener('click', () => loadData(d.table, p - 1));
+    next.addEventListener('click', () => loadData(d.table, p + 1));
+    if (pages > 1) pager.append(prev, next);
+    const parts = defaults.size ? [el('p', 'legend', 'Rows marked default aren\u2019t saved for this server; they\u2019re what the cog uses until they\u2019re set.'), wrap, pager] : [wrap, pager];
+    body.replaceChildren(...parts);
+  }
+
+  async function loadServer() {
+    const res = await fetch(`/api/servers/${serverId}`);
+    const data = await res.json();
+    if (!res.ok) {
+      $('server-error').textContent = data.error || 'That server couldn\u2019t be loaded.';
+      $('server-error').hidden = false;
+      for (const key of VIEWS) $(`section-${key}`).hidden = true;
+      return;
+    }
+    server = data;
+    const g = data.guild;
+    const page = dataCog ? `${dataCog} data` : { '': 'Overview', commands: 'Commands', cogs: 'Cogs' }[section];
+    document.title = `${page} · ${g.name}`;
+    $('topbar-title').textContent = `${g.name} · ${page}`;
+    const name = el('b', null, g.name);
+    $('nav-server').replaceChildren(guildIcon(g), name);
+    $('count-commands').textContent = enabledCommands();
+    $('count-cogs').textContent = data.cogs.length;
+    const text = el('div');
+    const subs = { overview: `${fmt(g.members)} members`, commands: 'Every command people can use in this server, by cog (only cogs that are on)', cogs: 'The parts of the bot, and whether each is on here', data: 'What this cog keeps for this server (read-only)' };
+    text.append(el('h1', null, section ? page : g.name), el('div', 'sub', section ? g.name + ' · ' + subs[view] : subs.overview));
+    $('server-head').replaceChildren(guildIcon(g), text);
+    if (dataCog) {
+      const params = new URLSearchParams(location.search);
+      loadData(params.get('table'), Number(params.get('page')) || 1);
+    } else if (section === 'commands') {
+      const cog = new URLSearchParams(location.search).get('cog');
+      if (cog) $('filter').value = cog;
+      renderCommands();
+    } else if (section === 'cogs') {
+      renderCogs();
+    } else {
+      renderServerOverview();
+    }
+  }
+  $('filter').addEventListener('input', () => server && renderCommands());
+
+  async function refresh() {
+    let o;
+    try {
+      const res = await fetch('/api/overview');
+      if (res.status === 401) {
+        $('app').hidden = true;
+        $('signin').hidden = false;
+        return false;
+      }
+      o = await res.json();
+    } catch (e) {
+      $('status-dot').classList.add('down');
+      $('bot-meta').textContent = 'Can’t reach the bot';
+      return false;
+    }
+    $('signin').hidden = true;
+    $('app').hidden = false;
+    $('status-dot').classList.remove('down');
+    $('bot-avatar').src = o.bot.avatar;
+    $('bot-name').textContent = o.bot.name;
+    $('bot-meta').textContent = `Online · v${o.bot.version}`;
+    $('user-avatar').src = o.user.avatar;
+    $('user-name').textContent = o.user.name;
+    $('user-role').textContent = o.user.owner ? 'Bot owner' : 'Server manager';
+    if (!serverId) {
+      document.title = `${o.bot.name} Dashboard`;
+      $('topbar-title').textContent = 'Overview';
+    }
+    if (!serverId) {
+      renderNav(o.guilds);
+      renderOverview(o);
+    }
+    return true;
+  }
+
+  $('overview-view').hidden = !!serverId;
+  $('server-view').hidden = !serverId;
+  if (serverId) setupGuildNav();
+  refresh().then(ok => { if (ok && serverId) loadServer().catch(() => {}); });
+  setInterval(refresh, 10000);
+</script>
+</body>
+</html>

@@ -63,6 +63,24 @@ A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenit
    ```
    Run it from the project root: the databases are created in `database/` relative to the working directory. For a standalone binary, `cargo build --release` and use `target/release/honeypot-bot`.
 
+## Dashboard
+
+Once the bot is connected, it serves a dashboard at http://localhost:8080: the bot's version, uptime and shards, totals for servers, members and channels, and every server with how many cogs it has on. It refreshes every 10 seconds, and the same data is at `/api/overview` as JSON.
+
+Clicking a server switches the sidebar to that server: its **Overview** (members, channels, roles, boosts, owner, creation date), **Commands** (every command people can use there, from the cogs that are on, with the permission each needs, and a filter box), and **Cogs** (each cog, on or off). The server's owner and admins (and the bot's owners) can turn cogs on and off there with a switch, like `/enablecog` and `/disablecog`, and the server's slash commands update to match; people with only Manage Server see them read-only. Each cog has an **Info** button if it keeps data for the server, which opens a read-only view of its database tables (only the server's own rows, 50 per page), and a **Cmd** button if it's on, which opens its commands. The bot owner's commands aren't listed. The page's data is at `/api/servers/<id>`.
+
+People sign in with Discord and see the servers they own or have **Administrator** or **Manage Server** in; the bot's owners (or its team) see every server. To turn it on:
+
+1. In the [Discord Developer Portal](https://discord.com/developers/applications), open the bot's application, go to **OAuth2**, and copy (or reset) the **Client Secret**
+2. Under **Redirects**, add `http://localhost:8080/callback`, or your `DASHBOARD_URL` followed by `/callback`
+3. Put the secret in `.env` as `DISCORD_CLIENT_SECRET`, and restart the bot
+
+Without the secret, the dashboard stays off. Other settings in `.env`:
+- `DASHBOARD_URL` - Where people open it, e.g. `https://dash.example.com` (default `http://localhost:8080`). Use HTTPS if it's reachable from the internet, so sign-ins can't be read on the way
+- `DASHBOARD_ADDR` - Where it listens (default `127.0.0.1:8080`, only this machine). Use `0.0.0.0:8080` to reach it from other machines, ideally behind a reverse proxy that adds HTTPS
+
+Sign-ins last a week, and are kept in memory, so restarting the bot signs everyone out. The servers someone manages are read when they sign in; sign out and in again to update them.
+
 ## Commands
 
 All commands are slash commands (`/`). Most commands require administrator permissions, and most replies are only visible to you.
@@ -524,7 +542,9 @@ HoneyPot/
     ├── core/
     │   ├── framework/      # Our slash command framework: commands, options, replies, modals
     │   ├── gateway.rs      # Opens the databases, builds the framework, connects
+    │   ├── cog_data.rs     # Which database tables each cog keeps, for the dashboard's Info pages
     │   ├── command_router.rs # Every registered command, and command error replies
+    │   ├── dashboard.rs    # The web dashboard on port 8080 (page in assets/dashboard/)
     │   ├── event_router.rs # Sends gateway events to features; startup work and loops
     │   ├── permissions.rs  # The check before every command (blacklist, cog enabled, cooldowns)
     │   ├── error.rs        # Error and Context types

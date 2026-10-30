@@ -1,0 +1,586 @@
+//! Dashboard: a web page showing the bot's status and servers, served on `DASHBOARD_ADDR`
+//! (default 127.0.0.1:8080) once the cache is ready. People sign in with Discord and see the
+//! servers they own or have Administrator or Manage Server in; the bot's owners see them all.
+//! It needs the bot's client secret (`DISCORD_CLIENT_SECRET`) and `DASHBOARD_URL`'s
+//! `/callback` added as a redirect in the Discord developer portal.
+
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use ::serenity::all as serenity;
+use axum::extract::{Path, Query, State as AxumState};
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{AppendHeaders, Html, IntoResponse, Redirect, Response};
+use axum::{routing::get, Json, Router};
+use rand::Rng;
+use serde_json::{json, Value};
+
+use super::framework::Command;
+use crate::features::{cog_manager, normalize_cog_name, Data, COGS, COG_MANAGER};
+use crate::log;
+
+const DEFAULT_ADDR: &str = "127.0.0.1:8080";
+const DEFAULT_URL: &str = "http://localhost:8080";
+const PAGE: &str = include_str!("../../assets/dashboard/index.html");
+const API: &str = "https://discord.com/api/v10";
+const COOKIE: &str = "hp_session";
+/// Cookie holding the OAuth state while someone is signing in
+const STATE_COOKIE: &str = "hp_state";
+/// How long a sign-in lasts; the servers someone manages are read again when they sign in
+const SESSION_LENGTH: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+const ADMINISTRATOR: u64 = 0x8;
+/// Administrator or Manage Server
+const MANAGE_PERMISSIONS: u64 = ADMINISTRATOR | 0x20;
+
+struct Session {
+    user_id: u64,
+    name: String,
+    avatar: String,
+    /// Servers they own or manage, and whether they can turn cogs on and off there (as owner
+    /// or admin, like `/enablecog`); None for the bot's owners, who can do it everywhere
+    guilds: Option<HashMap<u64, bool>>,
+    expires: Instant,
+}
+
+/// Held while a toggle updates a server's slash commands.
+static SYNCING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+#[derive(Clone)]
+struct Dashboard {
+    ctx: serenity::Context,
+    data: Data,
+    client_id: String,
+    client_secret: String,
+    /// Where people reach the dashboard, without a trailing slash
+    url: String,
+    owners: Arc<HashSet<u64>>,
+    sessions: Arc<Mutex<HashMap<String, Session>>>,
+    http: reqwest::Client,
+    /// Every command anyone can use, as server pages list them; built once, as it doesn't change
+    commands: Arc<Vec<CommandInfo>>,
+    /// The bot's commands, for updating a server's slash commands when a cog is toggled
+    registered: Arc<Vec<Command>>,
+}
+
+/// A command as the dashboard shows it: subcommands are listed on their own.
+#[derive(Clone)]
+struct CommandInfo {
+    /// The cog's name as `COGS` has it, or "Other"
+    cog: String,
+    /// e.g. "/sticky stick <message> [count]", or a right-click menu name
+    usage: String,
+    description: String,
+    permissions: Vec<&'static str>,
+}
+
+/// Every command people can run, leaving out the bot owner's.
+fn command_infos(commands: &[Command]) -> Vec<CommandInfo> {
+    // `qualified_name` is only filled in once the framework starts, so the name is built here
+    fn walk(command: &Command, parent: &str, cog: &str, out: &mut Vec<CommandInfo>) {
+        if command.owners_only {
+            return;
+        }
+        let name = if parent.is_empty() { command.name.clone() } else { format!("{parent} {}", command.name) };
+        if !command.subcommands.is_empty() {
+            for sub in &command.subcommands {
+                walk(sub, &name, cog, out);
+            }
+            return;
+        }
+        let usage = if let Some(menu) = &command.context_menu_name {
+            format!("{menu} (right-click menu)")
+        } else {
+            let params: Vec<String> =
+                command.parameters.iter().map(|p| if p.required { format!("<{}>", p.name) } else { format!("[{}]", p.name) }).collect();
+            format!("/{name} {}", params.join(" ")).trim_end().to_string()
+        };
+        out.push(CommandInfo {
+            cog: cog.to_string(),
+            usage,
+            description: command.description.clone().unwrap_or_default(),
+            permissions: command.required_permissions.get_permission_names(),
+        });
+    }
+    let mut out = Vec::new();
+    for command in commands {
+        let cog = command
+            .category
+            .as_deref()
+            .and_then(|c| COGS.iter().find(|cog| normalize_cog_name(cog) == normalize_cog_name(c)))
+            .copied()
+            .unwrap_or("Other");
+        walk(command, "", cog, &mut out);
+    }
+    out
+}
+
+pub async fn serve(ctx: serenity::Context, data: Data) {
+    let env = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
+    let Some(client_secret) = env("DISCORD_CLIENT_SECRET") else {
+        return log::warning("The dashboard is off: set DISCORD_CLIENT_SECRET in .env so people can sign in");
+    };
+    let info = match ctx.http.get_current_application_info().await {
+        Ok(info) => info,
+        Err(e) => return log::error(format!("Could not start the dashboard, as the bot's application couldn't be read: {e}")),
+    };
+    let mut owners: HashSet<u64> = info.owner.iter().map(|o| o.id.get()).collect();
+    if let Some(team) = &info.team {
+        owners.extend(team.members.iter().map(|m| m.user.id.get()));
+    }
+    let addr = env("DASHBOARD_ADDR").unwrap_or_else(|| DEFAULT_ADDR.to_string());
+    let url = env("DASHBOARD_URL").unwrap_or_else(|| DEFAULT_URL.to_string()).trim_end_matches('/').to_string();
+    let dash = Dashboard {
+        ctx,
+        data,
+        client_id: info.id.get().to_string(),
+        client_secret,
+        url,
+        owners: Arc::new(owners),
+        sessions: Default::default(),
+        http: reqwest::Client::new(),
+        commands: Arc::new(command_infos(&super::command_router::commands())),
+        registered: Arc::new(super::command_router::commands()),
+    };
+    let app = Router::new()
+        .route("/", get(|| async { Html(PAGE) }))
+        // The page shows a server itself, from the address
+        .route("/servers/{id}", get(|| async { Html(PAGE) }))
+        .route("/servers/{id}/{section}", get(|| async { Html(PAGE) }))
+        .route("/servers/{id}/{section}/{item}", get(|| async { Html(PAGE) }))
+        .route("/login", get(login))
+        .route("/callback", get(callback))
+        .route("/logout", get(logout))
+        .route("/api/overview", get(overview))
+        .route("/api/servers/{id}", get(server))
+        .route("/api/servers/{id}/cogs/{cog}", axum::routing::post(toggle_cog))
+        .route("/api/servers/{id}/cogs/{cog}/data", get(cog_data))
+        .with_state(dash.clone());
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(listener) => listener,
+        Err(e) => return log::error(format!("Could not start the dashboard on {addr}: {e}")),
+    };
+    log::blue(format!("Dashboard running at {} (listening on {addr})", dash.url));
+    if let Err(e) = axum::serve(listener, app).await {
+        log::error(format!("The dashboard stopped: {e}"));
+    }
+}
+
+fn random_token() -> String {
+    let bytes: [u8; 32] = rand::rng().random();
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(';'))
+        .find_map(|pair| pair.trim().strip_prefix(name)?.strip_prefix('=').map(str::to_string))
+}
+
+impl Dashboard {
+    /// A cookie only this site's pages send, and only over HTTPS if the dashboard uses it.
+    fn set_cookie(&self, name: &str, value: &str, max_age: Duration) -> String {
+        let secure = if self.url.starts_with("https://") { "; Secure" } else { "" };
+        format!("{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}{secure}", max_age.as_secs())
+    }
+
+    fn redirect_uri(&self) -> String {
+        format!("{}/callback", self.url)
+    }
+
+    /// Who's signed in, dropping their session if it's expired.
+    fn session<T>(&self, headers: &HeaderMap, read: impl FnOnce(&Session) -> T) -> Option<T> {
+        let token = cookie(headers, COOKIE)?;
+        let mut sessions = self.sessions.lock().unwrap();
+        let now = Instant::now();
+        sessions.retain(|_, s| s.expires > now);
+        sessions.get(&token).map(read)
+    }
+
+    async fn get_json(&self, path: &str, access_token: &str) -> Result<Value, String> {
+        let res = self.http.get(format!("{API}{path}")).bearer_auth(access_token).send().await.map_err(|e| e.to_string())?;
+        let status = res.status();
+        let text = res.text().await.map_err(|e| e.to_string())?;
+        if !status.is_success() {
+            return Err(format!("{status}: {text}"));
+        }
+        serde_json::from_str(&text).map_err(|e| e.to_string())
+    }
+
+    /// Swaps the code Discord sent back for the person's details and the servers they manage.
+    async fn sign_in(&self, code: &str) -> Result<Session, String> {
+        let form = [
+            ("client_id", self.client_id.as_str()),
+            ("client_secret", self.client_secret.as_str()),
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("redirect_uri", &self.redirect_uri()),
+        ];
+        let res = self.http.post(format!("{API}/oauth2/token")).form(&form).send().await.map_err(|e| e.to_string())?;
+        let status = res.status();
+        let text = res.text().await.map_err(|e| e.to_string())?;
+        if !status.is_success() {
+            return Err(format!("{status}: {text}"));
+        }
+        let token: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        let access_token = token["access_token"].as_str().ok_or("no access token")?;
+
+        let user = self.get_json("/users/@me", access_token).await?;
+        let user_id: u64 = user["id"].as_str().and_then(|id| id.parse().ok()).ok_or("no user ID")?;
+        let name = user["global_name"].as_str().or(user["username"].as_str()).unwrap_or("Unknown").to_string();
+        let avatar = match user["avatar"].as_str() {
+            Some(hash) => format!("https://cdn.discordapp.com/avatars/{user_id}/{hash}.png?size=64"),
+            None => format!("https://cdn.discordapp.com/embed/avatars/{}.png", (user_id >> 22) % 6),
+        };
+        let guilds = if self.owners.contains(&user_id) {
+            None
+        } else {
+            let list = self.get_json("/users/@me/guilds", access_token).await?;
+            let managed = list
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|g| {
+                    let permissions: u64 = g["permissions"].as_str().and_then(|p| p.parse().ok()).unwrap_or(0);
+                    let owner = g["owner"].as_bool() == Some(true);
+                    if !owner && permissions & MANAGE_PERMISSIONS == 0 {
+                        return None;
+                    }
+                    Some((g["id"].as_str()?.parse().ok()?, owner || permissions & ADMINISTRATOR != 0))
+                })
+                .collect();
+            Some(managed)
+        };
+        Ok(Session { user_id, name, avatar, guilds, expires: Instant::now() + SESSION_LENGTH })
+    }
+}
+
+/// Sends the person to Discord to sign in.
+async fn login(AxumState(dash): AxumState<Dashboard>) -> Response {
+    let state = random_token();
+    let query = [
+        ("client_id", dash.client_id.as_str()),
+        ("response_type", "code"),
+        ("scope", "identify guilds"),
+        ("redirect_uri", &dash.redirect_uri()),
+        ("state", &state),
+        ("prompt", "none"),
+    ];
+    let query: Vec<String> = query.iter().map(|(k, v)| format!("{k}={}", urlencode(v))).collect();
+    let location = format!("https://discord.com/oauth2/authorize?{}", query.join("&"));
+    let cookie = dash.set_cookie(STATE_COOKIE, &state, Duration::from_secs(600));
+    ([(header::SET_COOKIE, cookie)], Redirect::to(&location)).into_response()
+}
+
+fn urlencode(text: &str) -> String {
+    text.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// Where Discord sends the person back after they sign in.
+async fn callback(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Query(query): Query<HashMap<String, String>>) -> Response {
+    // The state has to match the one set when they started, so no other site can sign them in
+    let expected = cookie(&headers, STATE_COOKIE);
+    if expected.is_none() || query.get("state") != expected.as_ref() {
+        return (StatusCode::BAD_REQUEST, "This sign-in link has expired. Go back to the dashboard and sign in again.").into_response();
+    }
+    let Some(code) = query.get("code") else {
+        return Redirect::to("/").into_response();
+    };
+    let session = match dash.sign_in(code).await {
+        Ok(session) => session,
+        Err(e) => {
+            log::warning(format!("Dashboard sign-in failed: {e}"));
+            return (StatusCode::BAD_GATEWAY, "Signing in with Discord failed. Go back to the dashboard and try again.").into_response();
+        }
+    };
+    log::info(format!("{} ({}) signed in to the dashboard", session.name, session.user_id));
+    let token = random_token();
+    dash.sessions.lock().unwrap().insert(token.clone(), session);
+    // Appended, as a plain array of headers would keep only the last Set-Cookie
+    let cookies = AppendHeaders([
+        (header::SET_COOKIE, dash.set_cookie(COOKIE, &token, SESSION_LENGTH)),
+        (header::SET_COOKIE, dash.set_cookie(STATE_COOKIE, "", Duration::ZERO)),
+    ]);
+    (cookies, Redirect::to("/")).into_response()
+}
+
+async fn logout(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Response {
+    if let Some(token) = cookie(&headers, COOKIE) {
+        dash.sessions.lock().unwrap().remove(&token);
+    }
+    ([(header::SET_COOKIE, dash.set_cookie(COOKIE, "", Duration::ZERO))], Redirect::to("/")).into_response()
+}
+
+/// The bot and the servers the signed-in person can see, as the page shows them.
+async fn overview(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap) -> Response {
+    let Some((user, allowed)) = dash.session(&headers, |s| {
+        (json!({ "id": s.user_id.to_string(), "name": s.name, "avatar": s.avatar, "owner": s.guilds.is_none() }), s.guilds.clone())
+    }) else {
+        return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Sign in first" }))).into_response();
+    };
+    let cache = &dash.ctx.cache;
+    let bot = cache.current_user().clone();
+    let cogs: Vec<String> = COGS.iter().map(|cog| normalize_cog_name(cog)).collect();
+    let mut guilds: Vec<Value> = cache
+        .guilds()
+        .iter()
+        .filter(|id| allowed.as_ref().is_none_or(|allowed| allowed.contains_key(&id.get())))
+        .filter_map(|id| {
+            let guild = cache.guild(*id)?;
+            let enabled = cogs.iter().filter(|cog| dash.data.is_cog_enabled(id.get(), cog)).count();
+            Some(json!({
+                "id": id.get().to_string(),
+                "name": guild.name,
+                "icon": guild.icon_url(),
+                "members": guild.member_count,
+                "channels": guild.channels.len(),
+                "cogs_enabled": enabled,
+            }))
+        })
+        .collect();
+    guilds.sort_by_key(|g| std::cmp::Reverse(g["members"].as_u64().unwrap_or(0)));
+    let members: u64 = guilds.iter().filter_map(|g| g["members"].as_u64()).sum();
+    let channels: u64 = guilds.iter().filter_map(|g| g["channels"].as_u64()).sum();
+    Json(json!({
+        "user": user,
+        "bot": {
+            "name": bot.name,
+            "avatar": bot.face(),
+            "version": env!("CARGO_PKG_VERSION"),
+            "uptime_secs": dash.data.start_time.elapsed().as_secs(),
+            "shards": cache.shard_count(),
+        },
+        "totals": { "servers": guilds.len(), "members": members, "channels": channels, "cogs": cogs.len() },
+        "guilds": guilds,
+    }))
+    .into_response()
+}
+
+/// One server's cogs, whether each is on, and their commands.
+async fn server(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(id): Path<String>) -> Response {
+    let (guild_id, can_toggle) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    let Some(guild) = dash.ctx.cache.guild(guild_id).map(|g| {
+        json!({
+            "id": guild_id.to_string(),
+            "name": g.name,
+            "icon": g.icon_url(),
+            "members": g.member_count,
+            "channels": g.channels.len(),
+            "roles": g.roles.len(),
+            "boosts": g.premium_subscription_count.unwrap_or(0),
+            "boost_tier": u8::from(g.premium_tier),
+            "owner_id": g.owner_id.get().to_string(),
+            "owner_name": g.members.get(&g.owner_id).map(|m| m.display_name().to_string()),
+            "created": g.id.created_at().unix_timestamp(),
+        })
+    }) else {
+        // The bot left between checking and reading it
+        return (StatusCode::NOT_FOUND, Json(json!({ "error": "The bot isn't in that server" }))).into_response();
+    };
+    let mut cogs: Vec<&str> = COGS.to_vec();
+    if dash.commands.iter().any(|c| c.cog == "Other") {
+        cogs.push("Other");
+    }
+    let cogs: Vec<Value> = cogs
+        .into_iter()
+        .filter_map(|cog| {
+            let commands: Vec<Value> = dash
+                .commands
+                .iter()
+                .filter(|c| c.cog == cog)
+                .map(|c| json!({ "usage": c.usage, "description": c.description, "permissions": c.permissions }))
+                .collect();
+            if commands.is_empty() {
+                return None;
+            }
+            // Commands outside a cog are always on, as is the cog manager
+            let enabled = cog == "Other" || dash.data.is_cog_enabled(guild_id, &normalize_cog_name(cog));
+            let locked = cog == "Other" || normalize_cog_name(cog) == COG_MANAGER;
+            let has_data = super::cog_data::has_data(cog, guild_id);
+            Some(json!({ "name": cog, "enabled": enabled, "locked": locked, "has_data": has_data, "commands": commands }))
+        })
+        .collect();
+    Json(json!({
+        "guild": guild,
+        "can_toggle": can_toggle,
+        "cogs": cogs,
+    }))
+    .into_response()
+}
+
+impl Dashboard {
+    /// The server a request is for, if the person signed in manages it and the bot is in it,
+    /// with whether they can turn its cogs on and off. Otherwise, the response to send.
+    fn access(&self, headers: &HeaderMap, id: &str) -> Result<(u64, bool), Response> {
+        let Some(allowed) = self.session(headers, |s| s.guilds.clone()) else {
+            return Err((StatusCode::UNAUTHORIZED, Json(json!({ "error": "Sign in first" }))).into_response());
+        };
+        let not_found = || (StatusCode::NOT_FOUND, Json(json!({ "error": "You don't manage that server, or the bot isn't in it" }))).into_response();
+        let guild_id = id.parse::<u64>().ok().filter(|&id| id != 0).ok_or_else(not_found)?;
+        let can_toggle = match &allowed {
+            None => true,
+            Some(allowed) => *allowed.get(&guild_id).ok_or_else(not_found)?,
+        };
+        if self.ctx.cache.guild(guild_id).is_none() {
+            return Err(not_found());
+        }
+        Ok((guild_id, can_toggle))
+    }
+}
+
+/// Turns a cog on or off in a server, like `/enablecog` and `/disablecog`, and updates the
+/// server's slash commands to match in the background, as Discord can take a while. Takes `{"enabled": true}` or `{"enabled": false}`.
+async fn toggle_cog(
+    AxumState(dash): AxumState<Dashboard>,
+    headers: HeaderMap,
+    Path((id, cog)): Path<(String, String)>,
+    Json(body): Json<Value>,
+) -> Response {
+    let error = |status: StatusCode, text: &str| (status, Json(json!({ "error": text }))).into_response();
+    let (guild_id, can_toggle) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    if !can_toggle {
+        return error(StatusCode::FORBIDDEN, "Only the server's owner and admins can turn cogs on and off");
+    }
+    let Some(enabled) = body["enabled"].as_bool() else {
+        return error(StatusCode::BAD_REQUEST, "Send {\"enabled\": true} or {\"enabled\": false}");
+    };
+    let Some(cog) = COGS.iter().map(|c| normalize_cog_name(c)).find(|c| *c == normalize_cog_name(&cog)) else {
+        return error(StatusCode::NOT_FOUND, "There's no cog by that name");
+    };
+    if cog == COG_MANAGER {
+        return error(StatusCode::BAD_REQUEST, "The cog manager can't be turned off");
+    }
+    if let Err(e) = dash.data.cog_config.lock().unwrap().set_enabled(guild_id, &cog, enabled) {
+        log::error(format!("Error saving cog {cog} for guild {guild_id} from the dashboard: {e}"));
+        return error(StatusCode::INTERNAL_SERVER_ERROR, "The change couldn't be saved");
+    }
+    let who = dash.session(&headers, |s| format!("{} ({})", s.name, s.user_id)).unwrap_or_default();
+    log::info(format!("{who} turned {cog} {} in guild {guild_id} from the dashboard", if enabled { "on" } else { "off" }));
+    let guild = serenity::GuildId::new(guild_id);
+    tokio::spawn(async move {
+        // One at a time, each reading the latest settings, so quick toggles can't finish out
+        // of order and leave Discord with an older list
+        let _syncing = SYNCING.lock().await;
+        if let Err(e) = cog_manager::sync_guild_commands(&dash.ctx.http, &dash.registered, &dash.data, guild).await {
+            log::error(format!("Error syncing commands for guild {guild_id}: {e}"));
+        }
+    });
+    Json(json!({ "enabled": enabled })).into_response()
+}
+
+/// What a cog keeps in the database for a server: its tables, and a page of one of them
+/// (`?table=<id>&page=<n>`, the first table with rows if none is given).
+async fn cog_data(
+    AxumState(dash): AxumState<Dashboard>,
+    headers: HeaderMap,
+    Path((id, cog)): Path<(String, String)>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let (guild_id, _) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    let Some(cog) = COGS.iter().find(|c| normalize_cog_name(c) == normalize_cog_name(&cog)) else {
+        return (StatusCode::NOT_FOUND, Json(json!({ "error": "There's no cog by that name" }))).into_response();
+    };
+    let tables = super::cog_data::tables(cog, guild_id);
+    let chosen = match query.get("table") {
+        Some(id) => tables.iter().find(|t| &t.id == id),
+        None => tables.iter().find(|t| t.rows > 0).or(tables.first()),
+    };
+    let page = query.get("page").and_then(|p| p.parse().ok()).unwrap_or(1);
+    let data = match chosen.map(|t| super::cog_data::page(t, guild_id, page)).transpose() {
+        Ok(data) => data,
+        Err(e) => {
+            log::error(format!("Error reading {cog} data for guild {guild_id}: {e}"));
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "The data couldn't be read" }))).into_response();
+        }
+    };
+    let list: Vec<Value> = tables.iter().map(|t| json!({ "id": t.id, "name": t.name, "rows": t.rows })).collect();
+    let names = data.as_ref().map(|d| dash.names(guild_id, &d["rows"])).unwrap_or_default();
+    Json(json!({ "cog": cog, "tables": list, "table": chosen.map(|t| t.id.clone()), "data": data, "names": names })).into_response()
+}
+
+/// Discord IDs: 17 to 20 digits.
+static ID: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"\b\d{17,20}\b").unwrap());
+
+impl Dashboard {
+    /// Names for the Discord IDs in some rows, from what the bot knows about the server:
+    /// `#channel`, `@role`, members' display names, other users' names and the server itself.
+    /// IDs it doesn't know (like message IDs) are left out.
+    fn names(&self, guild_id: u64, rows: &Value) -> serde_json::Map<String, Value> {
+        let mut ids = HashSet::new();
+        let mut collect = |text: &str| ids.extend(ID.find_iter(text).filter_map(|m| m.as_str().parse::<u64>().ok()));
+        for cell in rows.as_array().into_iter().flatten().flat_map(|row| row.as_array().into_iter().flatten()) {
+            match cell {
+                Value::String(text) => collect(text),
+                Value::Number(n) => collect(&n.to_string()),
+                _ => {}
+            }
+        }
+        let mut names = serde_json::Map::new();
+        let Some(guild) = self.ctx.cache.guild(guild_id) else { return names };
+        for id in ids {
+            let name = if id == guild_id {
+                Some(guild.name.clone())
+            } else if let Some(channel) = guild.channels.get(&serenity::ChannelId::new(id)) {
+                Some(format!("#{}", channel.name))
+            } else if let Some(thread) = guild.threads.iter().find(|t| t.id.get() == id) {
+                Some(format!("#{}", thread.name))
+            } else if let Some(role) = guild.roles.get(&serenity::RoleId::new(id)) {
+                Some(format!("@{}", role.name))
+            } else if let Some(member) = guild.members.get(&serenity::UserId::new(id)) {
+                Some(format!("@{}", member.display_name()))
+            } else {
+                self.ctx.cache.user(id).map(|user| format!("@{}", user.display_name()))
+            };
+            if let Some(name) = name {
+                names.insert(id.to_string(), Value::String(name));
+            }
+        }
+        names
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cookies_are_read_by_name() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::COOKIE, "a=1; hp_session=abc; hp_state=xyz".parse().unwrap());
+        assert_eq!(cookie(&headers, COOKIE).as_deref(), Some("abc"));
+        assert_eq!(cookie(&headers, STATE_COOKIE).as_deref(), Some("xyz"));
+        assert_eq!(cookie(&headers, "hp"), None);
+    }
+
+    #[test]
+    fn every_command_people_can_run_is_listed() {
+        let infos = command_infos(&crate::core::command_router::commands());
+        assert!(infos.iter().any(|c| c.cog == "Sticky" && c.usage == "/sticky stick <message> [count]"));
+        assert!(infos.iter().any(|c| c.usage.starts_with("/reaction-roles add <message> <emoji> <role>")));
+        // The bot owner's commands aren't shown
+        assert!(!infos.iter().any(|c| c.usage.starts_with("/blacklist")));
+    }
+
+    #[test]
+    fn query_values_are_encoded() {
+        assert_eq!(urlencode("http://localhost:8080/callback"), "http%3A%2F%2Flocalhost%3A8080%2Fcallback");
+        assert_eq!(urlencode("identify guilds"), "identify%20guilds");
+    }
+}
