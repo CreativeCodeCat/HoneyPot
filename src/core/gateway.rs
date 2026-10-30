@@ -8,6 +8,7 @@ use ::serenity::all as serenity;
 use super::command_router;
 use super::framework::Framework;
 use crate::database::guild_config;
+use crate::database::repositories::bot_messages;
 use crate::features::developer;
 use crate::features::{
     afk, applications, cooldowns, economy, games, honeypot, leveling, lockdown, pets, profile, rules, server_setup, staff_policy, sticky, suggestions, tickets,
@@ -26,6 +27,7 @@ pub async fn run() {
             guild_config::CogConfig::open().expect("failed to open cog config database"),
         ),
         afk: Mutex::new(afk::Store::open().expect("failed to open AFK database")),
+        bot_messages: Mutex::new(bot_messages::Store::open().expect("failed to open bot messages database")),
         applications: Mutex::new(applications::Store::open().expect("failed to open applications database")),
         blacklist: Mutex::new(developer::Blacklist::open().expect("failed to open blacklist database")),
         cooldowns: Mutex::new(cooldowns::Cooldowns::open().expect("failed to open cooldowns database")),

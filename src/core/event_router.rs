@@ -33,6 +33,12 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     if let Err(e) = data.applications.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale applications: {e}"));
     }
+    {
+        let bot_messages = data.bot_messages.lock().unwrap();
+        if let Err(e) = bot_messages.cleanup_stale(&guild_ids).and_then(|_| bot_messages.prune(chrono::Utc::now().timestamp())) {
+            log::error(format!("Error cleaning up stale bot messages: {e}"));
+        }
+    }
     if let Err(e) = data.afk.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale AFKs: {e}"));
     }

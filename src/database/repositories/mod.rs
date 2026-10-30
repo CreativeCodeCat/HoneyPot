@@ -9,6 +9,7 @@ pub mod tickets;
 pub mod afk;
 pub mod applications;
 pub mod blacklist;
+pub mod bot_messages;
 pub mod cooldowns;
 pub mod counting;
 pub mod guessing;

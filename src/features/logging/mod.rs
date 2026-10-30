@@ -315,8 +315,22 @@ pub async fn on_event(ctx: &serenity::Context, data: &Data, event: &serenity::Fu
         }
 
         // Message
+        // Bots' messages are remembered, so they can be skipped once they're out of the cache
+        Message { new_message } if new_message.author.bot => {
+            let Some(guild_id) = new_message.guild_id else { return };
+            if log_channel(data, guild_id, "message").is_some() {
+                if let Err(e) = data.bot_messages.lock().unwrap().add(guild_id.get(), new_message.id.get()) {
+                    log::error(format!("Error remembering a bot message: {e}"));
+                }
+            }
+        }
         MessageDelete { channel_id, deleted_message_id, guild_id: Some(guild_id) } => {
             let Some(log) = log_channel(data, *guild_id, "message") else { return };
+            match data.bot_messages.lock().unwrap().take(deleted_message_id.get()) {
+                Ok(true) => return,
+                Ok(false) => {}
+                Err(e) => log::error(format!("Error checking a deleted message: {e}")),
+            }
             let cached = ctx.cache.message(*channel_id, *deleted_message_id).map(|m| m.clone());
             let author = cached.as_ref().map(|m| m.author.id);
             let embed = match cached {

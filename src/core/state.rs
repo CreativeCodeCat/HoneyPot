@@ -11,6 +11,7 @@ pub struct State {
     pub start_time: Instant,
     pub cog_config: Mutex<crate::database::guild_config::CogConfig>,
     pub afk: Mutex<afk::Store>,
+    pub bot_messages: Mutex<crate::database::repositories::bot_messages::Store>,
     pub applications: Mutex<applications::Store>,
     pub blacklist: Mutex<developer::Blacklist>,
     pub cooldowns: Mutex<cooldowns::Cooldowns>,
