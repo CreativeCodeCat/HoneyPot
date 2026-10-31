@@ -40,7 +40,7 @@ impl TimeoutLength {
 }
 
 /// Discord's longest timeout: 28 days
-const MAX_TIMEOUT_SECS: i64 = 28 * 24 * 60 * 60;
+pub const MAX_TIMEOUT_SECS: i64 = 28 * 24 * 60 * 60;
 
 /// Parses a length like "90m", "2h30m", "1d 12h" or "3 days" into seconds.
 fn parse_duration(text: &str) -> Option<i64> {

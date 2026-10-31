@@ -125,9 +125,9 @@ fn invite_permissions() -> serenity::Permissions {
 static SYNCING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[derive(Clone)]
-struct Dashboard {
-    ctx: serenity::Context,
-    data: Data,
+pub(super) struct Dashboard {
+    pub(super) ctx: serenity::Context,
+    pub(super) data: Data,
     client_id: String,
     client_secret: String,
     /// Where people reach the dashboard, without a trailing slash
@@ -240,6 +240,10 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         .route("/api/servers/{id}/settings", get(settings).post(save_setting))
         .route("/api/servers/{id}/leaderboards", get(leaderboards))
         .route("/api/servers/{id}/config/{cog}", get(cog_config).post(save_cog_config))
+        .route("/api/servers/{id}/members", get(super::dashboard_moderation::members))
+        .route("/api/servers/{id}/members/{user}", get(super::dashboard_moderation::member))
+        .route("/api/servers/{id}/members/{user}/{action}", axum::routing::post(super::dashboard_moderation::act))
+        .route("/api/servers/{id}/bans", get(super::dashboard_moderation::bans))
         .route("/api/system", get(system))
         .route("/api/invite", get(invite))
         .route("/api/system/maintenance", axum::routing::post(set_maintenance))
@@ -554,7 +558,7 @@ async fn server(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(
 impl Dashboard {
     /// The server a request is for, if the person signed in manages it and the bot is in it,
     /// with whether they can turn its cogs on and off. Otherwise, the response to send.
-    fn access(&self, headers: &HeaderMap, id: &str) -> Result<(u64, bool), Response> {
+    pub(super) fn access(&self, headers: &HeaderMap, id: &str) -> Result<(u64, bool), Response> {
         let Some(allowed) = self.session(headers, |s| s.guilds.clone()) else {
             return Err(signed_out());
         };
@@ -676,7 +680,7 @@ async fn cog_data(
 
 impl Dashboard {
     /// Notes a change someone made on the dashboard, for the server's Audit page and the log.
-    fn record(&self, headers: &HeaderMap, guild_id: u64, action: String) {
+    pub(super) fn record(&self, headers: &HeaderMap, guild_id: u64, action: String) {
         let Some((user_id, user_name)) = self.session(headers, |s| (s.user_id, s.name.clone())) else { return };
         log::info(format!("{user_name} ({user_id}) in guild {guild_id} from the dashboard: {action}"));
         let entry = DashboardAction { user_id, user_name, action, at: chrono::Utc::now().timestamp() };
@@ -686,7 +690,7 @@ impl Dashboard {
     }
 
     /// Avatar URLs for users, by ID, from the server's members or the users the bot knows.
-    fn avatars<'a>(&self, guild_id: u64, users: impl Iterator<Item = &'a str>) -> serde_json::Map<String, Value> {
+    pub(super) fn avatars<'a>(&self, guild_id: u64, users: impl Iterator<Item = &'a str>) -> serde_json::Map<String, Value> {
         let cache = &self.ctx.cache;
         let guild = cache.guild(guild_id);
         let mut avatars = serde_json::Map::new();
@@ -702,18 +706,23 @@ impl Dashboard {
         avatars
     }
 
-    fn is_owner(&self, headers: &HeaderMap) -> Option<bool> {
+    /// Who's signed in: their user ID, name, and whether they're one of the bot's owners.
+    pub(super) fn actor(&self, headers: &HeaderMap) -> Option<(u64, String, bool)> {
+        self.session(headers, |s| (s.user_id, s.name.clone(), s.guilds.is_none()))
+    }
+
+    pub(super) fn is_owner(&self, headers: &HeaderMap) -> Option<bool> {
         self.session(headers, |s| s.guilds.is_none())
     }
 }
 
 /// For anyone not signed in, saying whether that's because private mode is on.
-fn signed_out() -> Response {
+pub(super) fn signed_out() -> Response {
     let private = crate::features::private_mode::enabled();
     (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Sign in first", "private": private }))).into_response()
 }
 
-fn json_error(status: StatusCode, text: &str) -> Response {
+pub(super) fn json_error(status: StatusCode, text: &str) -> Response {
     (status, Json(json!({ "error": text }))).into_response()
 }
 
@@ -1093,7 +1102,7 @@ impl Dashboard {
     /// Names for the Discord IDs anywhere in `value`, from what the bot knows about the
     /// server: `#channel`, `@role`, members' display names, other users' names and the server
     /// itself. IDs it doesn't know (like message IDs) are left out.
-    fn names(&self, guild_id: u64, value: &Value) -> serde_json::Map<String, Value> {
+    pub(super) fn names(&self, guild_id: u64, value: &Value) -> serde_json::Map<String, Value> {
         fn collect(value: &Value, ids: &mut HashSet<u64>) {
             match value {
                 Value::String(text) => ids.extend(ID.find_iter(text).filter_map(|m| m.as_str().parse::<u64>().ok())),

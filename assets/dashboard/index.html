@@ -256,6 +256,55 @@
   .btn.save { background: var(--accent); border-color: var(--accent); color: #fff; }
   .btn.save:hover { color: #fff; filter: brightness(1.08); }
 
+  /* Members */
+  .member-tools { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .member-tools .filter { margin: 0; flex: 1; min-width: 200px; }
+  .member-tools .sub { white-space: nowrap; }
+  .role-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+  .who-cell .names { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .who-cell .names small { color: var(--muted); font-size: 12px; }
+  .profile { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+  .profile-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .profile-card .banner-strip { height: 64px; background: linear-gradient(135deg, var(--accent), #5865f2); }
+  .profile-card .body { padding: 0 18px 18px; }
+  .profile-card .big-avatar { width: 84px; height: 84px; border-radius: 50%; border: 5px solid var(--panel); margin-top: -42px; background: var(--border); }
+  .profile-card h2 { margin: 6px 0 0; font-size: 20px; }
+  .profile-card .handle { color: var(--muted); font-size: 13px; }
+  .profile-card .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .facts { margin: 14px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; text-align: right; }
+  .role-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .actions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .act { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; font-weight: 600; font-size: 13px; }
+  .act:hover { border-color: var(--accent); }
+  .act.danger { color: var(--red); }
+  .act.danger:hover { border-color: var(--red); background: var(--red-bg); }
+  .act svg { width: 15px; height: 15px; }
+  .score { display: flex; align-items: center; gap: 14px; }
+  .score .ring { --p: 0; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 18px; background: conic-gradient(var(--c, var(--green)) calc(var(--p) * 1%), var(--border) 0); position: relative; flex: none; }
+  .score .ring::before { content: ''; position: absolute; inset: 7px; background: var(--panel); border-radius: 50%; }
+  .score .ring span { position: relative; }
+  .reasons { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .reasons li { display: flex; gap: 8px; padding: 2px 0; }
+  .reasons b { font-variant-numeric: tabular-nums; min-width: 34px; color: var(--red); }
+  .reasons b.neg { color: var(--green); }
+  .stack > * + * { margin-top: 20px; }
+  .pad { padding: 14px 16px; }
+
+  /* Dialog */
+  .modal-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); z-index: 55; display: grid; place-items: center; padding: 16px; animation: fade .12s ease-out; }
+  .modal { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; animation: pop .15s ease-out; }
+  .modal h3 { margin: 0 0 6px; font-size: 18px; }
+  .modal p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .modal label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+  .modal textarea, .modal select { width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 14px; padding: 8px 10px; }
+  .modal textarea { min-height: 72px; resize: vertical; }
+  .modal .buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .modal .btn { padding: 7px 16px; font-size: 13px; }
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes pop { from { opacity: 0; transform: scale(.96) translateY(6px); } }
+
   /* Feed */
   .feed { list-style: none; margin: 0; padding: 0; }
   .feed li { display: flex; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -333,6 +382,7 @@
     .topbar .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .page { padding: 20px 16px 40px; }
     .setting, .field-row { flex-direction: column; align-items: stretch; gap: 8px; }
+    .profile { grid-template-columns: 1fr; }
     .field-control { max-width: none; justify-content: flex-start; }
     .multi { justify-content: flex-start; }
     select.input { width: 100%; }
@@ -374,6 +424,7 @@
       <a class="nav-back" href="/">← All servers</a>
       <div class="nav-server" id="nav-server"></div>
       <a class="nav-item" data-section="" href="#"><span class="ico" data-icon="grid"></span><span class="label">Overview</span></a>
+      <a class="nav-item" data-section="members" href="#"><span class="ico" data-icon="users"></span><span class="label">Members</span><span class="count" id="count-members"></span></a>
       <a class="nav-item" data-section="settings" href="#"><span class="ico" data-icon="sliders"></span><span class="label">Settings</span></a>
       <a class="nav-item" data-section="commands" href="#"><span class="ico" data-icon="terminal"></span><span class="label">Commands</span><span class="count" id="count-commands"></span></a>
       <a class="nav-item" data-section="cogs" href="#"><span class="ico" data-icon="cog"></span><span class="label">Cogs</span><span class="count" id="count-cogs"></span></a>
@@ -490,6 +541,16 @@
         </section>
       </div>
 
+      <div id="section-members" hidden>
+        <div class="chips" id="member-tabs"></div>
+        <div id="members-body"></div>
+      </div>
+
+      <div id="section-member" hidden>
+        <div class="data-actions" id="member-actions-bar"></div>
+        <div id="member-body"></div>
+      </div>
+
       <div id="section-settings" hidden>
         <p class="note" id="settings-note" hidden>Only the server's owner and admins can change settings.</p>
         <div id="settings-body"></div>
@@ -594,6 +655,12 @@
     cog: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
     trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+    boot: '<path d="M4 4h6v8l8 3a3 3 0 0 1 2 3v2H4z"/><path d="M4 16h16"/>',
+    ban: '<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    shield: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>',
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
     history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>',
@@ -626,22 +693,25 @@
 
   // Where we are
   const path = location.pathname;
-  const serverMatch = path.match(/^\/servers\/(\d+)(?:\/(commands|cogs|configure|settings|leaderboards|audit)(?:\/([^/]+))?)?\/?$/);
+  const serverMatch = path.match(/^\/servers\/(\d+)(?:\/(commands|cogs|configure|members|settings|leaderboards|audit)(?:\/([^/]+))?)?\/?$/);
   const serverId = serverMatch && serverMatch[1];
   const section = (serverMatch && serverMatch[2]) || '';
   const dataCog = section === 'cogs' && serverMatch[3] ? decodeURIComponent(serverMatch[3]) : null;
   const configCog = section === 'configure' && serverMatch[3] ? decodeURIComponent(serverMatch[3]) : null;
-  const view = dataCog ? 'data' : configCog ? 'configure' : section || 'overview';
+  const memberId = section === 'members' && serverMatch[3] ? serverMatch[3] : null;
+  const view = dataCog ? 'data' : configCog ? 'configure' : memberId ? 'member' : section || 'overview';
   const botPage = serverId ? null : path === '/system' ? 'system' : path === '/add' ? 'add' : 'home';
   const serverPath = sub => `/servers/${serverId}${sub ? '/' + sub : ''}`;
-  const SECTIONS = ['overview', 'settings', 'commands', 'cogs', 'data', 'configure', 'leaderboards', 'audit'];
-  const TITLES = { overview: 'Overview', settings: 'Settings', commands: 'Commands', cogs: 'Cogs', leaderboards: 'Leaderboards', audit: 'Audit log' };
+  const SECTIONS = ['overview', 'members', 'member', 'settings', 'commands', 'cogs', 'data', 'configure', 'leaderboards', 'audit'];
+  const TITLES = { overview: 'Overview', members: 'Members', member: 'Member', settings: 'Settings', commands: 'Commands', cogs: 'Cogs', leaderboards: 'Leaderboards', audit: 'Audit log' };
   const SUBTITLES = {
     settings: 'The channels the bot uses here',
     commands: 'Every command people can use here, by cog (only cogs that are on)',
     cogs: 'The parts of the bot, and whether each is on here',
     data: 'What this cog keeps for this server (read-only)',
     configure: 'Change how this cog works here',
+    members: 'Find members, see their history and moderate them',
+    member: 'Their history with the bot, and what you can do',
     leaderboards: 'The most active and the richest members',
     audit: 'Who changed what through the dashboard',
   };
@@ -915,6 +985,7 @@
     $('nav-server').replaceChildren(avatar(g.icon, g.name), el('b', null, g.name));
     $('count-commands').textContent = enabledCommands();
     $('count-cogs').textContent = server.cogs.length;
+    $('count-members').textContent = fmt(server.guild.members);
     const text = el('div', 'grow');
     text.append(el('h1', null, section ? page : g.name), el('div', 'sub', section ? `${g.name} · ${SUBTITLES[view]}` : `${fmt(g.members)} members`));
     const head = [avatar(g.icon, g.name), text];
@@ -940,6 +1011,8 @@
       if (cog) $('filter').value = cog;
       renderCommands();
     } else if (view === 'configure') loadConfig();
+    else if (view === 'members') loadMembers();
+    else if (view === 'member') loadMember();
     else if (view === 'cogs') renderCogs();
     else if (view === 'settings') loadSettings();
     else if (view === 'leaderboards') loadLeaderboards();
@@ -1741,6 +1814,288 @@
     if (config && config.d.fields.some(f => !same(config.values[f.key], config.saved[f.key]))) e.preventDefault();
   });
 
+  /* Members */
+
+  let memberTab = new URLSearchParams(location.search).get('tab') === 'bans' ? 'bans' : 'members';
+  let memberQuery = new URLSearchParams(location.search).get('q') || '';
+  let memberTimer;
+
+  function rolePill(role) {
+    const pill = el('span', 'role-pill');
+    const dot = el('span', 'role-dot');
+    dot.style.background = role.colour ? `#${role.colour.toString(16).padStart(6, '0')}` : 'var(--muted)';
+    pill.append(dot, role.name);
+    return pill;
+  }
+
+  function whoCell(u, href) {
+    const wrap = el('div', 'who-cell');
+    const names = el('div', 'names');
+    const name = href ? el('a', null, u.name) : el('b', null, u.name);
+    if (href) name.href = href;
+    names.append(name, el('small', null, u.username === u.name ? u.id : u.username));
+    wrap.append(avatar(u.avatar, u.name), names);
+    return wrap;
+  }
+
+  function drawMemberTabs(d) {
+    const tabs = [['members', 'Members'], ['bans', 'Bans']];
+    $('member-tabs').replaceChildren(...tabs.map(([key, label]) => {
+      const b = el('button', key === memberTab ? 'chip active' : 'chip', label);
+      b.addEventListener('click', () => { memberTab = key; syncMemberUrl(); loadMembers(); });
+      return b;
+    }));
+  }
+  function syncMemberUrl() {
+    const q = new URLSearchParams();
+    if (memberTab === 'bans') q.set('tab', 'bans');
+    if (memberQuery) q.set('q', memberQuery);
+    history.replaceState(null, '', `${location.pathname}${q.toString() ? '?' + q : ''}`);
+  }
+
+  async function loadMembers() {
+    drawMemberTabs();
+    const body = $('members-body');
+    if (!body.querySelector('.member-tools')) {
+      const tools = el('div', 'member-tools');
+      const search = el('input', 'filter'); search.type = 'search'; search.id = 'member-search';
+      search.placeholder = 'Search by name, username or ID'; search.value = memberQuery;
+      search.setAttribute('aria-label', 'Search members');
+      search.addEventListener('input', () => {
+        clearTimeout(memberTimer);
+        memberTimer = setTimeout(() => { memberQuery = search.value.trim(); syncMemberUrl(); loadMembers(); }, 250);
+      });
+      const count = el('span', 'sub'); count.id = 'member-count';
+      tools.append(search, count);
+      const list = el('div'); list.id = 'member-list';
+      body.replaceChildren(tools, list);
+    }
+    if (memberTab === 'bans') return loadBans();
+    let d;
+    try { d = await api(`/api/servers/${serverId}/members?q=${encodeURIComponent(memberQuery)}`); }
+    catch (e) { $('member-list').replaceChildren(el('p', 'error', e.message)); return; }
+    $('member-count').textContent = memberQuery ? `${fmt(d.total)} match${d.total === 1 ? '' : 'es'}` : `${fmt(d.member_count)} members · newest first`;
+    const table = el('table');
+    const head = el('tr');
+    head.append(el('th', null, 'Member'), el('th', null, 'Top role'), el('th', null, 'Joined'), el('th', null, 'Account age'), el('th', null, ''));
+    const thead = el('thead'); thead.append(head);
+    const tbody = el('tbody');
+    if (!d.members.length) { const td = el('td', 'empty', 'Nobody matches.'); td.colSpan = 5; const tr = el('tr'); tr.append(td); tbody.append(tr); }
+    for (const m of d.members) {
+      const href = serverPath(`members/${m.id}`);
+      const tr = el('tr', 'clickable');
+      tr.addEventListener('click', e => { if (!e.target.closest('a')) location.href = href; });
+      const who = el('td'); who.append(whoCell(m, href));
+      const role = el('td'); if (m.top_role) role.append(rolePill(m.top_role)); else role.append(el('span', 'nil', '—'));
+      const flags = el('td');
+      if (m.bot) flags.append(el('span', 'badge off', 'Bot'));
+      if (m.timed_out_until) flags.append(el('span', 'badge amber', 'Timed out'));
+      const days = (Date.now() / 1000 - m.created) / 86400;
+      const age = el('td', days < 7 ? 'muted' : null, days < 1 ? 'Under a day' : `${fmt(Math.floor(days))} days`);
+      if (days < 7) age.prepend(el('span', 'badge red', 'New'), ' ');
+      tr.append(who, role, el('td', 'muted', m.joined ? ago(m.joined) : '—'), age, flags);
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
+    const wrap = el('div', 'table'); wrap.append(table);
+    $('member-list').replaceChildren(wrap);
+  }
+
+  async function loadBans() {
+    let d;
+    try { d = await api(`/api/servers/${serverId}/bans`); }
+    catch (e) { $('member-list').replaceChildren(el('p', 'error', e.message)); return; }
+    const q = memberQuery.toLowerCase();
+    const bans = d.bans.filter(b => !q || b.id === q || b.name.toLowerCase().includes(q) || b.username.toLowerCase().includes(q) || (b.reason || '').toLowerCase().includes(q));
+    $('member-count').textContent = `${fmt(bans.length)} of ${fmt(d.bans.length)} bans`;
+    if (!bans.length) { $('member-list').replaceChildren(el('div', 'empty-card', d.bans.length ? 'No bans match.' : 'Nobody is banned.')); return; }
+    const panel = el('div', 'panel'), list = el('ul', 'feed');
+    for (const b of bans) {
+      const li = el('li');
+      const what = el('div', 'what');
+      what.append(whoCell(b, serverPath(`members/${b.id}`)));
+      li.append(what, el('span', 'when', b.reason || 'No reason given'));
+      if (d.can_act) {
+        const un = el('button', 'btn', 'Unban'); un.type = 'button';
+        un.addEventListener('click', () => moderate(b, 'unban', loadBans));
+        li.append(un);
+      }
+      list.append(li);
+    }
+    panel.append(list);
+    $('member-list').replaceChildren(panel);
+  }
+
+  const ACTIONS_UI = {
+    timeout: { label: 'Time out', icon: 'clock', title: 'Time out', verb: 'time out', length: true },
+    untimeout: { label: 'End timeout', icon: 'undo', title: 'End timeout', verb: 'end the timeout for' },
+    kick: { label: 'Kick', icon: 'boot', title: 'Kick', verb: 'kick', danger: true },
+    ban: { label: 'Ban', icon: 'ban', title: 'Ban', verb: 'ban', danger: true, deleteDays: true },
+    unban: { label: 'Unban', icon: 'undo', title: 'Unban', verb: 'unban' },
+    quarantine: { label: 'Quarantine', icon: 'shield', title: 'Quarantine', verb: 'quarantine', danger: true },
+    release: { label: 'Release', icon: 'undo', title: 'Release from quarantine', verb: 'release' },
+  };
+  const LENGTHS = [['60', '1 minute'], ['300', '5 minutes'], ['600', '10 minutes'], ['3600', '1 hour'], ['21600', '6 hours'], ['86400', '1 day'], ['259200', '3 days'], ['604800', '1 week'], ['2419200', '28 days']];
+
+  // A dialog asking for a reason (and a length or messages to delete), resolving with the
+  // request body, or null if cancelled
+  function askAction(user, action) {
+    const a = ACTIONS_UI[action];
+    return new Promise(resolve => {
+      const back = el('div', 'modal-back');
+      const box = el('div', 'modal'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+      box.append(el('h3', null, `${a.title} ${user.name}?`), el('p', null, `This will ${a.verb} ${user.username || user.name}. It shows in the audit log under your name.`));
+      let length, del;
+      if (a.length) {
+        box.append(Object.assign(el('label', null, 'How long'), { htmlFor: 'm-length' }));
+        length = el('select'); length.id = 'm-length';
+        for (const [v, l] of LENGTHS) length.append(new Option(l, v));
+        length.value = '3600';
+        box.append(length);
+      }
+      if (a.deleteDays) {
+        box.append(Object.assign(el('label', null, 'Delete their recent messages'), { htmlFor: 'm-del' }));
+        del = el('select'); del.id = 'm-del';
+        for (const [v, l] of [['0', 'Don’t delete any'], ['1', 'From the last day'], ['7', 'From the last week']]) del.append(new Option(l, v));
+        box.append(del);
+      }
+      box.append(Object.assign(el('label', null, 'Reason'), { htmlFor: 'm-reason' }));
+      const reason = el('textarea'); reason.id = 'm-reason'; reason.maxLength = 400; reason.placeholder = 'Optional; they’re told it if they can be messaged';
+      box.append(reason);
+      const buttons = el('div', 'buttons');
+      const cancel = el('button', 'btn', 'Cancel'); cancel.type = 'button';
+      const ok = el('button', a.danger ? 'btn danger' : 'btn save', a.label); ok.type = 'button';
+      const close = value => { back.remove(); document.removeEventListener('keydown', onKey); resolve(value); };
+      const onKey = e => { if (e.key === 'Escape') close(null); };
+      document.addEventListener('keydown', onKey);
+      cancel.addEventListener('click', () => close(null));
+      back.addEventListener('click', e => { if (e.target === back) close(null); });
+      ok.addEventListener('click', () => close({ reason: reason.value, seconds: length ? Number(length.value) : undefined, delete_days: del ? Number(del.value) : undefined }));
+      buttons.append(cancel, ok);
+      box.append(buttons);
+      back.append(box);
+      document.body.append(back);
+      (length || reason).focus();
+    });
+  }
+
+  async function moderate(user, action, after) {
+    const body = await askAction(user, action);
+    if (!body) return;
+    try {
+      const r = await api(`/api/servers/${serverId}/members/${user.id}/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      toast(`${r.done}.`);
+    } catch (e) { if (e.message !== 'signed out') toast(e.message, true); }
+    if (after) after();
+  }
+
+  async function loadMember() {
+    let d;
+    try { d = await api(`/api/servers/${serverId}/members/${memberId}`); }
+    catch (e) { $('member-body').replaceChildren(el('p', 'error', e.message)); return; }
+    const u = d.user;
+    document.title = `${u.name} · ${server.guild.name}`;
+    $('topbar-title').textContent = `${server.guild.name} · ${u.name}`;
+    const h1 = document.querySelector('#server-head h1'); if (h1) h1.textContent = u.name;
+    const back = el('a', 'btn', '← Members'); back.href = serverPath('members');
+    $('member-actions-bar').replaceChildren(back);
+
+    // Left: who they are
+    const card = el('div', 'profile-card');
+    const inner = el('div', 'body');
+    const big = avatar(u.avatar, u.name, 'big-avatar');
+    inner.append(big, el('h2', null, u.name), el('div', 'handle', `${u.username} · ${u.id}`));
+    const badges = el('div', 'badges');
+    if (!d.member) badges.append(el('span', 'badge off', d.banned ? 'Not a member' : 'Not in the server'));
+    if (d.banned) badges.append(el('span', 'badge red', 'Banned'));
+    if (u.bot) badges.append(el('span', 'badge off', 'Bot'));
+    if (u.timed_out_until) badges.append(el('span', 'badge amber', `Timed out · ends ${new Date(u.timed_out_until * 1000).toLocaleString()}`));
+    if (d.quarantined) badges.append(el('span', 'badge amber', 'Quarantined'));
+    if (d.afk) badges.append(el('span', 'badge off', `AFK: ${d.afk.reason}`));
+    if (badges.childElementCount) inner.append(badges);
+    const facts = el('dl', 'facts');
+    const fact = (k, v) => facts.append(el('dt', null, k), el('dd', null, v));
+    fact('Account made', `${new Date(u.created * 1000).toLocaleDateString()} (${ago(u.created)})`);
+    if (u.joined) fact('Joined', `${new Date(u.joined * 1000).toLocaleDateString()} (${ago(u.joined)})`);
+    if (d.level) fact('Level rank', `#${fmt(d.level.position)} · ${fmt(d.level.xp)} XP`);
+    if (d.level) fact('Reputation', fmt(d.level.rep));
+    if (d.balance) fact('Money', `${fmt(d.balance.wallet + d.balance.bank)}`);
+    if (d.banned) fact('Ban reason', d.banned.reason || 'No reason given');
+    inner.append(facts);
+    card.append(el('div', 'banner-strip'), inner);
+
+    // Right: what to do, and their history
+    const right = el('div', 'stack');
+    if (d.can_act) {
+      const acts = [];
+      if (d.member) {
+        acts.push(u.timed_out_until ? 'untimeout' : 'timeout');
+        if (d.quarantine_ready) acts.push(d.quarantined ? 'release' : 'quarantine');
+        acts.push('kick');
+      } else if (d.quarantined) acts.push('release');
+      acts.push(d.banned ? 'unban' : 'ban');
+      const grid = el('div', 'actions-grid');
+      for (const action of acts) {
+        const a = ACTIONS_UI[action];
+        const b = el('button', a.danger ? 'act danger' : 'act'); b.type = 'button';
+        b.innerHTML = svg(a.icon); b.append(a.label);
+        b.addEventListener('click', () => moderate(u, action, loadMember));
+        grid.append(b);
+      }
+      const block = el('section'); block.append(el('h2', null, 'Actions'), grid);
+      right.append(block);
+    } else {
+      right.append(el('p', 'note', 'Only the server\u2019s owner and admins can moderate from the dashboard.'));
+    }
+    if (d.score) {
+      const s = d.score;
+      const colour = s.total >= 60 ? 'var(--red)' : s.total >= 30 ? 'var(--amber)' : 'var(--green)';
+      const box = el('div', 'panel pad score');
+      const ring = el('div', 'ring'); ring.style.setProperty('--p', s.total); ring.style.setProperty('--c', colour);
+      ring.append(el('span', null, String(s.total)));
+      const list = el('ul', 'reasons');
+      if (!s.reasons.length) list.append(el('li', 'sub', 'Nothing suspicious.'));
+      for (const r of s.reasons) { const li = el('li'); li.append(el('b', r.points < 0 ? 'neg' : null, `${r.points > 0 ? '+' : ''}${r.points}`), r.text); list.append(li); }
+      box.append(ring, list);
+      const block = el('section'); block.append(el('h2', null, 'Suspicion score'), box);
+      right.append(block);
+    }
+    if (d.roles.length) {
+      const list = el('div', 'role-list'); list.append(...d.roles.map(rolePill));
+      const block = el('section'); block.append(el('h2', null, `Roles (${d.roles.length})`), list);
+      right.append(block);
+    }
+    if (d.quarantined) {
+      const q = d.quarantined;
+      const block = el('section');
+      const box = el('div', 'banner amber');
+      box.append(el('b', null, 'Quarantined '), `${ago(q.at)} by ${q.source}: ${q.reason}. ${q.roles.length} role${q.roles.length === 1 ? '' : 's'} saved to give back.`);
+      block.append(box);
+      right.append(block);
+    }
+    const names = d.history.names || {};
+    const feed = el('ul', 'feed');
+    if (!d.history.incidents.length) feed.append(el('li', 'empty', 'No incidents. Bans, kicks and timeouts are recorded here once the Incidents cog is on.'));
+    for (const i of d.history.incidents) {
+      const li = el('li'), what = el('div', 'what');
+      what.append(el('b', null, humanize(i.action)), ` #${i.id}`);
+      what.append(el('small', null, `by ${named(names, i.moderator_id)}${i.reason ? ` · ${i.reason}` : ''}`));
+      const when = parseWhen(i.at);
+      li.append(what, el('span', 'when', when ? ago(when) : ''));
+      feed.append(li);
+    }
+    const panel = el('div', 'panel'); panel.append(feed);
+    const block = el('section'); block.append(el('h2', null, 'Incidents'), panel);
+    right.append(block);
+    if (d.staff_policy_roles) right.append(el('p', 'note', `Staff policy took ${d.staff_policy_roles.length} role${d.staff_policy_roles.length === 1 ? '' : 's'} from them, saved to give back.`));
+
+    const grid = el('div', 'profile');
+    grid.append(card, right);
+    $('member-body').replaceChildren(grid);
+  }
+
   /* Leaderboards */
   async function loadLeaderboards() {
     let d;
@@ -1788,7 +2143,7 @@
     entries.push({ label: 'Add a server', hint: 'Bot', href: '/add' });
     for (const g of (overview ? overview.guilds : [])) {
       entries.push({ label: g.name, hint: 'Server', href: `/servers/${g.id}`, icon: g.icon });
-      for (const [sub, title] of [['settings', 'Settings'], ['commands', 'Commands'], ['cogs', 'Cogs'], ['leaderboards', 'Leaderboards'], ['audit', 'Audit log']]) {
+      for (const [sub, title] of [['members', 'Members'], ['settings', 'Settings'], ['commands', 'Commands'], ['cogs', 'Cogs'], ['leaderboards', 'Leaderboards'], ['audit', 'Audit log']]) {
         entries.push({ label: `${g.name} › ${title}`, hint: title, href: `/servers/${g.id}/${sub}`, icon: g.icon, minor: true });
       }
     }
