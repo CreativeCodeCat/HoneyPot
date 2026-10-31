@@ -29,5 +29,11 @@ pub async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
     }
     server_setup::commands_channel_check(ctx).await?;
     cooldowns::check(ctx)?;
+    if let Some(guild_id) = ctx.guild_id() {
+        use crate::database::repositories::analytics::{COMMANDS, COMMAND_PREFIX};
+        let mut analytics = ctx.data().analytics.lock().unwrap();
+        analytics.bump(guild_id.get(), COMMANDS, 1);
+        analytics.bump(guild_id.get(), &format!("{COMMAND_PREFIX}{}", root_command(ctx).name), 1);
+    }
     Ok(true)
 }

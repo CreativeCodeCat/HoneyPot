@@ -14,6 +14,7 @@
     --border: #e1e3e8; --hover: rgba(0, 0, 0, .05); --active: rgba(217, 138, 0, .14); --accent: #c27a00;
     --green: #2d8a4b; --green-bg: rgba(59, 165, 93, .15); --red: #c93638; --red-bg: rgba(216, 60, 62, .12);
     --amber: #a86400; --amber-bg: rgba(240, 165, 0, .16); --shadow: 0 10px 40px rgba(0, 0, 0, .18);
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --grid: rgba(0, 0, 0, .07);
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
@@ -22,6 +23,7 @@
       --border: #3a3c42; --hover: rgba(255, 255, 255, .05); --active: rgba(240, 165, 0, .16); --accent: #f0a500;
       --green: #57c27a; --green-bg: rgba(59, 165, 93, .18); --red: #f06a6c; --red-bg: rgba(240, 106, 108, .14);
       --amber: #f0b445; --amber-bg: rgba(240, 165, 0, .16); --shadow: 0 10px 40px rgba(0, 0, 0, .5);
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --grid: rgba(255, 255, 255, .07);
       color-scheme: dark;
     }
   }
@@ -30,6 +32,7 @@
     --border: #3a3c42; --hover: rgba(255, 255, 255, .05); --active: rgba(240, 165, 0, .16); --accent: #f0a500;
     --green: #57c27a; --green-bg: rgba(59, 165, 93, .18); --red: #f06a6c; --red-bg: rgba(240, 106, 108, .14);
     --amber: #f0b445; --amber-bg: rgba(240, 165, 0, .16); --shadow: 0 10px 40px rgba(0, 0, 0, .5);
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --grid: rgba(255, 255, 255, .07);
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -292,6 +295,46 @@
   .stack > * + * { margin-top: 20px; }
   .pad { padding: 14px 16px; }
 
+  /* Analytics */
+  .range { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .range .sub { margin-left: auto; }
+  .kpi .delta { font-size: 12px; font-weight: 600; margin-top: 2px; display: inline-flex; align-items: center; gap: 3px; }
+  .kpi .delta.up { color: var(--green); } .kpi .delta.down { color: var(--red); } .kpi .delta.flat { color: var(--muted); }
+  .kpi .delta.invert.up { color: var(--red); } .kpi .delta.invert.down { color: var(--green); }
+  .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+  .chart-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 10px; min-width: 0; }
+  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .chart-head h3 { margin: 0; font-size: 14px; }
+  .chart-head .big { font-size: 13px; color: var(--muted); }
+  .chart-head .btn { margin-left: auto; }
+  .legend-row { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin: 0 0 4px; }
+  .legend-row span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-row i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; overflow: visible; }
+  .chart .axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .chart .gridline { stroke: var(--grid); }
+  .chart .baseline { stroke: var(--border); }
+  .chart .hair { stroke: var(--muted); stroke-dasharray: 3 3; }
+  .chart .bar { transition: opacity .1s; }
+  .chart.hovering .bar:not(.on) { opacity: .45; }
+  .tip { position: fixed; z-index: 70; pointer-events: none; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px; min-width: 120px; }
+  .tip .t { color: var(--muted); margin-bottom: 4px; }
+  .tip .r { display: flex; align-items: center; gap: 8px; }
+  .tip .r i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .tip .r b { font-variant-numeric: tabular-nums; }
+  .tip .r span { color: var(--muted); }
+  .hbars { display: grid; gap: 8px; padding: 6px 0; }
+  .hbar { display: grid; grid-template-columns: minmax(80px, 140px) 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+  .hbar code { font: 12px ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hbar .track { height: 10px; }
+  .hbar .fill { height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .hbar b { font-variant-numeric: tabular-nums; font-size: 12px; }
+  .chart-table { max-height: 260px; overflow-y: auto; }
+  .chart-table td, .chart-table th { padding: 6px 10px; font-size: 13px; }
+  @media (max-width: 860px) { .charts { grid-template-columns: 1fr; } }
+
   /* Dialog */
   .modal-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); z-index: 55; display: grid; place-items: center; padding: 16px; animation: fade .12s ease-out; }
   .modal { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; animation: pop .15s ease-out; }
@@ -425,6 +468,7 @@
       <div class="nav-server" id="nav-server"></div>
       <a class="nav-item" data-section="" href="#"><span class="ico" data-icon="grid"></span><span class="label">Overview</span></a>
       <a class="nav-item" data-section="members" href="#"><span class="ico" data-icon="users"></span><span class="label">Members</span><span class="count" id="count-members"></span></a>
+      <a class="nav-item" data-section="analytics" href="#"><span class="ico" data-icon="chart"></span><span class="label">Analytics</span></a>
       <a class="nav-item" data-section="settings" href="#"><span class="ico" data-icon="sliders"></span><span class="label">Settings</span></a>
       <a class="nav-item" data-section="commands" href="#"><span class="ico" data-icon="terminal"></span><span class="label">Commands</span><span class="count" id="count-commands"></span></a>
       <a class="nav-item" data-section="cogs" href="#"><span class="ico" data-icon="cog"></span><span class="label">Cogs</span><span class="count" id="count-cogs"></span></a>
@@ -551,6 +595,12 @@
         <div id="member-body"></div>
       </div>
 
+      <div id="section-analytics" hidden>
+        <div class="range" id="range"></div>
+        <section class="tiles" id="kpis"></section>
+        <div class="charts" id="charts"></div>
+      </div>
+
       <div id="section-settings" hidden>
         <p class="note" id="settings-note" hidden>Only the server's owner and admins can change settings.</p>
         <div id="settings-body"></div>
@@ -628,6 +678,13 @@
     if (diff < 86400 * 30) return `${Math.floor(diff / 86400)}d ago`;
     return new Date(seconds * 1000).toLocaleDateString();
   }
+  // Like ago, but in months and years past a month, for account ages
+  function agoLong(seconds) {
+    const days = Math.max(0, Date.now() / 1000 - seconds) / 86400;
+    if (days < 30) return ago(seconds);
+    if (days < 365) { const m = Math.floor(days / 30); return `${m} month${m === 1 ? '' : 's'} ago`; }
+    const y = Math.floor(days / 365); return `${y} year${y === 1 ? '' : 's'} ago`;
+  }
   // Timestamps saved as text (ISO, or "YYYY-MM-DD HH:MM:SS" in UTC)
   function parseWhen(text) {
     if (!text) return null;
@@ -655,6 +712,9 @@
     cog: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
     trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    chart: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+    up: '<path d="m6 15 6-6 6 6"/>',
+    down: '<path d="m6 9 6 6 6-6"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
     boot: '<path d="M4 4h6v8l8 3a3 3 0 0 1 2 3v2H4z"/><path d="M4 16h16"/>',
     ban: '<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>',
@@ -693,7 +753,7 @@
 
   // Where we are
   const path = location.pathname;
-  const serverMatch = path.match(/^\/servers\/(\d+)(?:\/(commands|cogs|configure|members|settings|leaderboards|audit)(?:\/([^/]+))?)?\/?$/);
+  const serverMatch = path.match(/^\/servers\/(\d+)(?:\/(commands|cogs|configure|members|analytics|settings|leaderboards|audit)(?:\/([^/]+))?)?\/?$/);
   const serverId = serverMatch && serverMatch[1];
   const section = (serverMatch && serverMatch[2]) || '';
   const dataCog = section === 'cogs' && serverMatch[3] ? decodeURIComponent(serverMatch[3]) : null;
@@ -702,8 +762,8 @@
   const view = dataCog ? 'data' : configCog ? 'configure' : memberId ? 'member' : section || 'overview';
   const botPage = serverId ? null : path === '/system' ? 'system' : path === '/add' ? 'add' : 'home';
   const serverPath = sub => `/servers/${serverId}${sub ? '/' + sub : ''}`;
-  const SECTIONS = ['overview', 'members', 'member', 'settings', 'commands', 'cogs', 'data', 'configure', 'leaderboards', 'audit'];
-  const TITLES = { overview: 'Overview', members: 'Members', member: 'Member', settings: 'Settings', commands: 'Commands', cogs: 'Cogs', leaderboards: 'Leaderboards', audit: 'Audit log' };
+  const SECTIONS = ['overview', 'analytics', 'members', 'member', 'settings', 'commands', 'cogs', 'data', 'configure', 'leaderboards', 'audit'];
+  const TITLES = { overview: 'Overview', members: 'Members', member: 'Member', analytics: 'Analytics', settings: 'Settings', commands: 'Commands', cogs: 'Cogs', leaderboards: 'Leaderboards', audit: 'Audit log' };
   const SUBTITLES = {
     settings: 'The channels the bot uses here',
     commands: 'Every command people can use here, by cog (only cogs that are on)',
@@ -711,6 +771,7 @@
     data: 'What this cog keeps for this server (read-only)',
     configure: 'Change how this cog works here',
     members: 'Find members, see their history and moderate them',
+    analytics: 'How the server is doing over time',
     member: 'Their history with the bot, and what you can do',
     leaderboards: 'The most active and the richest members',
     audit: 'Who changed what through the dashboard',
@@ -1012,6 +1073,7 @@
       renderCommands();
     } else if (view === 'configure') loadConfig();
     else if (view === 'members') loadMembers();
+    else if (view === 'analytics') loadAnalytics();
     else if (view === 'member') loadMember();
     else if (view === 'cogs') renderCogs();
     else if (view === 'settings') loadSettings();
@@ -2017,8 +2079,8 @@
     if (badges.childElementCount) inner.append(badges);
     const facts = el('dl', 'facts');
     const fact = (k, v) => facts.append(el('dt', null, k), el('dd', null, v));
-    fact('Account made', `${new Date(u.created * 1000).toLocaleDateString()} (${ago(u.created)})`);
-    if (u.joined) fact('Joined', `${new Date(u.joined * 1000).toLocaleDateString()} (${ago(u.joined)})`);
+    fact('Account made', `${new Date(u.created * 1000).toLocaleDateString()} · ${agoLong(u.created)}`);
+    if (u.joined) fact('Joined', `${new Date(u.joined * 1000).toLocaleDateString()} · ${agoLong(u.joined)}`);
     if (d.level) fact('Level rank', `#${fmt(d.level.position)} · ${fmt(d.level.xp)} XP`);
     if (d.level) fact('Reputation', fmt(d.level.rep));
     if (d.balance) fact('Money', `${fmt(d.balance.wallet + d.balance.bank)}`);
@@ -2096,6 +2158,241 @@
     $('member-body').replaceChildren(grid);
   }
 
+  /* Analytics */
+
+  let rangeDays = [7, 30, 90].includes(Number(new URLSearchParams(location.search).get('days'))) ? Number(new URLSearchParams(location.search).get('days')) : 30;
+  let analyticsData = null;
+  const NS = 'http://www.w3.org/2000/svg';
+  function sv(tag, attrs) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  const shortDate = d => new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const longDate = d => new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const compact = n => Math.abs(n) >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : Math.abs(n) >= 1e4 ? `${+(n / 1e3).toFixed(1)}k` : fmt(n);
+
+  // A y-axis top that's a round number above the highest value, and ticks to it
+  function niceScale(max) {
+    if (!max || max <= 0) return { top: 4, ticks: [0, 2, 4] };
+    const step0 = max / 3, mag = 10 ** Math.floor(Math.log10(step0));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= step0);
+    const top = Math.ceil(max / step) * step;
+    const ticks = []; for (let v = 0; v <= top + step / 2; v += step) ticks.push(+v.toFixed(6));
+    return { top, ticks };
+  }
+
+  let tipEl;
+  function showTip(x, y, title, rows) {
+    if (!tipEl) { tipEl = el('div', 'tip'); tipEl.setAttribute('role', 'status'); document.body.append(tipEl); }
+    const t = el('div', 't', title);
+    tipEl.replaceChildren(t, ...rows.map(r => { const row = el('div', 'r'); const i = el('i'); i.style.background = r.color; row.append(i, el('b', null, r.value), el('span', null, r.label)); return row; }));
+    tipEl.hidden = false;
+    const w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    tipEl.style.left = `${Math.min(window.innerWidth - w - 8, x + 14)}px`;
+    tipEl.style.top = `${Math.max(8, y - h - 10)}px`;
+  }
+  const hideTip = () => { if (tipEl) tipEl.hidden = true; };
+
+  // Line or bar chart of daily values. series: [{label, color, values}]; bars are grouped per day
+  function timeChart(box, dates, series, kind) {
+    box.replaceChildren();
+    const W = Math.max(280, box.clientWidth), H = 190, L = 40, R = 8, T = 10, B = 24;
+    const pw = W - L - R, ph = H - T - B;
+    const all = series.flatMap(s => s.values.filter(v => v != null));
+    // The member count doesn't start at 0, so its axis fits the values
+    const floor = kind === 'level' && all.length ? Math.min(...all) : 0;
+    let { top, ticks } = niceScale(Math.max(0, ...all) - floor);
+    const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': series.map(s => s.label).join(' and ') });
+    const y = v => T + ph - ((v - floor) / top) * ph;
+    for (const t of ticks) {
+      svg.append(sv('line', { x1: L, x2: W - R, y1: y(t + floor), y2: y(t + floor), class: t === 0 ? 'baseline' : 'gridline' }));
+      const lab = sv('text', { x: L - 6, y: y(t + floor) + 4, 'text-anchor': 'end', class: 'axis' }); lab.textContent = compact(t + floor); svg.append(lab);
+    }
+    const n = dates.length, slot = pw / n;
+    const x = i => L + slot * i + slot / 2;
+    const every = Math.ceil(n / Math.max(2, Math.floor(pw / 70)));
+    dates.forEach((d, i) => {
+      if ((n - 1 - i) % every) return;
+      const lab = sv('text', { x: x(i), y: H - 6, 'text-anchor': 'middle', class: 'axis' }); lab.textContent = shortDate(d); svg.append(lab);
+    });
+    const rowsAt = i => series.map(s => ({ color: s.color, value: s.values[i] == null ? '—' : fmt(s.values[i]), label: s.label }));
+    if (kind === 'bar') {
+      const groupW = Math.min(28, slot * 0.72), barW = Math.max(1.5, (groupW - 2 * (series.length - 1)) / series.length);
+      dates.forEach((d, i) => {
+        series.forEach((s, k) => {
+          const v = s.values[i] || 0;
+          const bx = x(i) - groupW / 2 + k * (barW + 2), by = y(v), bh = T + ph - by;
+          const r = Math.min(4, barW / 2, bh);
+          // Rounded at the data end, square on the baseline
+          const path = bh <= 0 ? '' : `M${bx},${T + ph}V${by + r}Q${bx},${by} ${bx + r},${by}H${bx + barW - r}Q${bx + barW},${by} ${bx + barW},${by + r}V${T + ph}Z`;
+          if (path) svg.append(sv('path', { d: path, fill: s.color, class: `bar d${i}` }));
+        });
+        // The whole day's slot is the hit target, bigger than the bars
+        const hit = sv('rect', { x: L + slot * i, y: T, width: slot, height: ph, fill: 'transparent', tabindex: 0 });
+        hit.setAttribute('aria-label', `${longDate(d)}: ${rowsAt(i).map(r => `${r.label} ${r.value}`).join(', ')}`);
+        const on = e => {
+          box.classList.add('hovering');
+          svg.querySelectorAll('.bar.on').forEach(b => b.classList.remove('on'));
+          svg.querySelectorAll(`.bar.d${i}`).forEach(b => b.classList.add('on'));
+          const rect = hit.getBoundingClientRect();
+          showTip(e.clientX ?? rect.left + rect.width / 2, e.clientY ?? rect.top, longDate(d), rowsAt(i));
+        };
+        hit.addEventListener('pointermove', on); hit.addEventListener('focus', on);
+        const off = () => { box.classList.remove('hovering'); hideTip(); };
+        hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
+        svg.append(hit);
+      });
+    } else {
+      for (const s of series) {
+        // Lines break across days with no value
+        let d = '', pen = false;
+        s.values.forEach((v, i) => { if (v == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i)},${y(v)}`; pen = true; });
+        if (kind !== 'level' && series.length === 1) {
+          const area = `${d}L${x(n - 1)},${T + ph}L${x(0)},${T + ph}Z`;
+          svg.append(sv('path', { d: area, fill: s.color, 'fill-opacity': 0.1 }));
+        }
+        svg.append(sv('path', { d, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+        // A lone point would be invisible as a line
+        s.values.forEach((v, i) => { if (v != null && s.values[i - 1] == null && s.values[i + 1] == null) svg.append(sv('circle', { cx: x(i), cy: y(v), r: 4, fill: s.color })); });
+      }
+      const hair = sv('line', { y1: T, y2: T + ph, class: 'hair', visibility: 'hidden' });
+      const dots = series.map(s => { const c = sv('circle', { r: 4.5, fill: s.color, stroke: 'var(--panel)', 'stroke-width': 2, visibility: 'hidden' }); return c; });
+      svg.append(hair, ...dots);
+      const hit = sv('rect', { x: L, y: T, width: pw, height: ph, fill: 'transparent', tabindex: 0 });
+      let focusI = n - 1;
+      const at = (i, cx, cy) => {
+        hair.setAttribute('x1', x(i)); hair.setAttribute('x2', x(i)); hair.setAttribute('visibility', 'visible');
+        series.forEach((s, k) => { const v = s.values[i]; dots[k].setAttribute('visibility', v == null ? 'hidden' : 'visible'); if (v != null) { dots[k].setAttribute('cx', x(i)); dots[k].setAttribute('cy', y(v)); } });
+        showTip(cx, cy, longDate(dates[i]), rowsAt(i));
+      };
+      const clear = () => { hair.setAttribute('visibility', 'hidden'); dots.forEach(d => d.setAttribute('visibility', 'hidden')); hideTip(); };
+      hit.addEventListener('pointermove', e => {
+        const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * (W / r.width);
+        at(Math.max(0, Math.min(n - 1, Math.floor((px - L) / slot))), e.clientX, e.clientY);
+      });
+      hit.addEventListener('pointerleave', clear);
+      hit.addEventListener('blur', clear);
+      hit.addEventListener('focus', () => { const r = hit.getBoundingClientRect(); at(focusI, r.left + (x(focusI) - L) * r.width / pw, r.top); });
+      hit.addEventListener('keydown', e => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        focusI = Math.max(0, Math.min(n - 1, focusI + (e.key === 'ArrowRight' ? 1 : -1)));
+        const r = hit.getBoundingClientRect(); at(focusI, r.left + (x(focusI) - L) * r.width / pw, r.top);
+      });
+      hit.setAttribute('aria-label', `${series.map(s => s.label).join(', ')}. Use the arrow keys to read each day.`);
+      svg.append(hit);
+    }
+    box.append(svg);
+  }
+
+  function chartCard({ title, note, series, kind, wide }) {
+    const card = el('div', wide ? 'chart-card wide' : 'chart-card');
+    const head = el('div', 'chart-head');
+    head.append(el('h3', null, title));
+    if (note) head.append(el('span', 'big', note));
+    const toggle = el('button', 'btn', 'Table'); toggle.type = 'button';
+    head.append(toggle);
+    card.append(head);
+    if (series.length > 1) {
+      const legend = el('div', 'legend-row');
+      legend.append(...series.map(s => { const sp = el('span'); const i = el('i'); i.style.background = s.color; sp.append(i, s.label); return sp; }));
+      card.append(legend);
+    }
+    const box = el('div', 'chart');
+    card.append(box);
+    let table = null;
+    toggle.addEventListener('click', () => {
+      if (!table) {
+        table = el('div', 'table chart-table');
+        const t = el('table'), hr = el('tr');
+        hr.append(el('th', null, 'Day'), ...series.map(s => el('th', 'num', s.label)));
+        const thead = el('thead'); thead.append(hr);
+        const tb = el('tbody');
+        [...analyticsData.days].reverse().forEach((d, ri) => {
+          const i = analyticsData.days.length - 1 - ri;
+          const tr = el('tr'); tr.append(el('td', null, longDate(d)), ...series.map(s => el('td', 'num', s.values[i] == null ? '—' : fmt(s.values[i])))); tb.append(tr);
+        });
+        t.append(thead, tb); table.append(t);
+        card.append(table);
+      }
+      const showTable = box.hidden = !box.hidden;
+      table.hidden = !showTable;
+      toggle.textContent = showTable ? 'Chart' : 'Table';
+    });
+    const draw = () => { if (!box.hidden) timeChart(box, analyticsData.days, series, kind); };
+    charts.push(draw);
+    return card;
+  }
+  let charts = [];
+  let resizeTimer;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => charts.forEach(c => c()), 120); });
+
+  function kpi(label, value, previous, opts = {}) {
+    const t = el('div', 'tile kpi');
+    t.append(el('div', 'label', label), el('div', 'value', value == null ? '–' : opts.format ? opts.format(value) : compact(value)));
+    if (value != null && previous != null) {
+      const diff = value - previous;
+      const pct = previous ? diff / previous * 100 : null;
+      const dir = Math.abs(diff) < 1e-9 ? 'flat' : diff > 0 ? 'up' : 'down';
+      const d = el('div', `delta ${dir}${opts.invert ? ' invert' : ''}`);
+      if (dir !== 'flat') d.innerHTML = svg(dir === 'up' ? 'up' : 'down').replace('<svg', '<svg width="12" height="12"');
+      d.append(dir === 'flat' ? 'No change' : pct == null ? `${diff > 0 ? '+' : ''}${opts.format ? opts.format(diff) : fmt(Math.round(diff))}` : `${Math.abs(pct).toFixed(pct && Math.abs(pct) < 10 ? 1 : 0)}%`);
+      d.title = `Previous ${rangeDays} days: ${opts.format ? opts.format(previous) : fmt(Math.round(previous))}`;
+      t.append(d);
+    } else t.append(el('div', 'hint', `Last ${rangeDays} days`));
+    return t;
+  }
+
+  async function loadAnalytics() {
+    $('range').replaceChildren(...[7, 30, 90].map(n => {
+      const b = el('button', n === rangeDays ? 'chip active' : 'chip', `${n} days`);
+      b.addEventListener('click', () => { rangeDays = n; history.replaceState(null, '', `${location.pathname}?days=${n}`); loadAnalytics(); });
+      return b;
+    }));
+    let d;
+    try { d = await api(`/api/servers/${serverId}/analytics?days=${rangeDays}`); }
+    catch (e) { $('charts').replaceChildren(el('p', 'error', e.message)); return; }
+    analyticsData = d;
+    const m = d.metrics;
+    const since = el('span', 'sub', d.recorded_since ? `Recording since ${longDate(d.recorded_since)} · kept ${d.keep_days} days` : 'Nothing recorded yet: activity is counted from now on');
+    $('range').append(since);
+    $('kpis').replaceChildren(
+      kpi('Members', m.members.total, m.members.previous),
+      kpi('Joins', m.joins.total, m.joins.previous),
+      kpi('Leaves', m.leaves.total, m.leaves.previous, { invert: true }),
+      kpi('Messages', m.messages.total, m.messages.previous),
+      kpi('Active a day', m.active.total, m.active.previous, { format: v => v.toFixed(1) }),
+      kpi('Commands', m.commands.total, m.commands.previous),
+    );
+    charts = [];
+    const c1 = 'var(--series-1)', c2 = 'var(--series-2)';
+    const cards = [
+      chartCard({ title: 'Members', series: [{ label: 'Members', color: c1, values: m.members.values }], kind: 'level' }),
+      chartCard({ title: 'Joins and leaves', series: [{ label: 'Joins', color: c1, values: m.joins.values }, { label: 'Leaves', color: c2, values: m.leaves.values }], kind: 'bar' }),
+      chartCard({ title: 'Messages', note: `${compact(m.messages.total)} in ${rangeDays} days`, series: [{ label: 'Messages', color: c1, values: m.messages.values }], kind: 'line' }),
+      chartCard({ title: 'Active members', note: 'Members who sent a message', series: [{ label: 'Active', color: c1, values: m.active.values }], kind: 'line' }),
+      chartCard({ title: 'Commands used', series: [{ label: 'Commands', color: c1, values: m.commands.values }], kind: 'bar' }),
+    ];
+    // Top commands: a ranked list reads better as horizontal bars
+    const top = el('div', 'chart-card');
+    const th = el('div', 'chart-head'); th.append(el('h3', null, 'Top commands'), el('span', 'big', `Last ${rangeDays} days`));
+    top.append(th);
+    if (!d.commands.length) top.append(el('div', 'empty-card', 'No commands used yet.'));
+    else {
+      const max = d.commands[0].uses;
+      const list = el('div', 'hbars');
+      for (const c of d.commands) {
+        const row = el('div', 'hbar');
+        const track = el('div', 'track'), fill = el('div', 'fill');
+        fill.style.width = `${c.uses / max * 100}%`; track.append(fill);
+        row.append(el('code', null, `/${c.name}`), track, el('b', null, fmt(c.uses)));
+        list.append(row);
+      }
+      top.append(list);
+    }
+    cards.push(top);
+    cards.push(chartCard({ title: 'Security', note: 'Honeypot catches and incidents', series: [{ label: 'Catches', color: c1, values: m.catches.values }, { label: 'Incidents', color: c2, values: m.incidents.values }], kind: 'bar', wide: true }));
+    $('charts').replaceChildren(...cards);
+    charts.forEach(c => c());
+  }
+
   /* Leaderboards */
   async function loadLeaderboards() {
     let d;
@@ -2143,7 +2440,7 @@
     entries.push({ label: 'Add a server', hint: 'Bot', href: '/add' });
     for (const g of (overview ? overview.guilds : [])) {
       entries.push({ label: g.name, hint: 'Server', href: `/servers/${g.id}`, icon: g.icon });
-      for (const [sub, title] of [['members', 'Members'], ['settings', 'Settings'], ['commands', 'Commands'], ['cogs', 'Cogs'], ['leaderboards', 'Leaderboards'], ['audit', 'Audit log']]) {
+      for (const [sub, title] of [['analytics', 'Analytics'], ['members', 'Members'], ['settings', 'Settings'], ['commands', 'Commands'], ['cogs', 'Cogs'], ['leaderboards', 'Leaderboards'], ['audit', 'Audit log']]) {
         entries.push({ label: `${g.name} › ${title}`, hint: title, href: `/servers/${g.id}/${sub}`, icon: g.icon, minor: true });
       }
     }

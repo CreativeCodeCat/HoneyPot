@@ -198,6 +198,7 @@ pub async fn on_message(ctx: &serenity::Context, data: &Data, msg: &serenity::Me
         ) {
             log::error(format!("Error logging activity: {e}"));
         }
+        data.analytics.lock().unwrap().bump(guild_id.get(), crate::database::repositories::analytics::CATCHES, 1);
         if let Err(e) = honeypot.add_offender(author.id.get(), &username, guild_id.get()) {
             log::error(format!("Error adding to offender list: {e}"));
         }

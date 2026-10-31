@@ -107,7 +107,10 @@ pub async fn on_audit_entry(ctx: &serenity::Context, data: &Data, guild_id: sere
     };
     let messages = collect_messages(ctx, guild_id, user_id);
     match data.incidents.lock().unwrap().create(&incident, &messages) {
-        Ok(id) => log::info(format!("Opened incident #{id} in guild {guild_id}: {} was {action} ({} messages)", user.name, messages.len())),
+        Ok(id) => {
+            data.analytics.lock().unwrap().bump(guild_id.get(), crate::database::repositories::analytics::INCIDENTS, 1);
+            log::info(format!("Opened incident #{id} in guild {guild_id}: {} was {action} ({} messages)", user.name, messages.len()));
+        }
         Err(e) => log::error(format!("Error saving an incident in guild {guild_id}: {e}")),
     }
 }

@@ -30,6 +30,7 @@ pub async fn run() {
             guild_config::CogConfig::open().expect("failed to open cog config database"),
         ),
         afk: Mutex::new(afk::Store::open().expect("failed to open AFK database")),
+        analytics: Mutex::new(crate::database::repositories::analytics::Store::open().expect("failed to open analytics database")),
         live_status: Mutex::new(
             live_status::Store::open().expect("failed to open live status database"),
         ),

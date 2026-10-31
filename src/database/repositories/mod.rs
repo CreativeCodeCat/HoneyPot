@@ -7,6 +7,7 @@ pub mod leveling;
 pub mod pets;
 pub mod tickets;
 pub mod afk;
+pub mod analytics;
 pub mod applications;
 pub mod blacklist;
 pub mod bot_messages;

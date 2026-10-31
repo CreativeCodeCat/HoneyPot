@@ -12,6 +12,7 @@ use crate::features::developer;
 use crate::features::{
     afk, applications, cog_manager, games, honeypot, incidents, leveling, live_status, lockdown, logging, offlimit, pets, quarantine, raid_protection, reaction_roles, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
 };
+use crate::database::repositories::analytics;
 use crate::log;
 use crate::features::{presence, private_mode};
 
@@ -86,8 +87,27 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     if let Err(e) = data.sticky.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale sticky messages: {e}"));
     }
+    if let Err(e) = data.analytics.lock().unwrap().cleanup_stale(&guild_ids) {
+        log::error(format!("Error cleaning up stale analytics: {e}"));
+    }
     if let Err(e) = data.offlimit.lock().unwrap().cleanup_stale(&current) {
         log::error(format!("Error cleaning up stale off-limits channels: {e}"));
+    }
+}
+
+/// Once a minute: notes each server's member count and writes the day's counts.
+async fn analytics_loop(ctx: serenity::Context, data: Data) {
+    let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+    loop {
+        tick.tick().await;
+        let counts: Vec<(u64, u64)> = ctx.cache.guilds().iter().filter_map(|id| ctx.cache.guild(*id).map(|g| (id.get(), g.member_count))).collect();
+        let mut store = data.analytics.lock().unwrap();
+        for (guild, members) in counts {
+            store.snapshot(guild, analytics::MEMBERS, members as i64);
+        }
+        if let Err(e) = store.flush() {
+            log::error(format!("Error saving analytics: {e}"));
+        }
     }
 }
 
@@ -217,6 +237,7 @@ pub async fn event_handler(
                 tokio::spawn(raid_protection::quiet_loop(ctx.clone(), data.clone()));
                 tokio::spawn(live_status::live_loop(ctx.clone(), data.clone()));
                 tokio::spawn(pets::needs_loop(ctx.clone(), data.clone()));
+                tokio::spawn(analytics_loop(ctx.clone(), data.clone()));
             }
         }
         serenity::FullEvent::Message { new_message } => {
@@ -225,6 +246,9 @@ pub async fn event_handler(
             afk::on_message(ctx, data, new_message).await;
             if server_setup::on_message(ctx, data, new_message).await {
                 return Ok(());
+            }
+            if let (Some(guild_id), false) = (new_message.guild_id, new_message.author.bot) {
+                data.analytics.lock().unwrap().message(guild_id.get(), new_message.author.id.get());
             }
             honeypot::on_message(ctx, data, new_message).await;
             tickets::on_message(data, new_message);
@@ -247,12 +271,14 @@ pub async fn event_handler(
             quarantine::on_channel_create(ctx, data, channel).await;
         }
         serenity::FullEvent::GuildMemberAddition { new_member } => {
+            data.analytics.lock().unwrap().bump(new_member.guild_id.get(), analytics::JOINS, 1);
             // Raid protection first: it may already deal with the joiner
             raid_protection::on_member_join(ctx, data, new_member).await;
             quarantine::on_member_join(ctx, data, new_member).await;
             suspicious_accounts::on_member_join(ctx, data, new_member).await;
         }
         serenity::FullEvent::GuildMemberRemoval { guild_id, user, member_data_if_available } => {
+            data.analytics.lock().unwrap().bump(guild_id.get(), analytics::LEAVES, 1);
             incidents::on_member_leave(*guild_id, member_data_if_available.as_ref());
             tickets::on_member_leave(ctx, data, *guild_id, user).await;
         }

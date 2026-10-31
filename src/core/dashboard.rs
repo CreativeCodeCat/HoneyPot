@@ -244,6 +244,7 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         .route("/api/servers/{id}/members/{user}", get(super::dashboard_moderation::member))
         .route("/api/servers/{id}/members/{user}/{action}", axum::routing::post(super::dashboard_moderation::act))
         .route("/api/servers/{id}/bans", get(super::dashboard_moderation::bans))
+        .route("/api/servers/{id}/analytics", get(analytics))
         .route("/api/system", get(system))
         .route("/api/invite", get(invite))
         .route("/api/system/maintenance", axum::routing::post(set_maintenance))
@@ -925,6 +926,79 @@ async fn save_cog_config(
     }
     let values = (form.read)(&dash.data, guild_id).unwrap_or(values);
     Json(json!({ "values": values, "changed": changed })).into_response()
+}
+
+/// The server's activity per day over the last `?days=` (7, 30 or 90; 30 if not given): each
+/// metric's daily values, its total against the period before, and the most used commands.
+async fn analytics(
+    AxumState(dash): AxumState<Dashboard>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    use crate::database::repositories::analytics::{COMMAND_PREFIX, KEEP_DAYS, MEMBERS};
+    let (guild_id, _) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    let days: i64 = match query.get("days").map(String::as_str) {
+        Some("7") => 7,
+        Some("90") => 90,
+        _ => 30,
+    };
+    let today = chrono::Utc::now().date_naive();
+    // The period before is read too, to compare against
+    let first = today - chrono::Duration::days(days * 2 - 1);
+    let series = match dash.data.analytics.lock().unwrap().series(guild_id, &first.format("%Y-%m-%d").to_string()) {
+        Ok(series) => series,
+        Err(e) => {
+            log::error(format!("Error reading analytics for guild {guild_id}: {e}"));
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "The activity couldn't be read");
+        }
+    };
+    let dates: Vec<String> = (0..days * 2).map(|i| (first + chrono::Duration::days(i)).format("%Y-%m-%d").to_string()).collect();
+    let (before, shown) = dates.split_at(days as usize);
+    let sum = |metric: &str, range: &[String]| -> i64 { range.iter().filter_map(|d| series.get(metric)?.get(d)).sum() };
+    let mut metrics = serde_json::Map::new();
+    for metric in ["joins", "leaves", "messages", "commands", "catches", "incidents", "active", MEMBERS] {
+        // The member count is a level, not a count: days without one are left empty, not 0
+        let values: Vec<Value> = shown
+            .iter()
+            .map(|d| match series.get(metric).and_then(|m| m.get(d)) {
+                Some(v) => json!(v),
+                None if metric == MEMBERS => Value::Null,
+                None => json!(0),
+            })
+            .collect();
+        let (total, previous) = if metric == "active" {
+            // Average a day, as the same member is active on many days
+            let avg = |range: &[String]| sum(metric, range) as f64 / days as f64;
+            (json!(avg(shown)), json!(avg(before)))
+        } else if metric == MEMBERS {
+            let last = |range: &[String]| range.iter().rev().find_map(|d| series.get(metric)?.get(d).copied());
+            (json!(last(shown)), json!(last(before)))
+        } else {
+            (json!(sum(metric, shown)), json!(sum(metric, before)))
+        };
+        metrics.insert(metric.to_string(), json!({ "values": values, "total": total, "previous": previous }));
+    }
+    let mut commands: Vec<(String, i64)> = series
+        .iter()
+        .filter_map(|(metric, by_day)| Some((metric.strip_prefix(COMMAND_PREFIX)?.to_string(), shown.iter().filter_map(|d| by_day.get(d)).sum::<i64>())))
+        .filter(|(_, n)| *n > 0)
+        .collect();
+    commands.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    commands.truncate(10);
+    // How far back anything was recorded, so the page can say when history starts
+    let since = series.values().flat_map(|m| m.keys()).min().cloned();
+    Json(json!({
+        "days": shown,
+        "metrics": metrics,
+        "commands": commands.into_iter().map(|(name, uses)| json!({ "name": name, "uses": uses })).collect::<Vec<_>>(),
+        "recorded_since": since,
+        "keep_days": KEEP_DAYS,
+    }))
+    .into_response()
 }
 
 /// The server's top members by level and by money.
