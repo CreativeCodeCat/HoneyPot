@@ -27,6 +27,7 @@ pub struct State {
     pub reaction_roles: Mutex<reaction_roles::Store>,
     pub incidents: Mutex<crate::database::repositories::incidents::Store>,
     pub honeypot: Mutex<honeypot::store::Store>,
+    pub offlimit: Mutex<offlimit::Store>,
     pub levels: Mutex<leveling::store::Store>,
     pub lockdown: Mutex<lockdown::Store>,
     pub pets: Mutex<pets::store::Store>,

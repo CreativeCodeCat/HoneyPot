@@ -10,7 +10,7 @@ use super::framework::{Command, Framework};
 
 use crate::features::developer;
 use crate::features::{
-    afk, applications, cog_manager, games, honeypot, incidents, leveling, live_status, lockdown, logging, pets, quarantine, raid_protection, reaction_roles, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
+    afk, applications, cog_manager, games, honeypot, incidents, leveling, live_status, lockdown, logging, offlimit, pets, quarantine, raid_protection, reaction_roles, server_setup, staff_policy, stats, sticky, suspicious_accounts, tickets, Data, Error,
 };
 use crate::log;
 use crate::features::{presence, private_mode};
@@ -86,6 +86,9 @@ fn cleanup_stale_data(ctx: &serenity::Context, data: &Data) {
     if let Err(e) = data.sticky.lock().unwrap().cleanup_stale(&guild_ids) {
         log::error(format!("Error cleaning up stale sticky messages: {e}"));
     }
+    if let Err(e) = data.offlimit.lock().unwrap().cleanup_stale(&current) {
+        log::error(format!("Error cleaning up stale off-limits channels: {e}"));
+    }
 }
 
 /// Posts an embed in every server's ready log channel (`/server-setup logs Ready`).
@@ -153,6 +156,10 @@ pub async fn event_handler(
     framework: &Framework,
     data: &Data,
 ) -> Result<(), Error> {
+    // Nothing at all happens in off-limits channels
+    if offlimit::is_offlimit_event(data, event) {
+        return Ok(());
+    }
     logging::on_event(ctx, data, event).await;
     match event {
         serenity::FullEvent::GuildAuditLogEntryCreate { entry, guild_id } => {

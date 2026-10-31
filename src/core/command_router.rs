@@ -2,7 +2,7 @@
 
 use crate::features::developer;
 use crate::features::{
-    afk, announce, applications, automod, cog_manager, cooldowns, economy, games, general, honeypot, incidents, info, leveling, live_status, lockdown, moderation, pets, profile,
+    afk, announce, applications, automod, cog_manager, cooldowns, economy, games, general, honeypot, offlimit, incidents, info, leveling, live_status, lockdown, moderation, pets, profile,
     quarantine, raid_protection, reaction_roles, rules, server_setup, staff_policy, stats, sticky, suggestions, suspicious_accounts, tickets, Context,
 };
 use crate::core::framework::{Command, CreateReply, FrameworkError};
@@ -63,6 +63,7 @@ pub fn commands() -> Vec<Command> {
     commands.push(suggestions::suggest());
     commands.push(suggestions::suggestion());
     commands.push(sticky::sticky());
+    commands.push(offlimit::offlimit());
     commands.push(reaction_roles::reaction_roles());
     commands.push(incidents::incident());
     commands.push(raid_protection::raid());

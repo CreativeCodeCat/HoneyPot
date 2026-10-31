@@ -13,7 +13,7 @@ use crate::database::repositories::{
 };
 use crate::features::developer;
 use crate::features::{
-    afk, applications, cooldowns, economy, games, honeypot, leveling, lockdown, pets, profile,
+    afk, applications, cooldowns, economy, games, honeypot, offlimit, leveling, lockdown, pets, profile,
     reaction_roles, rules, server_setup, staff_policy, sticky, suggestions, tickets, Data, State,
 };
 use crate::log;
@@ -88,6 +88,7 @@ pub async fn run() {
             reaction_roles::Store::open().expect("failed to open reaction roles database"),
         ),
         sticky: Mutex::new(sticky::Store::open().expect("failed to open sticky database")),
+        offlimit: Mutex::new(offlimit::Store::open().expect("failed to open off-limits database")),
         suggestions: Mutex::new(
             suggestions::Store::open().expect("failed to open suggestions database"),
         ),

@@ -1,8 +1,9 @@
 //! Permissions: the check every command passes before it runs — blacklist, maintenance
-//! mode, whether its feature is enabled in this guild, the commands channel and cooldowns.
+//! mode, whether its feature is enabled in this guild, off-limits channels, the commands
+//! channel and cooldowns.
 
 use crate::features::developer;
-use crate::features::{command_category, root_command, cooldowns, normalize_cog_name, server_setup, Context, Error, COG_MANAGER};
+use crate::features::{command_category, root_command, cooldowns, offlimit, normalize_cog_name, server_setup, Context, Error, COG_MANAGER};
 
 /// Blocks commands whose cog is disabled in the current guild, then applies the command's cooldown.
 pub async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
@@ -16,6 +17,7 @@ pub async fn command_check(ctx: Context<'_>) -> Result<bool, Error> {
     if developer::maintenance() && !ctx.framework().owners.contains(&ctx.author().id) {
         return Err("🛠️ The bot is under maintenance right now. Please try again later.".into());
     }
+    offlimit::command_check(ctx).await?;
     if let (Some(guild_id), Some(category)) = (ctx.guild_id(), command_category(ctx)) {
         let cog_name = normalize_cog_name(category);
         if cog_name != COG_MANAGER && !ctx.data().is_cog_enabled(guild_id.get(), &cog_name) {

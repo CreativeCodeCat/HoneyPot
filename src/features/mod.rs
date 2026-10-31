@@ -18,6 +18,7 @@ pub mod leveling;
 pub mod live_status;
 pub mod moderation;
 pub mod logging;
+pub mod offlimit;
 pub mod pets;
 pub mod presence;
 pub mod private_mode;
@@ -57,6 +58,7 @@ pub const COGS: &[&str] = &[
     "Lockdown",
     "Moderation",
     "Logs",
+    "OffLimits",
     "Pets",
     "Profile",
     "Quarantine",

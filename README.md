@@ -400,6 +400,14 @@ A sticky message stays near the bottom of its channel: once enough messages are 
 - `/sticky list` - List the server's sticky messages, 10 per page
 - `/sticky delay <seconds>` - How long every sticky in the server waits before moving down once it's due, from 0 (straight away) to 300 seconds. The default is 5
 
+### Off-Limits Commands
+
+An off-limits channel is completely ignored by the bot: it refuses every command there (from staff too) and ignores its messages, edits, deletes, reactions and button presses for every feature, logs and security included. `/offlimit` itself still works there, so a channel can be lifted. All need **Manage Server**.
+
+- `/offlimit add [channel]` - Make a channel off-limits (default: this one)
+- `/offlimit remove [channel]` - Lift an off-limits channel
+- `/offlimit list` - List the server's off-limits channels
+
 ### Reaction Roles Commands
 
 Staff pick emojis for a message that's already in a channel: reacting with one gives its role, and taking the reaction off takes the role away. `message` is the message's link (right-click it, **Copy Message Link**), or its ID if it's in the channel you run the command in; the bot checks it can find the message first. All need **Manage Roles**, and the bot's highest role has to be above the roles it gives.
@@ -461,7 +469,7 @@ Admins tell the bot which channels to use. Settings are kept by ID, so renaming 
 
 ### Cog Management Commands
 
-Cogs: `afk`, `announcements`, `applications`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `moderation`, `pets`, `profile`, `rules`, `serverstats`, `staffpolicy`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
+Cogs: `afk`, `announcements`, `applications`, `automod`, `economy`, `games`, `general`, `honeypot`, `info`, `levels`, `lockdown`, `logs`, `moderation`, `offlimits`, `pets`, `profile`, `rules`, `serverstats`, `staffpolicy`, `sticky`, `suggestions`, `tickets`, `cogmanager`. Only `cogmanager` is enabled by default; an admin turns on the others per server with `/enablecog`. Disabling one blocks its commands and background work in that server only. `cogmanager` can't be disabled.
 
 - `/enablecog <cog_name>` - Enable a cog for this server
 - `/disablecog <cog_name>` - Disable a cog for this server
@@ -511,6 +519,7 @@ The bot uses SQLite for persistent storage:
 - `database/presence.json` - The bot's status and activity set with `/presence`
 - `database/staff_policy.db` - Roles taken by the staff policy, for restoring
 - `database/sticky.db` - Sticky messages
+- `database/offlimit.db` - Off-limits channels
 - `database/dashboard_log.db` - Changes made through the web dashboard
 - `database/dashboard_sessions.db` - Who's signed in to the web dashboard
 - `database/reaction_roles.db` - Reaction role emojis and the roles they give

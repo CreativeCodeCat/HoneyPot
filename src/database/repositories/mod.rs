@@ -15,6 +15,7 @@ pub mod dashboard_log;
 pub mod dashboard_sessions;
 pub mod counting;
 pub mod guessing;
+pub mod offlimit;
 pub mod incidents;
 pub mod live_status;
 pub mod lockdown;
