@@ -153,10 +153,11 @@ fn profile_rule(name: &str, words: &[String], allow_list: &[String], alert_chann
     })
 }
 
-/// Creates the rule, named after `slug`, unless the bot already made one with that name.
-/// Discord allows only one rule of each kind except keyword rules, so for those an existing
-/// rule of the same kind is overwritten instead.
-/// Alerts go to `alert_channel`, or the server's system channel if none is given.
+/// Creates the rule, named after `slug`, or overwrites the one the bot already made with that
+/// name. Discord allows only one rule of each kind except keyword rules, so for those an
+/// existing rule of the same kind is overwritten instead.
+/// Alerts go to `alert_channel`. If none is given, an overwritten rule keeps its alert
+/// channel, and a new one uses the server's system channel.
 async fn create(ctx: Context<'_>, slug: &str, rule: Rule, alert_channel: Option<serenity::GuildChannel>) -> Result<(), Error> {
     ctx.defer_ephemeral().await?;
     let guild_id = ctx.guild_id().unwrap();
@@ -167,7 +168,25 @@ async fn create(ctx: Context<'_>, slug: &str, rule: Rule, alert_channel: Option<
         bot_name
     );
 
-    let alert_channel = alert_channel.map(|c| c.id).or_else(|| ctx.guild().and_then(|g| g.system_channel_id));
+    let trigger_type = match &rule {
+        Rule::ProfileNames { .. } => u64::from(MEMBER_PROFILE_TRIGGER),
+        Rule::Message { trigger, .. } => u64::from(u8::from(trigger.kind())),
+    };
+    let existing = guild_id.automod_rules(ctx.http()).await?;
+    let replacing = if trigger_type == KEYWORD_TRIGGER {
+        existing.iter().find(|rule| rule.name == rule_name)
+    } else {
+        existing.iter().find(|rule| u64::from(u8::from(rule.trigger.kind())) == trigger_type)
+    };
+
+    let alert_channel = match (alert_channel, replacing) {
+        (Some(channel), _) => Some(channel.id),
+        (None, Some(old)) => old.actions.iter().find_map(|action| match action {
+            Action::Alert(channel_id) => Some(*channel_id),
+            _ => None,
+        }),
+        (None, None) => ctx.guild().and_then(|g| g.system_channel_id),
+    };
     let mut body = match rule {
         Rule::ProfileNames { words, allow_list } => profile_rule(&rule_name, &words, &allow_list, alert_channel),
         Rule::Message { trigger, timeout_minutes, raid_protection } => {
@@ -195,19 +214,6 @@ async fn create(ctx: Context<'_>, slug: &str, rule: Rule, alert_channel: Option<
             }
             rule
         }
-    };
-    let trigger_type = body["trigger_type"].as_u64().unwrap_or_default();
-
-    let existing = guild_id.automod_rules(ctx.http()).await?;
-    let replacing = if trigger_type == KEYWORD_TRIGGER {
-        if existing.iter().any(|rule| rule.name == rule_name) {
-            ctx.say(format!("❌ AutoMod rule '{rule_name}' already exists!"))
-                .await?;
-            return Ok(());
-        }
-        None
-    } else {
-        existing.iter().find(|rule| u64::from(u8::from(rule.trigger.kind())) == trigger_type)
     };
 
     let reason = format!("Set by {}", ctx.author().tag());

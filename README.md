@@ -430,7 +430,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
 
 ### Other Commands
 
-- `/automod` - Create a Discord AutoMod rule (needs **Administrator**). Each subcommand only has the options that work with it:
+- `/automod` - Create a Discord AutoMod rule (needs **Administrator**). Running a subcommand again overwrites its rule; the rule keeps its alert channel unless you pass a new `alert_channel`. Each subcommand only has the options that work with it:
   - `/automod word-list <list> [allow_list]` - Block Discord's word lists: all, profanity, sexual content or slurs
   - `/automod words <words> [allow_list] [timeout_minutes]` - Block the comma-separated `words` in messages (`*` as a wildcard)
   - `/automod profile-names <words> [allow_list]` - Block `words` in member names; matching members can't chat or interact until they change it
