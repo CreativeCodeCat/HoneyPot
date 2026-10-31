@@ -65,13 +65,15 @@ A Discord bot written in Rust ([serenity](https://github.com/serenity-rs/serenit
 
 ## Dashboard
 
-Once the bot is connected, it serves a dashboard at http://localhost:8080: the bot's version, uptime and shards, totals for servers, members and channels, and every server with how many cogs it has on. It refreshes every 10 seconds, and the same data is at `/api/overview` as JSON.
+Once the bot is connected, it serves a dashboard at http://localhost:8080: the bot's version, uptime and shards, totals for servers, members and channels, and a card for every server with how many cogs it has on. It refreshes every 10 seconds, and the same data is at `/api/overview` as JSON.
 
 Clicking a server switches the sidebar to that server's pages:
-- **Overview** - members, channels, roles and boosts; its security at a glance (honeypot catches, incidents, quarantined members, open tickets, locked channels), a banner during a raid, and the latest honeypot catches and incidents. It updates every 30 seconds
+- **Overview** - a banner with the server's owner, cogs and boost level; members, channels, roles and boosts; its security at a glance (honeypot catches, incidents, quarantined members, open tickets, locked channels), a banner during a raid, and the latest honeypot catches and incidents. It updates every 30 seconds
+- **Analytics** - charts of the last 7, 30 or 90 days: member count, joins and leaves, messages, active members (who sent a message each day), commands used and the most used ones, and honeypot catches and incidents, each with how it compares to the period before. Hover a chart for each day's numbers, or switch it to a table. Activity is counted from when this version starts, and kept for 90 days
+- **Members** - search members by name, username or ID, and see the server's bans. A member's page shows their roles, level and money, their suspicious-account score and why, whether they're quarantined, and their incidents. The server's owner and admins can time out, kick, ban, unban, quarantine and release them from there; they're told why, as with the commands, and it shows in the Audit log
 - **Settings** - pick the commands, games and announcements channels and every log channel from the server's channels, like `/server-setup`
 - **Commands** - every command people can use there, from the cogs that are on, with the permission each needs and a filter box
-- **Cogs** - each cog with an on/off switch, like `/enablecog` and `/disablecog` (the server's slash commands update to match); **Info** opens a read-only view of what the cog keeps for the server, with its defaults filled in, and **Cmd** opens its commands
+- **Cogs** - each cog with an on/off switch, like `/enablecog` and `/disablecog` (the server's slash commands update to match); **Settings** changes a cog's settings with the same limits as its commands (Levels, Raid Protection, Suspicious Accounts, Quarantine, Staff Policy, Suggestions, Tickets, Sticky and Off-Limits); **Info** opens a read-only view of what the cog keeps for the server, with its defaults filled in, and **Cmd** opens its commands
 - **Leaderboards** - the top 10 members by level and by money
 - **Audit log** - every change made through the dashboard: who, what and when
 
@@ -521,6 +523,7 @@ The bot uses SQLite for persistent storage:
 - `database/sticky.db` - Sticky messages
 - `database/offlimit.db` - Off-limits channels
 - `database/dashboard_log.db` - Changes made through the web dashboard
+- `database/analytics.db` - Each server's activity per day, for the dashboard's charts (90 days)
 - `database/dashboard_sessions.db` - Who's signed in to the web dashboard
 - `database/reaction_roles.db` - Reaction role emojis and the roles they give
 - `database/counting.db` - Counting channels, counts and high scores

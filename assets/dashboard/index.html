@@ -430,6 +430,82 @@
     .multi { justify-content: flex-start; }
     select.input { width: 100%; }
   }
+
+  /* ---------- Design layer ---------- */
+  :root { --radius: 12px; --lift: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .04); --lift-hover: 0 8px 24px rgba(16, 24, 40, .08); --honey-1: #f5b02e; --honey-2: #e07a1f; }
+  :root[data-theme="dark"] { --lift: 0 1px 2px rgba(0, 0, 0, .3); --lift-hover: 0 10px 30px rgba(0, 0, 0, .45); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --lift: 0 1px 2px rgba(0, 0, 0, .3); --lift-hover: 0 10px 30px rgba(0, 0, 0, .45); } }
+  body { -webkit-font-smoothing: antialiased; letter-spacing: -.003em; }
+  h1, h2, h3 { letter-spacing: -.015em; }
+  .page { animation: rise .22s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+  /* Sidebar */
+  .sidebar { background: linear-gradient(180deg, var(--side), var(--bg)); }
+  .brand { position: relative; }
+  .brand img { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px color-mix(in srgb, var(--honey-1) 60%, transparent); }
+  .nav-item { position: relative; transition: background .12s, color .12s; }
+  .nav-item.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
+  .nav-item.active::before { content: ''; position: absolute; left: -8px; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0; background: linear-gradient(var(--honey-1), var(--honey-2)); }
+  .nav-item.active .ico { background: linear-gradient(135deg, var(--honey-1), var(--honey-2)); color: #fff; }
+  .nav-item .count { background: var(--hover); border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 600; }
+
+  /* Surfaces */
+  .tile, .card, .panel, .table, .chart-card, .profile-card, .catch, .empty-card, .signin-card { border-radius: var(--radius); box-shadow: var(--lift); }
+  .empty-card { box-shadow: none; }
+  a.tile, a.card, .server-card { transition: transform .15s, box-shadow .15s, border-color .15s; }
+  a.tile:hover, a.card:hover, .server-card:hover { transform: translateY(-2px); box-shadow: var(--lift-hover); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+  .tile { position: relative; padding: 16px 18px; }
+  .tile .label { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; }
+  .tile .value { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
+  .tile-ico { width: 32px; height: 32px; margin-bottom: 10px; border-radius: 9px; display: grid; place-items: center; color: var(--tint, var(--accent)); background: color-mix(in srgb, var(--tint, var(--accent)) 14%, transparent); }
+  .tile-ico svg { width: 17px; height: 17px; }
+  .tile.alert .tile-ico { --tint: var(--red); }
+  .tile.warn .tile-ico { --tint: var(--amber); }
+  .page-head h1 { font-size: 26px; }
+  h2 { font-size: 17px; }
+  .btn { border-radius: 8px; padding: 5px 12px; transition: border-color .12s, color .12s, background .12s; }
+  .switch { transition: background .18s; }
+  .switch::after { transition: transform .18s cubic-bezier(.3, 1.4, .5, 1); }
+  th { letter-spacing: .03em; font-size: 11px; }
+  tbody tr { transition: background .1s; }
+  .badge { letter-spacing: .01em; }
+
+  /* Loading shimmer for values not here yet */
+  .value:empty::after, .value.loading { content: ''; display: inline-block; width: 64px; height: 1em; border-radius: 6px; vertical-align: middle; background: linear-gradient(90deg, var(--border), var(--hover), var(--border)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* Hero for a server's overview and the bot's */
+  .hero { position: relative; overflow: hidden; border-radius: 16px; padding: 22px 24px; margin-bottom: 22px; color: #fff;
+    background: radial-gradient(120% 140% at 100% 0%, rgba(255, 255, 255, .18), transparent 55%), linear-gradient(120deg, #c86b12, #e0951f 45%, #5865f2); box-shadow: var(--lift-hover); }
+  .hero::after { content: ''; position: absolute; right: -40px; bottom: -60px; width: 220px; height: 220px; opacity: .12;
+    background: repeating-conic-gradient(from 30deg, #fff 0 60deg, transparent 0 120deg); clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%); }
+  .hero .row { display: flex; align-items: center; gap: 16px; position: relative; z-index: 1; }
+  .hero img, .hero .ph { width: 64px; height: 64px; border-radius: 18px; background: rgba(255, 255, 255, .2); border: 2px solid rgba(255, 255, 255, .5); flex: none; font-size: 26px; color: #fff; }
+  .hero h1 { margin: 0; font-size: 26px; color: #fff; }
+  .hero .sub { color: rgba(255, 255, 255, .85); }
+  .hero .grow { flex: 1; min-width: 0; }
+  .hero .updated { color: rgba(255, 255, 255, .8); }
+  .hero-stats { display: flex; gap: 22px; margin-top: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
+  .hero-stats div { font-size: 12px; color: rgba(255, 255, 255, .8); }
+  .hero-stats b { display: block; font-size: 18px; color: #fff; font-variant-numeric: tabular-nums; }
+
+  /* Server cards on the bot overview */
+  .server-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .server-card { display: block; text-decoration: none; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--lift); overflow: hidden; }
+  .server-card .cover { height: 54px; background: linear-gradient(120deg, color-mix(in srgb, var(--honey-1) 70%, var(--panel)), color-mix(in srgb, #5865f2 60%, var(--panel))); }
+  .server-card .inner { padding: 0 16px 14px; }
+  .server-card .icon { width: 52px; height: 52px; border-radius: 15px; border: 4px solid var(--panel); margin-top: -26px; background: var(--border); display: grid; place-items: center; font-size: 20px; color: var(--muted); }
+  .server-card b { display: block; font-size: 16px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .server-card .stats { display: flex; gap: 14px; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .server-card .meter { margin-top: 12px; }
+  .server-card .meter > div { background: linear-gradient(90deg, var(--honey-1), var(--honey-2)); }
+  .server-card .foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .view-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .view-head h2 { margin: 0; flex: 1; }
+  .view-head .filter { margin: 0; width: 240px; }
+  @media (max-width: 800px) { .view-head { flex-wrap: wrap; } .view-head .filter { width: 100%; } .hero { padding: 18px; } }
 </style>
 </head>
 <body>
@@ -495,20 +571,20 @@
     <main class="page" id="view-home" hidden>
       <div class="page-head"><div class="grow"><h1>Overview</h1><div class="sub">The servers you manage with the bot</div></div><span class="updated" id="home-updated"></span></div>
       <section class="tiles">
-        <div class="tile"><div class="label">Servers</div><div class="value" id="servers">–</div></div>
-        <div class="tile"><div class="label">Members</div><div class="value" id="members">–</div></div>
-        <div class="tile"><div class="label">Channels</div><div class="value" id="channels">–</div></div>
-        <div class="tile"><div class="label">Uptime</div><div class="value" id="uptime">–</div></div>
+        <div class="tile"><span class="tile-ico" data-icon="server"></span><div class="label">Servers</div><div class="value" id="servers"></div></div>
+        <div class="tile"><span class="tile-ico" data-icon="users" style="--tint:var(--series-1)"></span><div class="label">Members</div><div class="value" id="members"></div></div>
+        <div class="tile"><span class="tile-ico" data-icon="hash" style="--tint:var(--series-3)"></span><div class="label">Channels</div><div class="value" id="channels"></div></div>
+        <div class="tile"><span class="tile-ico" data-icon="clock" style="--tint:var(--green)"></span><div class="label">Uptime</div><div class="value" id="uptime"></div></div>
       </section>
       <section>
-        <h2>Servers</h2>
-        <input class="filter" id="guild-filter" type="search" placeholder="Find a server" aria-label="Find a server">
-        <div class="table">
-          <table>
-            <thead><tr id="guild-head"></tr></thead>
-            <tbody id="guilds"></tbody>
-          </table>
+        <div class="view-head">
+          <h2>Servers</h2>
+          <input class="filter" id="guild-filter" type="search" placeholder="Find a server" aria-label="Find a server">
+          <select class="input" id="guild-sort" aria-label="Sort servers" style="min-width:0">
+            <option value="members">Most members</option><option value="name">Name</option><option value="cogs_enabled">Most cogs on</option>
+          </select>
         </div>
+        <div class="server-grid" id="guilds"></div>
       </section>
     </main>
 
@@ -558,10 +634,10 @@
       <div id="section-overview" hidden>
         <div id="raid-banner"></div>
         <section class="tiles">
-          <div class="tile"><div class="label">Members</div><div class="value" id="s-members">–</div><div class="hint" id="s-members-hint"></div></div>
-          <div class="tile"><div class="label">Channels</div><div class="value" id="s-channels">–</div></div>
-          <div class="tile"><div class="label">Roles</div><div class="value" id="s-roles">–</div></div>
-          <div class="tile"><div class="label">Boosts</div><div class="value" id="s-boosts">–</div></div>
+          <div class="tile"><span class="tile-ico" data-icon="users" style="--tint:var(--series-1)"></span><div class="label">Members</div><div class="value" id="s-members"></div><div class="hint" id="s-members-hint"></div></div>
+          <div class="tile"><span class="tile-ico" data-icon="hash" style="--tint:var(--series-3)"></span><div class="label">Channels</div><div class="value" id="s-channels"></div></div>
+          <div class="tile"><span class="tile-ico" data-icon="tag"></span><div class="label">Roles</div><div class="value" id="s-roles"></div></div>
+          <div class="tile"><span class="tile-ico" data-icon="gem" style="--tint:#e87ba4"></span><div class="label">Boosts</div><div class="value" id="s-boosts"></div></div>
         </section>
         <section>
           <h2>Security</h2>
@@ -574,14 +650,6 @@
         <section>
           <div class="section-head"><h2>Recent incidents</h2><a id="incidents-all" href="#">See every incident →</a></div>
           <div class="panel"><ul class="feed" id="feed-incidents"></ul></div>
-        </section>
-        <section>
-          <h2>About</h2>
-          <div class="tiles">
-            <div class="tile"><div class="label">Owner</div><div class="value" style="font-size:16px" id="s-owner">–</div></div>
-            <div class="tile"><div class="label">Created</div><div class="value" style="font-size:16px" id="s-created">–</div></div>
-            <div class="tile"><div class="label">Cogs on</div><div class="value" style="font-size:16px" id="s-cogs">–</div><div class="meter"><div id="s-cogs-meter" style="width:0"></div></div></div>
-          </div>
         </section>
       </div>
 
@@ -715,6 +783,14 @@
     chart: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
     up: '<path d="m6 15 6-6 6 6"/>',
     down: '<path d="m6 9 6 6 6-6"/>',
+    server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+    hash: '<path d="M5 9h14M5 15h14M10 3 8 21M16 3l-2 18"/>',
+    tag: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/>',
+    gem: '<path d="M6 3h12l3 6-9 12L3 9z"/><path d="M3 9h18M12 21 8 9l4-6 4 6z"/>',
+    honey: '<path d="M12 2 20.7 7v10L12 22l-8.7-5V7z"/>',
+    alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
+    ticket: '<path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
     boot: '<path d="M4 4h6v8l8 3a3 3 0 0 1 2 3v2H4z"/><path d="M4 16h16"/>',
     ban: '<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>',
@@ -821,8 +897,6 @@
 
   /* ---------- Bot overview ---------- */
 
-  let guildSort = { key: 'members', dir: -1 };
-  const GUILD_COLUMNS = [['name', 'Server', ''], ['members', 'Members', 'num'], ['channels', 'Channels', 'num'], ['cogs_enabled', 'Cogs on', 'num']];
   function renderHome() {
     const o = overview;
     $('servers').textContent = fmt(o.totals.servers);
@@ -830,45 +904,36 @@
     $('channels').textContent = fmt(o.totals.channels);
     $('uptime').textContent = uptime(o.bot.uptime_secs);
     $('home-updated').textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
-    $('guild-head').replaceChildren(...GUILD_COLUMNS.map(([key, label, cls]) => {
-      const th = el('th', `sortable ${cls}`, label);
-      th.setAttribute('aria-sort', guildSort.key === key ? (guildSort.dir > 0 ? 'ascending' : 'descending') : 'none');
-      if (guildSort.key === key) th.append(el('span', 'arrow', guildSort.dir > 0 ? '▲' : '▼'));
-      th.addEventListener('click', () => {
-        guildSort = { key, dir: guildSort.key === key ? -guildSort.dir : key === 'name' ? 1 : -1 };
-        renderHome();
-      });
-      return th;
-    }));
     const q = $('guild-filter').value.trim().toLowerCase();
+    const key = $('guild-sort').value;
     const rows = o.guilds
       .filter(g => !q || g.name.toLowerCase().includes(q))
-      .sort((a, b) => {
-        const x = a[guildSort.key], y = b[guildSort.key];
-        return (typeof x === 'string' ? x.localeCompare(y) : x - y) * guildSort.dir;
-      });
-    const body = $('guilds');
+      .sort((a, b) => key === 'name' ? a.name.localeCompare(b.name) : b[key] - a[key]);
+    const box = $('guilds');
     if (!rows.length) {
-      const td = el('td', 'empty', o.guilds.length ? 'No servers match.' : 'You don’t manage any servers the bot is in yet. ');
-      if (!o.guilds.length) { const link = el('a', null, 'Add it to one'); link.href = '/add'; td.append(link); }
-      td.colSpan = 4;
-      const tr = el('tr'); tr.append(td);
-      body.replaceChildren(tr);
+      const empty = el('div', 'empty-card', o.guilds.length ? 'No servers match.' : 'You don’t manage any servers the bot is in yet. ');
+      if (!o.guilds.length) { const link = el('a', null, 'Add it to one'); link.href = '/add'; empty.append(link); }
+      box.replaceChildren(empty);
       return;
     }
-    body.replaceChildren(...rows.map(g => {
-      const tr = el('tr', 'clickable');
-      tr.addEventListener('click', e => { if (!e.target.closest('a')) location.href = `/servers/${g.id}`; });
-      const name = el('td');
-      const wrap = el('div', 'who-cell');
-      const link = el('a', null, g.name); link.href = `/servers/${g.id}`;
-      wrap.append(avatar(g.icon, g.name), link);
-      name.append(wrap);
-      tr.append(name, el('td', 'num', fmt(g.members)), el('td', 'num', fmt(g.channels)), el('td', 'num', `${g.cogs_enabled} / ${o.totals.cogs}`));
-      return tr;
+    box.replaceChildren(...rows.map(g => {
+      const card = el('a', 'server-card'); card.href = `/servers/${g.id}`;
+      const inner = el('div', 'inner');
+      const icon = el('div', 'icon');
+      if (g.icon) { const img = el('img', 'icon'); img.src = g.icon; img.alt = ''; inner.append(img); } else { icon.textContent = g.name.charAt(0); inner.append(icon); }
+      const stats = el('div', 'stats');
+      stats.append(el('span', null, `${fmt(g.members)} members`), el('span', null, `${fmt(g.channels)} channels`));
+      const meter = el('div', 'meter'), bar = el('div');
+      bar.style.width = `${g.cogs_enabled / o.totals.cogs * 100}%`; meter.append(bar);
+      const foot = el('div', 'foot');
+      foot.append(el('span', null, `${g.cogs_enabled} of ${o.totals.cogs} cogs on`), el('span', null, 'Open →'));
+      inner.append(el('b', null, g.name), stats, meter, foot);
+      card.append(el('div', 'cover'), inner);
+      return card;
     }));
   }
   $('guild-filter').addEventListener('input', () => overview && renderHome());
+  $('guild-sort').addEventListener('change', () => overview && renderHome());
 
   /* ---------- Adding the bot ---------- */
 
@@ -1048,10 +1113,22 @@
     $('count-cogs').textContent = server.cogs.length;
     $('count-members').textContent = fmt(server.guild.members);
     const text = el('div', 'grow');
-    text.append(el('h1', null, section ? page : g.name), el('div', 'sub', section ? `${g.name} · ${SUBTITLES[view]}` : `${fmt(g.members)} members`));
-    const head = [avatar(g.icon, g.name), text];
-    if (view === 'overview') head.push(el('span', 'updated', ''));
-    $('server-head').replaceChildren(...head);
+    text.append(el('h1', null, section ? page : g.name), el('div', 'sub', section ? `${g.name} · ${SUBTITLES[view]}` : `Owned by ${g.owner_name || g.owner_id} · created ${new Date(g.created * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })}`));
+    if (view === 'overview') {
+      const hero = el('div', 'hero'), row = el('div', 'row');
+      row.append(avatar(g.icon, g.name), text, el('span', 'updated', ''));
+      const on = server.cogs.filter(c => c.enabled).length;
+      const stats = el('div', 'hero-stats');
+      for (const [k, v] of [['Members', fmt(g.members)], ['Cogs on', `${on} of ${server.cogs.length}`], ['Commands', fmt(enabledCommands())], ['Boost level', g.boost_tier ? `Level ${g.boost_tier}` : 'None']]) {
+        const d = el('div'); d.append(el('b', null, v), k); stats.append(d);
+      }
+      hero.append(row, stats);
+      $('server-head').className = '';
+      $('server-head').replaceChildren(hero);
+      return;
+    }
+    $('server-head').className = 'page-head';
+    $('server-head').replaceChildren(avatar(g.icon, g.name), text);
   }
 
   async function loadServer() {
@@ -1089,11 +1166,6 @@
     $('s-channels').textContent = fmt(g.channels);
     $('s-roles').textContent = fmt(g.roles);
     $('s-boosts').textContent = g.boost_tier ? `${fmt(g.boosts)} · L${g.boost_tier}` : fmt(g.boosts);
-    $('s-owner').textContent = g.owner_name || g.owner_id;
-    $('s-created').textContent = new Date(g.created * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    const on = server.cogs.filter(c => c.enabled).length;
-    $('s-cogs').textContent = `${on} of ${server.cogs.length}`;
-    $('s-cogs-meter').style.width = `${on / server.cogs.length * 100}%`;
   }
 
   function named(names, id, fallback) {
@@ -1111,21 +1183,22 @@
       b.append(el('b', null, 'Raid in progress'), ` · started ${ago(s.raid.started_at)}. Raid protection is handling new joins.`);
       return b;
     })()] : []));
-    const tile = (label, value, hint, link, cls) => {
+    const tile = (label, value, hint, link, cls, icon, tint) => {
       const t = el(link ? 'a' : 'div', `tile ${cls || ''}`);
       if (link) { t.href = link; t.style.textDecoration = 'none'; }
+      if (icon) { const i = el('span', 'tile-ico'); i.innerHTML = svg(icon); if (tint) i.style.setProperty('--tint', tint); t.append(i); }
       t.append(el('div', 'label', label), el('div', 'value', fmt(value)));
       if (hint) t.append(el('div', 'hint', hint));
       return t;
     };
     const cogLink = cog => serverPath(`cogs/${encodeURIComponent(cog)}`);
     $('security-tiles').replaceChildren(
-      tile('Honeypot catches', s.honeypot.catches, `${fmt(s.honeypot.channels)} trap channel${s.honeypot.channels === 1 ? '' : 's'} · ${fmt(s.honeypot.bans)} bans`, cogLink('HoneyPot')),
-      tile('Incidents', s.incidents.total, 'Evidence reports', cogLink('Incidents')),
-      tile('Quarantined', s.quarantined, 'Waiting for review', cogLink('Quarantine'), s.quarantined ? 'warn' : ''),
-      tile('Open tickets', s.open_tickets, null, cogLink('Tickets'), s.open_tickets ? 'warn' : ''),
-      tile('Locked channels', s.lockdowns, null, cogLink('Lockdown'), s.lockdowns ? 'alert' : ''),
-      tile('Ranked members', s.members_ranked, `${fmt(s.economy_accounts)} economy accounts`, serverPath('leaderboards')),
+      tile('Honeypot catches', s.honeypot.catches, `${fmt(s.honeypot.channels)} trap channel${s.honeypot.channels === 1 ? '' : 's'} · ${fmt(s.honeypot.bans)} bans`, cogLink('HoneyPot'), '', 'honey'),
+      tile('Incidents', s.incidents.total, 'Evidence reports', cogLink('Incidents'), '', 'alert', 'var(--series-2)'),
+      tile('Quarantined', s.quarantined, 'Waiting for review', cogLink('Quarantine'), s.quarantined ? 'warn' : '', 'shield', 'var(--series-1)'),
+      tile('Open tickets', s.open_tickets, null, cogLink('Tickets'), s.open_tickets ? 'warn' : '', 'ticket', 'var(--series-3)'),
+      tile('Locked channels', s.lockdowns, null, cogLink('Lockdown'), s.lockdowns ? 'alert' : '', 'lock', 'var(--muted)'),
+      tile('Ranked members', s.members_ranked, `${fmt(s.economy_accounts)} economy accounts`, serverPath('leaderboards'), '', 'trophy', '#e87ba4'),
     );
     const feed = (list, items, empty, draw) => {
       if (!items.length) { const li = el('li', 'empty', empty); list.replaceChildren(li); return; }
