@@ -128,8 +128,11 @@ static SYNCING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 pub(super) struct Dashboard {
     pub(super) ctx: serenity::Context,
     pub(super) data: Data,
+    /// The application people sign in with: `DISCORD_CLIENT_ID`, or the bot's own
     client_id: String,
     client_secret: String,
+    /// The bot's application, which invite links add
+    bot_id: String,
     /// Where people reach the dashboard, without a trailing slash
     url: String,
     owners: Arc<HashSet<u64>>,
@@ -206,13 +209,20 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
     if let Some(team) = &info.team {
         owners.extend(team.members.iter().map(|m| m.user.id.get()));
     }
+    // Sign-in can use a different application from the bot's, so its secret needn't be the bot's
+    let client_id = match env("DISCORD_CLIENT_ID") {
+        Some(id) if id.trim().parse::<u64>().is_ok() => id.trim().to_string(),
+        Some(_) => return log::error("The dashboard is off: DISCORD_CLIENT_ID in .env isn't a valid application ID"),
+        None => info.id.get().to_string(),
+    };
     let addr = env("DASHBOARD_ADDR").unwrap_or_else(|| DEFAULT_ADDR.to_string());
     let url = env("DASHBOARD_URL").unwrap_or_else(|| DEFAULT_URL.to_string()).trim_end_matches('/').to_string();
     let sessions = load_sessions(&data);
     let dash = Dashboard {
         ctx,
         data,
-        client_id: info.id.get().to_string(),
+        client_id,
+        bot_id: info.id.get().to_string(),
         client_secret,
         url,
         owners: Arc::new(owners),
@@ -1196,7 +1206,7 @@ impl Dashboard {
     fn invite_url(&self, guild_id: Option<u64>) -> String {
         let mut url = format!(
             "https://discord.com/oauth2/authorize?client_id={}&scope=bot%20applications.commands&permissions={}",
-            self.client_id,
+            self.bot_id,
             invite_permissions().bits()
         );
         if let Some(guild_id) = guild_id {
