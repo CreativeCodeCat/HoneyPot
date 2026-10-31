@@ -136,6 +136,8 @@ pub(super) struct Dashboard {
     /// Where people reach the dashboard, without a trailing slash
     url: String,
     owners: Arc<HashSet<u64>>,
+    /// `DASHBOARD_ADMINS`: people with the same dashboard access as the bot's owners
+    admins: Arc<HashSet<u64>>,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
     http: reqwest::Client,
     /// Every command anyone can use, as server pages list them; built once, as it doesn't change
@@ -209,6 +211,10 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
     if let Some(team) = &info.team {
         owners.extend(team.members.iter().map(|m| m.user.id.get()));
     }
+    let admins = parse_ids(&env("DASHBOARD_ADMINS").unwrap_or_default());
+    if !admins.is_empty() {
+        log::info(format!("{} dashboard admin(s) set in DASHBOARD_ADMINS", admins.len()));
+    }
     // Sign-in can use a different application from the bot's, so its secret needn't be the bot's
     let client_id = match env("DISCORD_CLIENT_ID") {
         Some(id) if id.trim().parse::<u64>().is_ok() => id.trim().to_string(),
@@ -226,6 +232,7 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         client_secret,
         url,
         owners: Arc::new(owners),
+        admins: Arc::new(admins),
         sessions: Arc::new(Mutex::new(sessions)),
         http: reqwest::Client::new(),
         commands: Arc::new(command_infos(&super::command_router::commands())),
@@ -283,6 +290,11 @@ fn load_sessions(data: &Data) -> HashMap<String, Session> {
         .into_iter()
         .filter_map(|(hash, data, expires)| Some((hash, Session::from_json(&serde_json::from_str(&data).ok()?, expires)?)))
         .collect()
+}
+
+/// User IDs separated by commas or spaces, skipping anything that isn't one.
+fn parse_ids(text: &str) -> HashSet<u64> {
+    text.split([',', ' ']).filter_map(|id| id.trim().parse().ok()).filter(|&id| id != 0).collect()
 }
 
 fn random_token() -> String {
@@ -384,7 +396,8 @@ impl Dashboard {
                 Some(ManagedGuild { id, name: g["name"].as_str().unwrap_or("Unknown").to_string(), icon, admin: owner || permissions & ADMINISTRATOR != 0 })
             })
             .collect();
-        let guilds = if self.owners.contains(&user_id) { None } else { Some(managed.iter().map(|g| (g.id, g.admin)).collect()) };
+        // Bot owners and dashboard admins see and can change every server
+        let guilds = if self.owners.contains(&user_id) || self.admins.contains(&user_id) { None } else { Some(managed.iter().map(|g| (g.id, g.admin)).collect()) };
         let expires = chrono::Utc::now().timestamp() + SESSION_LENGTH.as_secs() as i64;
         Ok(Session { user_id, name, avatar, guilds, managed, expires })
     }
@@ -1324,6 +1337,12 @@ mod tests {
         // A bot owner sees every server
         let owner = Session { guilds: None, ..session };
         assert!(Session::from_json(&owner.to_json(), 0).unwrap().guilds.is_none());
+    }
+
+    #[test]
+    fn admin_ids_are_read_from_a_list() {
+        assert_eq!(parse_ids("861270236475817994, 945963538474754058 x"), HashSet::from([861270236475817994, 945963538474754058]));
+        assert!(parse_ids("").is_empty());
     }
 
     #[test]

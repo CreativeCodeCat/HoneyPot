@@ -86,6 +86,7 @@ People sign in with Discord and see the servers they own or have **Administrator
 3. Put the secret in `.env` as `DISCORD_CLIENT_SECRET`, and restart the bot
 
 Without the secret, the dashboard stays off. Other settings in `.env`:
+- `DASHBOARD_ADMINS` - Discord user IDs, separated by commas, with full dashboard access like the bot's owners: every server the bot is in, changing anything, and the System page. Only the dashboard: it doesn't make them bot owners for commands. They need to sign in again after being added
 - `DISCORD_CLIENT_ID` - Sign in with a different application from the bot's: its **Client ID**, with its secret as `DISCORD_CLIENT_SECRET` and the redirect added to it. Leave it out to use the bot's own. Links to add the bot to a server always use the bot's
 - `DASHBOARD_URL` - Where people open it, e.g. `https://dash.example.com` (default `http://localhost:8080`). Use HTTPS if it's reachable from the internet, so sign-ins can't be read on the way
 - `DASHBOARD_ADDR` - Where it listens (default `127.0.0.1:8080`, only this machine). Use `0.0.0.0:8080` to reach it from other machines, ideally behind a reverse proxy that adds HTTPS
