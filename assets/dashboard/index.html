@@ -335,6 +335,41 @@
   .chart-table td, .chart-table th { padding: 6px 10px; font-size: 13px; }
   @media (max-width: 860px) { .charts { grid-template-columns: 1fr; } }
 
+  /* Server settings */
+  .settings-summary { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .settings-summary .filter { margin: 0; flex: 1; min-width: 200px; }
+  .progress { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .progress .meter { width: 120px; margin: 0; }
+  .progress .meter > div { background: linear-gradient(90deg, var(--honey-1), var(--honey-2)); }
+  .group { margin-bottom: 22px; }
+  .group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .group-head h2 { margin: 0; }
+  .group-head .count { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--hover); border-radius: 999px; padding: 1px 8px; }
+  .group-head .bulk { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .group-head .bulk select { min-width: 0; width: 190px; }
+  .group-about { color: var(--muted); font-size: 13px; margin: -4px 0 10px; }
+  .srow { display: grid; grid-template-columns: 10px minmax(0, 1fr) minmax(200px, 260px) 30px; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background .12s; }
+  .srow:last-child { border-bottom: 0; }
+  .srow:hover { background: var(--hover); }
+  .srow .state { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .srow.set .state { background: var(--green); }
+  .srow.bad .state { background: var(--amber); }
+  .srow .what b { display: block; font-size: 14px; font-weight: 600; }
+  .srow .what small { color: var(--muted); font-size: 13px; display: block; }
+  .srow .warn-text { color: var(--amber); font-size: 12px; font-weight: 600; margin-top: 2px; display: flex; gap: 4px; align-items: center; }
+  .srow select.input { width: 100%; min-width: 0; }
+  .srow .clear { width: 28px; height: 28px; }
+  .srow.saving { opacity: .6; }
+  .srow.flash { animation: flash 1s ease-out; }
+  @keyframes flash { from { background: color-mix(in srgb, var(--green) 18%, transparent); } }
+  @media (max-width: 800px) {
+    .srow { grid-template-columns: 10px minmax(0, 1fr) 30px; }
+    .srow select.input { grid-column: 2 / 3; grid-row: 2; }
+    .srow .clear { grid-column: 3; grid-row: 2; }
+    .group-head .bulk { margin-left: 0; width: 100%; }
+    .group-head .bulk select { flex: 1; width: auto; }
+  }
+
   /* Dialog */
   .modal-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); z-index: 55; display: grid; place-items: center; padding: 16px; animation: fade .12s ease-out; }
   .modal { width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; animation: pop .15s ease-out; }
@@ -671,6 +706,7 @@
 
       <div id="section-settings" hidden>
         <p class="note" id="settings-note" hidden>Only the server's owner and admins can change settings.</p>
+        <div id="settings-top"></div>
         <div id="settings-body"></div>
       </div>
 
@@ -841,7 +877,7 @@
   const SECTIONS = ['overview', 'analytics', 'members', 'member', 'settings', 'commands', 'cogs', 'data', 'configure', 'leaderboards', 'audit'];
   const TITLES = { overview: 'Overview', members: 'Members', member: 'Member', analytics: 'Analytics', settings: 'Settings', commands: 'Commands', cogs: 'Cogs', leaderboards: 'Leaderboards', audit: 'Audit log' };
   const SUBTITLES = {
-    settings: 'The channels the bot uses here',
+    settings: 'Which channels the bot uses here, and where its logs go',
     commands: 'Every command people can use here, by cog (only cogs that are on)',
     cogs: 'The parts of the bot, and whether each is on here',
     data: 'What this cog keeps for this server (read-only)',
@@ -1307,59 +1343,132 @@
   }
 
   /* Settings */
+
+  const GROUP_ABOUT = {
+    'Channels': 'Where members use the bot.',
+    'Moderation logs': 'What members do, for keeping an eye on things. These need the Logs cog on.',
+    'Server logs': 'Changes to the server itself. These need the Logs cog on.',
+    'Bot & community': 'Posts for the whole server.',
+  };
+  let settingsData = null, settingsQuery = '';
+
   async function loadSettings() {
-    let d;
-    try { d = await api(`/api/servers/${serverId}/settings`); }
+    try { settingsData = await api(`/api/servers/${serverId}/settings`); }
     catch (e) { $('settings-body').replaceChildren(el('p', 'error', e.message)); return; }
-    $('settings-note').hidden = d.can_edit;
-    const groups = [...new Set(d.settings.map(s => s.group))];
-    const blocks = groups.map(group => {
-      const block = el('div', 'block');
-      const panel = el('div', 'panel');
-      for (const s of d.settings.filter(s => s.group === group)) {
-        const row = el('div', 'setting');
-        const what = el('div', 'what');
-        what.append(el('b', null, s.label), el('small', null, s.key));
-        const select = el('select', 'input');
-        select.setAttribute('aria-label', s.label);
-        select.disabled = !d.can_edit;
-        select.append(new Option('Not set', ''));
-        let category = undefined, parent = select;
-        for (const c of d.channels) {
-          if (c.category !== category) {
-            category = c.category;
-            parent = category ? Object.assign(document.createElement('optgroup'), { label: category }) : select;
-            if (parent !== select) select.append(parent);
-          }
-          parent.append(new Option(`#${c.name}`, c.id));
+    $('settings-note').hidden = settingsData.can_edit;
+    drawSettingsTop();
+    drawSettings();
+  }
+
+  function drawSettingsTop() {
+    const d = settingsData;
+    const set = d.settings.filter(x => x.channel_id).length;
+    const top = el('div', 'settings-summary');
+    const search = el('input', 'filter'); search.type = 'search'; search.placeholder = 'Find a setting'; search.value = settingsQuery;
+    search.setAttribute('aria-label', 'Find a setting');
+    search.addEventListener('input', () => { settingsQuery = search.value.trim().toLowerCase(); drawSettings(); });
+    const progress = el('div', 'progress');
+    const meter = el('div', 'meter'), bar = el('div'); bar.style.width = `${set / d.settings.length * 100}%`; meter.append(bar);
+    progress.append(meter, `${set} of ${d.settings.length} set`);
+    top.append(search, progress);
+    const parts = [top];
+    const logsUsed = d.settings.some(x => x.key.startsWith('logs.') && x.channel_id && !['logs.welcome', 'logs.boosts', 'logs.ready'].includes(x.key));
+    if (!d.logs_enabled) {
+      const b = el('div', 'banner amber');
+      b.append(el('b', null, 'The Logs cog is off. '), logsUsed ? 'The log channels below are picked but nothing is posted to them. ' : 'Log channels do nothing until it’s on. ');
+      const link = el('a', null, 'Turn it on in Cogs'); link.href = serverPath('cogs');
+      b.append(link);
+      parts.push(b);
+    }
+    $('settings-top').replaceChildren(...parts);
+  }
+
+  function channelOptions(select, current, emptyLabel) {
+    select.append(new Option(emptyLabel, ''));
+    let category, parent = select;
+    for (const c of settingsData.channels) {
+      if (c.category !== category) {
+        category = c.category;
+        parent = category ? Object.assign(document.createElement('optgroup'), { label: category }) : select;
+        if (parent !== select) select.append(parent);
+      }
+      parent.append(new Option(`#${c.name}${c.can_send ? '' : '  (bot can’t post)'}`, c.id));
+    }
+    // A channel that's gone still shows, so it's clear something is set
+    if (current && !settingsData.channels.some(c => c.id === current)) select.append(new Option('Deleted channel', current));
+    select.value = current || '';
+  }
+
+  async function saveSettings(keys, channelId, rows) {
+    rows.forEach(r => r.classList.add('saving'));
+    try {
+      await api(`/api/servers/${serverId}/settings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(keys.length === 1 ? { key: keys[0], channel_id: channelId } : { keys, channel_id: channelId }),
+      });
+      for (const x of settingsData.settings) if (keys.includes(x.key)) x.channel_id = channelId;
+      const name = channelId ? `#${(settingsData.channels.find(c => c.id === channelId) || {}).name || channelId}` : null;
+      const what = keys.length === 1 ? settingsData.settings.find(x => x.key === keys[0]).label : `${keys.length} settings`;
+      toast(name ? `${what} → ${name}` : `Cleared ${what.toLowerCase()}.`);
+    } catch (e) {
+      if (e.message !== 'signed out') toast(e.message, true);
+    }
+    drawSettingsTop();
+    drawSettings(keys);
+  }
+
+  function drawSettings(flash) {
+    const d = settingsData;
+    const groups = [...new Set(d.settings.map(x => x.group))];
+    const blocks = [];
+    for (const group of groups) {
+      const all = d.settings.filter(x => x.group === group);
+      const shown = all.filter(x => !settingsQuery || `${x.label} ${x.help} ${group}`.toLowerCase().includes(settingsQuery));
+      if (!shown.length) continue;
+      const block = el('section', 'group');
+      const head = el('div', 'group-head');
+      head.append(el('h2', null, group), el('span', 'count', `${all.filter(x => x.channel_id).length} / ${all.length}`));
+      // Logs are often all sent to one channel, so a group can be set in one go
+      if (d.can_edit && group.endsWith('logs')) {
+        const bulk = el('div', 'bulk');
+        const pick = el('select', 'input'); pick.setAttribute('aria-label', `Send all ${group.toLowerCase()} to`);
+        channelOptions(pick, null, 'Send all to…');
+        pick.addEventListener('change', () => { if (pick.value) saveSettings(all.map(x => x.key), pick.value, []); });
+        bulk.append(pick);
+        if (all.some(x => x.channel_id)) {
+          const clear = el('button', 'btn', 'Clear all'); clear.type = 'button';
+          clear.addEventListener('click', () => { if (confirm(`Clear all ${all.length} ${group.toLowerCase()}?`)) saveSettings(all.map(x => x.key), null, []); });
+          bulk.append(clear);
         }
-        // A channel that's gone still shows, so it's clear something is set
-        if (s.channel_id && !d.channels.some(c => c.id === s.channel_id)) select.append(new Option(`Deleted channel (${s.channel_id})`, s.channel_id));
-        select.value = s.channel_id || '';
-        let saved = select.value;
-        select.addEventListener('change', async () => {
-          select.disabled = true;
-          try {
-            await api(`/api/servers/${serverId}/settings`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ key: s.key, channel_id: select.value || null }),
-            });
-            saved = select.value;
-            toast(select.value ? `${s.label} set to ${select.selectedOptions[0].text}.` : `${s.label} cleared.`);
-          } catch (e) {
-            select.value = saved;
-            if (e.message !== 'signed out') toast(e.message, true);
-          }
-          select.disabled = false;
-        });
-        row.append(what, select);
+        head.append(bulk);
+      }
+      block.append(head, el('p', 'group-about', GROUP_ABOUT[group] || ''));
+      const panel = el('div', 'panel');
+      for (const x of shown) {
+        const channel = d.channels.find(c => c.id === x.channel_id);
+        const problem = x.channel_id && (!channel ? 'That channel was deleted' : !channel.can_send ? 'The bot can’t post there: check its permissions' : null);
+        const row = el('div', `srow${x.channel_id ? ' set' : ''}${problem ? ' bad' : ''}${flash && flash.includes(x.key) ? ' flash' : ''}`);
+        const what = el('div', 'what');
+        what.append(el('b', null, x.label), el('small', null, x.help));
+        if (problem) what.append(el('span', 'warn-text', `⚠ ${problem}`));
+        const select = el('select', 'input');
+        select.setAttribute('aria-label', x.label);
+        select.disabled = !d.can_edit;
+        channelOptions(select, x.channel_id, 'Not set');
+        select.addEventListener('change', () => saveSettings([x.key], select.value || null, [row]));
+        const clear = el('button', 'icon-btn clear'); clear.type = 'button';
+        clear.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+        clear.setAttribute('aria-label', `Clear ${x.label}`); clear.title = 'Clear';
+        clear.hidden = !x.channel_id || !d.can_edit;
+        clear.addEventListener('click', () => saveSettings([x.key], null, [row]));
+        const state = el('span', 'state'); state.title = problem || (x.channel_id ? 'Set' : 'Not set');
+        row.append(state, what, select, clear);
         panel.append(row);
       }
-      block.append(el('h2', null, group), panel);
-      return block;
-    });
-    $('settings-body').replaceChildren(...blocks);
+      block.append(panel);
+      blocks.push(block);
+    }
+    $('settings-body').replaceChildren(...(blocks.length ? blocks : [el('div', 'empty-card', 'No settings match.')]));
   }
 
   /* Commands */

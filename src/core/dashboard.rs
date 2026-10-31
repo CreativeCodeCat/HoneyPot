@@ -653,7 +653,7 @@ async fn cog_data(
     let mut labels = serde_json::Map::new();
     match chosen.map(|t| (t.file, t.table.as_str())) {
         Some(("server_setup.db", "settings")) => {
-            let keys = setting_keys().into_iter().map(|(key, label, _)| (key, Value::String(label)));
+            let keys = setting_keys().into_iter().map(|k| (k.key, Value::String(k.label.to_string())));
             labels.insert("key".to_string(), Value::Object(keys.collect()));
         }
         Some(("cog_config.db", "cog_config")) => {
@@ -750,20 +750,49 @@ async fn activity(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Pat
     Json(json!({ "security": security, "audit": audit, "names": names, "avatars": avatars })).into_response()
 }
 
-/// The channels a server can pick in Settings: what each is for, by key.
-fn setting_keys() -> Vec<(String, String, &'static str)> {
-    use crate::core::framework::Choice;
-    use crate::features::server_setup;
+/// A channel a server can pick in Settings.
+struct SettingKey {
+    key: String,
+    label: &'static str,
+    group: &'static str,
+    help: &'static str,
+}
+
+/// The channels a server can pick in Settings: what each is for, by key, in the order shown.
+fn setting_keys() -> Vec<SettingKey> {
+    use crate::features::server_setup::{self, LogType as L};
     let mut keys = vec![
-        ("channel.commands".to_string(), "Commands channel".to_string(), "Channels"),
-        ("channel.games".to_string(), "Games channel".to_string(), "Channels"),
-        ("channel.announcements".to_string(), "Announcements channel".to_string(), "Channels"),
+        SettingKey { key: "channel.commands".into(), label: "Commands channel", group: "Channels", help: "Members can only use commands here; staff can use them anywhere" },
+        SettingKey { key: "channel.games".into(), label: "Games channel", group: "Channels", help: "Where /hack, /heist, /fight and /defuse are played; other messages there are deleted" },
+        SettingKey { key: "channel.announcements".into(), label: "Announcements channel", group: "Channels", help: "Where /announce message posts" },
     ];
-    keys.extend(server_setup::LOG_TYPES.iter().map(|&log| (server_setup::log_key(log), format!("{} log", log.name()), "Logs")));
+    for &log in server_setup::LOG_TYPES {
+        let (label, group, help) = match log {
+            L::Member => ("Member changes", "Moderation logs", "Nicknames, roles given and taken, timeouts"),
+            L::Message => ("Edited and deleted messages", "Moderation logs", "What a message said before it was edited or deleted"),
+            L::JoinLeave => ("Joins and leaves", "Moderation logs", "Who joined or left, and how old their account is"),
+            L::User => ("Profile changes", "Moderation logs", "Usernames and avatars"),
+            L::Voice => ("Voice activity", "Moderation logs", "Joining, leaving and moving between voice channels"),
+            L::Role => ("Roles", "Server logs", "Roles made, changed or deleted"),
+            L::Channel => ("Channels", "Server logs", "Channels made, changed or deleted"),
+            L::Thread => ("Threads", "Server logs", "Threads made, changed or deleted"),
+            L::Guild => ("Server changes", "Server logs", "The server's name, icon and settings"),
+            L::Emoji => ("Emojis", "Server logs", "Emojis added, renamed or removed"),
+            L::Sticker => ("Stickers", "Server logs", "Stickers added, renamed or removed"),
+            L::Events => ("Scheduled events", "Server logs", "Events made, changed or cancelled"),
+            L::Welcome => ("Welcome messages", "Bot & community", "A welcome card for each new member"),
+            L::Boosts => ("Boosts", "Bot & community", "Members starting and stopping server boosts"),
+            L::Ready => ("Bot started", "Bot & community", "A note each time the bot starts, with its stats"),
+        };
+        keys.push(SettingKey { key: server_setup::log_key(log), label, group, help });
+    }
+    let order = ["Channels", "Moderation logs", "Server logs", "Bot & community"];
+    keys.sort_by_key(|k| order.iter().position(|g| *g == k.group));
     keys
 }
 
-/// The server's text channels, and the channel picked for each setting.
+/// The server's text channels (with whether the bot can post in each), and the channel
+/// picked for each setting.
 async fn settings(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(id): Path<String>) -> Response {
     let (guild_id, can_edit) = match dash.access(&headers, &id) {
         Ok(access) => access,
@@ -771,6 +800,7 @@ async fn settings(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Pat
     };
     let channels: Vec<Value> = {
         let Some(guild) = dash.ctx.cache.guild(guild_id) else { return json_error(StatusCode::NOT_FOUND, "The bot isn't in that server") };
+        let bot = guild.members.get(&dash.ctx.cache.current_user().id).cloned();
         let category = |c: &serenity::GuildChannel| c.parent_id.and_then(|p| guild.channels.get(&p)).map(|p| (p.position, p.name.clone()));
         let mut text: Vec<&serenity::GuildChannel> = guild
             .channels
@@ -779,7 +809,14 @@ async fn settings(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Pat
             .collect();
         text.sort_by_key(|c| (category(c).map(|(p, _)| p), c.position, c.id));
         text.into_iter()
-            .map(|c| json!({ "id": c.id.get().to_string(), "name": c.name, "category": category(c).map(|(_, name)| name) }))
+            .map(|c| {
+                // Unknown if the bot's member isn't cached; then it isn't flagged
+                let can_send = bot.as_ref().is_none_or(|bot| {
+                    let p = guild.user_permissions_in(c, bot);
+                    p.view_channel() && p.send_messages() && p.embed_links()
+                });
+                json!({ "id": c.id.get().to_string(), "name": c.name, "category": category(c).map(|(_, name)| name), "can_send": can_send })
+            })
             .collect()
     };
     let saved: HashMap<String, u64> = match dash.data.server_setup.lock().unwrap().all(guild_id) {
@@ -791,13 +828,15 @@ async fn settings(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Pat
     };
     let settings: Vec<Value> = setting_keys()
         .into_iter()
-        .map(|(key, label, group)| json!({ "key": key, "label": label, "group": group, "channel_id": saved.get(&key).map(|c| c.to_string()) }))
+        .map(|k| json!({ "key": k.key, "label": k.label, "group": k.group, "help": k.help, "channel_id": saved.get(&k.key).map(|c| c.to_string()) }))
         .collect();
-    Json(json!({ "can_edit": can_edit, "channels": channels, "settings": settings })).into_response()
+    let logs_on = dash.data.is_cog_enabled(guild_id, crate::features::logging::COG_NAME);
+    Json(json!({ "can_edit": can_edit, "channels": channels, "settings": settings, "logs_enabled": logs_on })).into_response()
 }
 
-/// Picks the channel for a setting, like `/server-setup`. Takes `{"key": "logs.message",
-/// "channel_id": "123"}`, or a null `channel_id` to clear it.
+/// Picks the channel for settings, like `/server-setup`. Takes `{"key": "logs.message",
+/// "channel_id": "123"}`, or `"keys": [...]` to set several at once, with a null
+/// `channel_id` to clear them.
 async fn save_setting(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(id): Path<String>, Json(body): Json<Value>) -> Response {
     let (guild_id, can_edit) = match dash.access(&headers, &id) {
         Ok(access) => access,
@@ -806,9 +845,22 @@ async fn save_setting(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap,
     if !can_edit {
         return json_error(StatusCode::FORBIDDEN, "Only the server's owner and admins can change settings");
     }
-    let Some((key, label, _)) = setting_keys().into_iter().find(|(key, _, _)| Some(key.as_str()) == body["key"].as_str()) else {
-        return json_error(StatusCode::BAD_REQUEST, "There's no setting by that name");
+    let wanted: Vec<&str> = match (&body["key"], &body["keys"]) {
+        (Value::String(key), _) => vec![key.as_str()],
+        (_, Value::Array(keys)) => keys.iter().filter_map(Value::as_str).collect(),
+        _ => return json_error(StatusCode::BAD_REQUEST, "Send a key, or keys"),
     };
+    let all = setting_keys();
+    let mut chosen = Vec::new();
+    for key in &wanted {
+        match all.iter().find(|k| k.key == *key) {
+            Some(k) => chosen.push(k),
+            None => return json_error(StatusCode::BAD_REQUEST, "There's no setting by that name"),
+        }
+    }
+    if chosen.is_empty() {
+        return json_error(StatusCode::BAD_REQUEST, "Send a key, or keys");
+    }
     let channel: Option<u64> = match &body["channel_id"] {
         Value::Null => None,
         Value::String(id) => match id.parse() {
@@ -832,22 +884,25 @@ async fn save_setting(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap,
             }
         }
     };
-    let store = dash.data.server_setup.lock().unwrap();
-    let saved = match channel {
-        Some(channel) => store.set(guild_id, &key, channel),
-        None => store.remove(guild_id, &key).map(|_| ()),
+    let saved = {
+        let store = dash.data.server_setup.lock().unwrap();
+        chosen.iter().try_for_each(|k| match channel {
+            Some(channel) => store.set(guild_id, &k.key, channel),
+            None => store.remove(guild_id, &k.key).map(|_| ()),
+        })
     };
-    drop(store);
     if let Err(e) = saved {
-        log::error(format!("Error saving {key} for guild {guild_id} from the dashboard: {e}"));
+        log::error(format!("Error saving settings for guild {guild_id} from the dashboard: {e}"));
         return json_error(StatusCode::INTERNAL_SERVER_ERROR, "The change couldn't be saved");
     }
+    let what = if chosen.len() == 1 { chosen[0].label.to_lowercase() } else { format!("{} settings", chosen.len()) };
     let action = match &channel_name {
-        Some(name) => format!("Set the {} to #{name}", label.to_lowercase()),
-        None => format!("Cleared the {}", label.to_lowercase()),
+        Some(name) => format!("Set {what} to #{name}"),
+        None => format!("Cleared {what}"),
     };
     dash.record(&headers, guild_id, action);
-    Json(json!({ "key": key, "channel_id": channel.map(|c| c.to_string()) })).into_response()
+    let keys: Vec<&str> = chosen.iter().map(|k| k.key.as_str()).collect();
+    Json(json!({ "keys": keys, "channel_id": channel.map(|c| c.to_string()) })).into_response()
 }
 
 /// What a server can pick from in cog settings: its text channels, categories and roles.
