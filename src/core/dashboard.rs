@@ -239,6 +239,7 @@ pub async fn serve(ctx: serenity::Context, data: Data) {
         .route("/api/servers/{id}/activity", get(activity))
         .route("/api/servers/{id}/settings", get(settings).post(save_setting))
         .route("/api/servers/{id}/leaderboards", get(leaderboards))
+        .route("/api/servers/{id}/config/{cog}", get(cog_config).post(save_cog_config))
         .route("/api/system", get(system))
         .route("/api/invite", get(invite))
         .route("/api/system/maintenance", axum::routing::post(set_maintenance))
@@ -538,7 +539,8 @@ async fn server(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path(
             let enabled = cog == "Other" || dash.data.is_cog_enabled(guild_id, &normalize_cog_name(cog));
             let locked = cog == "Other" || normalize_cog_name(cog) == COG_MANAGER;
             let has_data = super::cog_data::has_data(cog, guild_id);
-            Some(json!({ "name": cog, "enabled": enabled, "locked": locked, "has_data": has_data, "commands": commands }))
+            let configurable = super::dashboard_config::form(cog).is_some();
+            Some(json!({ "name": cog, "enabled": enabled, "locked": locked, "has_data": has_data, "configurable": configurable, "commands": commands }))
         })
         .collect();
     Json(json!({
@@ -836,6 +838,84 @@ async fn save_setting(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap,
     };
     dash.record(&headers, guild_id, action);
     Json(json!({ "key": key, "channel_id": channel.map(|c| c.to_string()) })).into_response()
+}
+
+/// What a server can pick from in cog settings: its text channels, categories and roles.
+fn pickers(guild: &serenity::Guild) -> Value {
+    let category = |c: &serenity::GuildChannel| c.parent_id.and_then(|p| guild.channels.get(&p)).map(|p| (p.position, p.name.clone()));
+    let mut text: Vec<&serenity::GuildChannel> =
+        guild.channels.values().filter(|c| matches!(c.kind, serenity::ChannelType::Text | serenity::ChannelType::News)).collect();
+    text.sort_by_key(|c| (category(c).map(|(p, _)| p), c.position, c.id));
+    let channels: Vec<Value> =
+        text.into_iter().map(|c| json!({ "id": c.id.get().to_string(), "name": c.name, "category": category(c).map(|(_, name)| name) })).collect();
+    let mut cats: Vec<&serenity::GuildChannel> = guild.channels.values().filter(|c| c.kind == serenity::ChannelType::Category).collect();
+    cats.sort_by_key(|c| (c.position, c.id));
+    let categories: Vec<Value> = cats.into_iter().map(|c| json!({ "id": c.id.get().to_string(), "name": c.name })).collect();
+    // Highest first, as Discord lists them, leaving out @everyone and bots' own roles
+    let mut list: Vec<&serenity::Role> = guild.roles.values().filter(|r| r.id.get() != guild.id.get() && !r.managed).collect();
+    list.sort_by_key(|r| std::cmp::Reverse(r.position));
+    let roles: Vec<Value> = list.into_iter().map(|r| json!({ "id": r.id.get().to_string(), "name": r.name, "colour": r.colour.0 })).collect();
+    json!({ "channels": channels, "categories": categories, "roles": roles })
+}
+
+/// A cog's settings form: its fields, their values, and what can be picked.
+async fn cog_config(AxumState(dash): AxumState<Dashboard>, headers: HeaderMap, Path((id, cog)): Path<(String, String)>) -> Response {
+    let (guild_id, can_edit) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    let Some(form) = super::dashboard_config::form(&cog) else {
+        return json_error(StatusCode::NOT_FOUND, "That cog has no settings to change here");
+    };
+    let values = match (form.read)(&dash.data, guild_id) {
+        Ok(values) => values,
+        Err(e) => return json_error(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    };
+    let Some(pickers) = dash.ctx.cache.guild(guild_id).map(|g| pickers(&g)) else {
+        return json_error(StatusCode::NOT_FOUND, "The bot isn't in that server");
+    };
+    let enabled = dash.data.is_cog_enabled(guild_id, &normalize_cog_name(form.cog));
+    let mut out = super::dashboard_config::schema(&form);
+    let extra = json!({ "values": values, "can_edit": can_edit, "enabled": enabled, "pickers": pickers });
+    out.as_object_mut().unwrap().extend(extra.as_object().cloned().unwrap_or_default());
+    Json(out).into_response()
+}
+
+/// Saves a cog's settings. Takes `{"values": {field: value, ...}}` with every field.
+async fn save_cog_config(
+    AxumState(dash): AxumState<Dashboard>,
+    headers: HeaderMap,
+    Path((id, cog)): Path<(String, String)>,
+    Json(body): Json<Value>,
+) -> Response {
+    let (guild_id, can_edit) = match dash.access(&headers, &id) {
+        Ok(access) => access,
+        Err(response) => return response,
+    };
+    if !can_edit {
+        return json_error(StatusCode::FORBIDDEN, "Only the server's owner and admins can change settings");
+    }
+    let Some(form) = super::dashboard_config::form(&cog) else {
+        return json_error(StatusCode::NOT_FOUND, "That cog has no settings to change here");
+    };
+    let checked = {
+        let Some(guild) = dash.ctx.cache.guild(guild_id) else { return json_error(StatusCode::NOT_FOUND, "The bot isn't in that server") };
+        super::dashboard_config::check(&form, &guild, &body["values"])
+    };
+    let values = match checked {
+        Ok(values) => values,
+        Err(e) => return json_error(StatusCode::BAD_REQUEST, &e),
+    };
+    let before = (form.read)(&dash.data, guild_id).unwrap_or_default();
+    if let Err(e) = (form.write)(&dash.data, guild_id, &values) {
+        return json_error(StatusCode::BAD_REQUEST, &e);
+    }
+    let changed = super::dashboard_config::changed(&form, &before, &values);
+    if !changed.is_empty() {
+        dash.record(&headers, guild_id, format!("Changed {} settings: {}", form.cog, changed.join(", ").to_lowercase()));
+    }
+    let values = (form.read)(&dash.data, guild_id).unwrap_or(values);
+    Json(json!({ "values": values, "changed": changed })).into_response()
 }
 
 /// The server's top members by level and by money.

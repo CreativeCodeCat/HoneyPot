@@ -4,6 +4,7 @@
 pub mod cog_data;
 pub mod command_router;
 pub mod dashboard;
+pub mod dashboard_config;
 pub mod dashboard_stats;
 pub mod event_router;
 pub mod framework;

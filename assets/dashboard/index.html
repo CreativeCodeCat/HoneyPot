@@ -231,6 +231,31 @@
   .setting .what small { color: var(--muted); font-size: 12px; }
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
 
+  /* Cog settings */
+  .form-about { margin: -8px 0 18px; }
+  .field-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .field-row:last-child { border-bottom: 0; }
+  .field-row .what { min-width: 0; }
+  .field-row .what b { display: block; font-size: 14px; font-weight: 600; }
+  .field-row .what small { color: var(--muted); font-size: 13px; }
+  .field-row.dirty { box-shadow: inset 3px 0 0 var(--accent); }
+  .field-control { flex: none; display: flex; align-items: center; gap: 8px; max-width: 55%; justify-content: flex-end; flex-wrap: wrap; }
+  .num-input { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); overflow: hidden; }
+  .num-input input { width: 96px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 14px; padding: 6px 10px; text-align: right; font-variant-numeric: tabular-nums; }
+  .num-input input:focus { outline: none; }
+  .num-input:focus-within { border-color: var(--accent); }
+  .num-input span { color: var(--muted); font-size: 13px; padding: 0 10px 0 2px; }
+  .num-input.bad { border-color: var(--red); }
+  .multi { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: center; }
+  .multi .tag { display: inline-flex; align-items: center; gap: 4px; background: var(--active); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; }
+  .multi .tag button { border: 0; background: none; color: var(--muted); cursor: pointer; border-radius: 50%; width: 18px; height: 18px; line-height: 1; padding: 0; }
+  .multi .tag button:hover { color: var(--red); background: var(--red-bg); }
+  .role-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+  .savebar { position: sticky; bottom: 16px; margin-top: 18px; display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 14px; box-shadow: var(--shadow); }
+  .savebar span { flex: 1; font-size: 14px; }
+  .btn.save { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.save:hover { color: #fff; filter: brightness(1.08); }
+
   /* Feed */
   .feed { list-style: none; margin: 0; padding: 0; }
   .feed li { display: flex; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -307,7 +332,9 @@
     .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--side); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
     .topbar .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .page { padding: 20px 16px 40px; }
-    .setting { flex-direction: column; align-items: stretch; gap: 8px; }
+    .setting, .field-row { flex-direction: column; align-items: stretch; gap: 8px; }
+    .field-control { max-width: none; justify-content: flex-start; }
+    .multi { justify-content: flex-start; }
     select.input { width: 100%; }
   }
 </style>
@@ -485,6 +512,13 @@
         <div id="data-body"></div>
       </div>
 
+      <div id="section-configure" hidden>
+        <div class="data-actions" id="config-actions"></div>
+        <p class="sub form-about" id="config-about"></p>
+        <p class="note" id="config-note" hidden>Only the server's owner and admins can change settings.</p>
+        <div id="config-body"></div>
+      </div>
+
       <div id="section-leaderboards" hidden>
         <div class="two">
           <div><h2>Levels</h2><div class="table"><table><thead><tr><th>Member</th><th class="num">Level</th><th class="num">XP</th><th class="num">Rep</th></tr></thead><tbody id="lb-levels"></tbody></table></div></div>
@@ -592,20 +626,22 @@
 
   // Where we are
   const path = location.pathname;
-  const serverMatch = path.match(/^\/servers\/(\d+)(?:\/(commands|cogs|settings|leaderboards|audit)(?:\/([^/]+))?)?\/?$/);
+  const serverMatch = path.match(/^\/servers\/(\d+)(?:\/(commands|cogs|configure|settings|leaderboards|audit)(?:\/([^/]+))?)?\/?$/);
   const serverId = serverMatch && serverMatch[1];
   const section = (serverMatch && serverMatch[2]) || '';
   const dataCog = section === 'cogs' && serverMatch[3] ? decodeURIComponent(serverMatch[3]) : null;
-  const view = dataCog ? 'data' : section || 'overview';
+  const configCog = section === 'configure' && serverMatch[3] ? decodeURIComponent(serverMatch[3]) : null;
+  const view = dataCog ? 'data' : configCog ? 'configure' : section || 'overview';
   const botPage = serverId ? null : path === '/system' ? 'system' : path === '/add' ? 'add' : 'home';
   const serverPath = sub => `/servers/${serverId}${sub ? '/' + sub : ''}`;
-  const SECTIONS = ['overview', 'settings', 'commands', 'cogs', 'data', 'leaderboards', 'audit'];
+  const SECTIONS = ['overview', 'settings', 'commands', 'cogs', 'data', 'configure', 'leaderboards', 'audit'];
   const TITLES = { overview: 'Overview', settings: 'Settings', commands: 'Commands', cogs: 'Cogs', leaderboards: 'Leaderboards', audit: 'Audit log' };
   const SUBTITLES = {
     settings: 'The channels the bot uses here',
     commands: 'Every command people can use here, by cog (only cogs that are on)',
     cogs: 'The parts of the bot, and whether each is on here',
     data: 'What this cog keeps for this server (read-only)',
+    configure: 'Change how this cog works here',
     leaderboards: 'The most active and the richest members',
     audit: 'Who changed what through the dashboard',
   };
@@ -866,14 +902,14 @@
     $('nav-guild').hidden = false;
     for (const a of document.querySelectorAll('#nav-guild .nav-item')) {
       a.href = serverPath(a.dataset.section);
-      a.classList.toggle('active', a.dataset.section === section);
+      a.classList.toggle('active', a.dataset.section === (section === 'configure' ? 'cogs' : section));
     }
     for (const key of SECTIONS) $(`section-${key}`).hidden = key !== view;
   }
 
   function drawServerHead() {
     const g = server.guild;
-    const page = dataCog ? `${dataCog} data` : TITLES[view];
+    const page = dataCog ? `${dataCog} data` : configCog ? `${configCog} settings` : TITLES[view];
     document.title = `${page} · ${g.name}`;
     $('topbar-title').textContent = `${g.name} · ${page}`;
     $('nav-server').replaceChildren(avatar(g.icon, g.name), el('b', null, g.name));
@@ -903,7 +939,8 @@
       const cog = new URLSearchParams(location.search).get('cog');
       if (cog) $('filter').value = cog;
       renderCommands();
-    } else if (view === 'cogs') renderCogs();
+    } else if (view === 'configure') loadConfig();
+    else if (view === 'cogs') renderCogs();
     else if (view === 'settings') loadSettings();
     else if (view === 'leaderboards') loadLeaderboards();
     else if (view === 'audit') loadAudit();
@@ -1175,6 +1212,11 @@
       const n = cog.commands.length;
       const actions = el('div', 'actions');
       // Info only for cogs with data here; Cmd only for cogs that are on, as the others' commands can't be used
+      if (cog.configurable) {
+        const conf = el('a', 'btn', 'Settings');
+        conf.href = serverPath(`configure/${encodeURIComponent(cog.name)}`);
+        actions.append(conf);
+      }
       if (cog.has_data) {
         const info = el('a', 'btn', 'Info');
         info.href = serverPath(`cogs/${encodeURIComponent(cog.name)}`);
@@ -1522,6 +1564,183 @@
     drawRows();
   }
 
+  /* Cog settings */
+
+  let config = null;
+  async function loadConfig() {
+    let d;
+    try { d = await api(`/api/servers/${serverId}/config/${encodeURIComponent(configCog)}`); }
+    catch (e) { $('config-body').replaceChildren(el('p', 'error', e.message)); return; }
+    config = { d, saved: structuredClone(d.values), values: structuredClone(d.values) };
+    const bar = $('config-actions');
+    const back = el('a', 'btn', '← Cogs'); back.href = serverPath('cogs');
+    const parts = [back, el('span', d.enabled ? 'badge on' : 'badge off', d.enabled ? 'On' : 'Off')];
+    const cog = server.cogs.find(c => c.name === d.cog);
+    if (cog && cog.has_data) { const info = el('a', 'btn', 'Info'); info.href = serverPath(`cogs/${encodeURIComponent(d.cog)}`); parts.push(info); }
+    bar.replaceChildren(...parts);
+    $('config-about').textContent = d.about + (d.enabled ? '' : ' The cog is off here, so these only take effect once it\u2019s turned on.');
+    $('config-note').hidden = d.can_edit;
+    drawConfig();
+  }
+
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+  function channelSelect(list, value, optional, notSet, grouped) {
+    const select = el('select', 'input');
+    if (optional || value == null) select.append(new Option(notSet || 'Not set', ''));
+    let category, parent = select;
+    for (const c of list) {
+      if (grouped && c.category !== category) {
+        category = c.category;
+        parent = category ? Object.assign(document.createElement('optgroup'), { label: category }) : select;
+        if (parent !== select) select.append(parent);
+      }
+      parent.append(new Option(grouped === 'roles' ? `@${c.name}` : grouped ? `#${c.name}` : c.name, c.id));
+    }
+    if (value && !list.some(c => c.id === value)) select.append(new Option(`Deleted (${value})`, value));
+    select.value = value || '';
+    return select;
+  }
+
+  function fieldControl(f, d) {
+    const v = config.values[f.key];
+    const set = value => { config.values[f.key] = value; drawConfig(f.key); };
+    const p = d.pickers;
+    const disabled = !d.can_edit;
+    if (f.type === 'channel' || f.type === 'category' || f.type === 'role') {
+      const list = f.type === 'channel' ? p.channels : f.type === 'category' ? p.categories : p.roles;
+      const select = channelSelect(list, v, f.optional, null, f.type === 'channel' ? true : f.type === 'role' ? 'roles' : false);
+      select.disabled = disabled;
+      select.setAttribute('aria-label', f.label);
+      select.addEventListener('change', () => set(select.value || null));
+      return select;
+    }
+    if (f.type === 'channels' || f.type === 'roles') {
+      const list = f.type === 'channels' ? p.channels : p.roles;
+      const wrap = el('div', 'multi');
+      for (const id of v) {
+        const item = list.find(c => c.id === id);
+        const tag = el('span', 'tag');
+        if (f.type === 'roles' && item && item.colour) { const dot = el('span', 'role-dot'); dot.style.background = `#${item.colour.toString(16).padStart(6, '0')}`; tag.append(dot); }
+        tag.append(item ? (f.type === 'roles' ? `@${item.name}` : `#${item.name}`) : `Deleted (${id})`);
+        if (!disabled) {
+          const x = el('button', null, '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remove');
+          x.addEventListener('click', () => set(v.filter(i => i !== id)));
+          tag.append(x);
+        }
+        wrap.append(tag);
+      }
+      if (!disabled) {
+        const rest = list.filter(c => !v.includes(c.id));
+        if (rest.length) {
+          const add = channelSelect(rest, null, true, f.type === 'roles' ? '+ Add a role' : '+ Add a channel', f.type === 'roles' ? 'roles' : true);
+          add.setAttribute('aria-label', `Add to ${f.label}`);
+          add.addEventListener('change', () => { if (add.value) set([...v, add.value]); });
+          wrap.append(add);
+        }
+      }
+      if (!v.length && disabled) wrap.append(el('span', 'nil', 'None'));
+      return wrap;
+    }
+    if (f.type === 'number') {
+      const box = el('label', 'num-input');
+      const input = el('input');
+      Object.assign(input, { type: 'number', min: f.min, max: f.max, step: 1, value: v, disabled });
+      input.setAttribute('aria-label', f.label);
+      input.addEventListener('input', () => {
+        const n = Number(input.value);
+        const ok = input.value !== '' && Number.isInteger(n) && n >= f.min && n <= f.max;
+        box.classList.toggle('bad', !ok);
+        box.title = ok ? '' : `Between ${fmt(f.min)} and ${fmt(f.max)}`;
+        config.values[f.key] = ok ? n : input.value;
+        drawSaveBar();
+        markDirty(f.key);
+      });
+      box.append(input, el('span', null, f.unit));
+      return box;
+    }
+    if (f.type === 'bool') {
+      const sw = el('button', 'switch');
+      sw.type = 'button';
+      sw.setAttribute('role', 'switch');
+      sw.setAttribute('aria-checked', String(!!v));
+      sw.setAttribute('aria-label', f.label);
+      sw.disabled = disabled;
+      sw.addEventListener('click', () => set(!v));
+      return sw;
+    }
+    if (f.type === 'choice') {
+      const select = el('select', 'input');
+      for (const o of f.options) select.append(new Option(o.label, o.key));
+      select.value = v; select.disabled = disabled;
+      select.setAttribute('aria-label', f.label);
+      select.addEventListener('change', () => set(select.value));
+      return select;
+    }
+    return el('span', 'nil', String(v));
+  }
+
+  function markDirty(key) {
+    const row = document.querySelector(`.field-row[data-key="${key}"]`);
+    if (row) row.classList.toggle('dirty', !same(config.values[key], config.saved[key]));
+  }
+
+  function drawConfig(focusKey) {
+    const { d } = config;
+    const panel = el('div', 'panel');
+    for (const f of d.fields) {
+      const row = el('div', 'field-row');
+      row.dataset.key = f.key;
+      if (!same(config.values[f.key], config.saved[f.key])) row.classList.add('dirty');
+      const what = el('div', 'what');
+      what.append(el('b', null, f.label), el('small', null, f.help));
+      const control = el('div', 'field-control');
+      control.append(fieldControl(f, d));
+      row.append(what, control);
+      panel.append(row);
+    }
+    const bar = el('div', 'savebar'); bar.id = 'savebar';
+    $('config-body').replaceChildren(panel, bar);
+    drawSaveBar();
+    if (focusKey) document.querySelector(`.field-row[data-key="${focusKey}"] select, .field-row[data-key="${focusKey}"] .switch`)?.focus();
+  }
+
+  function drawSaveBar() {
+    const bar = $('savebar');
+    if (!bar) return;
+    const dirty = config.d.fields.filter(f => !same(config.values[f.key], config.saved[f.key]));
+    bar.hidden = !dirty.length;
+    if (!dirty.length) return;
+    const reset = el('button', 'btn', 'Reset'); reset.type = 'button';
+    reset.addEventListener('click', () => { config.values = structuredClone(config.saved); drawConfig(); });
+    const save = el('button', 'btn save', 'Save changes'); save.type = 'button';
+    const invalid = config.d.fields.some(f => f.type === 'number' && typeof config.values[f.key] !== 'number');
+    save.disabled = invalid;
+    save.addEventListener('click', saveConfig);
+    bar.replaceChildren(el('span', null, invalid ? 'Fix the highlighted number first.' : `${dirty.length} unsaved change${dirty.length === 1 ? '' : 's'}`), reset, save);
+  }
+
+  async function saveConfig() {
+    const save = document.querySelector('#savebar .save');
+    if (save) { save.disabled = true; save.textContent = 'Saving…'; }
+    try {
+      const r = await api(`/api/servers/${serverId}/config/${encodeURIComponent(config.d.cog)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: config.values }),
+      });
+      config.saved = structuredClone(r.values);
+      config.values = structuredClone(r.values);
+      toast(r.changed.length ? `Saved ${config.d.cog} settings.` : 'Nothing changed.');
+    } catch (e) {
+      if (e.message !== 'signed out') toast(e.message, true);
+    }
+    drawConfig();
+  }
+  window.addEventListener('beforeunload', e => {
+    if (config && config.d.fields.some(f => !same(config.values[f.key], config.saved[f.key]))) e.preventDefault();
+  });
+
   /* Leaderboards */
   async function loadLeaderboards() {
     let d;
@@ -1572,6 +1791,9 @@
       for (const [sub, title] of [['settings', 'Settings'], ['commands', 'Commands'], ['cogs', 'Cogs'], ['leaderboards', 'Leaderboards'], ['audit', 'Audit log']]) {
         entries.push({ label: `${g.name} › ${title}`, hint: title, href: `/servers/${g.id}/${sub}`, icon: g.icon, minor: true });
       }
+    }
+    if (server) for (const c of server.cogs.filter(c => c.configurable)) {
+      entries.push({ label: `${server.guild.name} › ${c.name} settings`, hint: 'Cog settings', href: serverPath(`configure/${encodeURIComponent(c.name)}`), icon: server.guild.icon, minor: true });
     }
     if (server) for (const c of server.cogs.filter(c => c.has_data)) {
       entries.push({ label: `${server.guild.name} › ${c.name} data`, hint: 'Cog data', href: serverPath(`cogs/${encodeURIComponent(c.name)}`), icon: server.guild.icon, minor: true });
