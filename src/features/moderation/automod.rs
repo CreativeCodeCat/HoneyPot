@@ -56,6 +56,8 @@ pub enum Pattern {
     #[name = "Bullet Lists"]
     BulletLists,
     Invites,
+    #[name = "Embedded Links"]
+    EmbeddedLinks,
 }
 
 impl Pattern {
@@ -70,11 +72,12 @@ impl Pattern {
             Self::CodeBlocks => "flagged-code-blocks",
             Self::BulletLists => "flagged-bullet-lists",
             Self::Invites => "flagged-invites",
+            Self::EmbeddedLinks => "flagged-embedded-links",
         }
     }
 
     /// Every pattern but `All`, which matches all of them
-    const EACH: [Self; 8] = [
+    const EACH: [Self; 9] = [
         Self::Capitals,
         Self::Spoilers,
         Self::Emojis,
@@ -83,6 +86,7 @@ impl Pattern {
         Self::CodeBlocks,
         Self::BulletLists,
         Self::Invites,
+        Self::EmbeddedLinks,
     ];
 
     fn regexes(self) -> Vec<String> {
@@ -107,6 +111,8 @@ impl Pattern {
             Self::Invites => {
                 "(?:(?:https?://)?(?:www)?discord(?:app)?.(?:(?:com|gg)/invite/[a-z0-9-_]+)|(?:https?://)?(?:www)?discord.gg/[a-z0-9-_]+)"
             }
+            // Masked links, [text](https://...), which hide where they go
+            Self::EmbeddedLinks => r"\[[^\]]*\]\(\s*<?https?://[^)]+\)",
         }
     }
 }
@@ -393,7 +399,7 @@ mod tests {
         assert_eq!(rule["trigger_metadata"]["keyword_filter"][0], "scam*");
         assert_eq!(rule["trigger_metadata"]["allow_list"][0], "scamp");
 
-        assert_eq!(Pattern::All.regexes().len(), 7);
+        assert_eq!(Pattern::All.regexes().len(), 8);
         assert_eq!(Pattern::Invites.regexes().len(), 1);
 
         let rule = profile_rule("x", &words, &allow, None);

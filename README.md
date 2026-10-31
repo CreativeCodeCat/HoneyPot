@@ -434,7 +434,7 @@ Each server writes its own rules as sections (a title, text and colour), which a
   - `/automod word-list <list> [allow_list]` - Block Discord's word lists: all, profanity, sexual content or slurs
   - `/automod words <words> [allow_list] [timeout_minutes]` - Block the comma-separated `words` in messages (`*` as a wildcard)
   - `/automod profile-names <words> [allow_list]` - Block `words` in member names; matching members can't chat or interact until they change it
-  - `/automod pattern <pattern> [allow_list] [timeout_minutes]` - Block capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists or invites, or all of them in one rule with `All`
+  - `/automod pattern <pattern> [allow_list] [timeout_minutes]` - Block capitals, spoilers, emojis, headers, unicode, code blocks, bullet lists, invites or embedded links (`[text](https://…)`, which hide where they go), or all of them in one rule with `All`
   - `/automod mention-spam [mention_limit] [timeout_minutes] [raid_protection]` - Block messages with more than `mention_limit` mentions (default 10), and optionally mention raids
   - `/automod message-spam` - Block messages Discord flags as spam
 
